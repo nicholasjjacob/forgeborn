@@ -94,6 +94,10 @@ export function forgeTiers(level: number): [number, number] {
   return [Math.max(1, level - 1), level];
 }
 
+/** Forge mastery: every forge level past 1 adds this much weapon attack (to whatever you wield). */
+export const FORGE_ATK_PER_LEVEL = 0.04;
+export const forgeAtkBonus = (level: number) => 1 + FORGE_ATK_PER_LEVEL * Math.max(0, level - 1);
+
 export function forgeUpgradeCost(level: number): number {
   return 400 * Math.pow(4, level - 1);
 }

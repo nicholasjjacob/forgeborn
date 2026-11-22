@@ -2,7 +2,7 @@ import { fmt } from '../core/format';
 import { haptic, sfx } from '../audio/sfx';
 import type { Sim } from '../sim/sim';
 import {
-  FORGE_COST, FORMS, MAX_FORGE_LEVEL, MAX_TIER, MERGE_COUNT, RARITY_COLORS, RARITY_NAMES, TRAITS, forgeOdds, forgeTiers,
+  FORGE_ATK_PER_LEVEL, FORGE_COST, FORMS, MAX_FORGE_LEVEL, MAX_TIER, MERGE_COUNT, RARITY_COLORS, RARITY_NAMES, TRAITS, forgeOdds, forgeTiers,
   forgeUpgradeCost, matchingSlots, mergePartners, mergePreview, salvageValue, weaponName, weaponPower, weaponSummary, type Weapon,
 } from '../sim/weapons';
 
@@ -35,6 +35,7 @@ export class ForgePanel {
           <div class="wc-merge"></div>
           <div class="wc-summary"></div>
           <ul class="wc-traits"></ul>
+          <div class="wc-forge"></div>
           <div class="wc-hint"></div>
         </div>
         <div class="wc-actions">
@@ -50,14 +51,14 @@ export class ForgePanel {
       </div>
       <div class="forge-level">
         <div class="fl-text"><b id="fl-level"></b><span id="fl-odds"></span></div>
-        <button type="button" class="btn small" id="forge-up">Upgrade <span class="coin-dot"></span><span id="fl-cost"></span></button>
+        <button type="button" class="btn small" id="forge-up">Upgrade forge <span class="coin-dot"></span><span id="fl-cost"></span></button>
       </div>
       <div class="inv-grid" id="inv-grid" role="grid" aria-label="Weapon inventory"></div>`;
 
     const $ = (sel: string) => root.querySelector<HTMLElement>(sel)!;
     this.el = {
       card: $('#weapon-card'), icon: $('.wc-icon img'), tag: $('.wc-tag'), name: $('.wc-name'),
-      summary: $('.wc-summary'), atk: $('.wc-atk'), mergeInfo: $('.wc-merge'), traits: $('.wc-traits'), hint: $('.wc-hint'),
+      summary: $('.wc-summary'), atk: $('.wc-atk'), mergeInfo: $('.wc-merge'), forgeBonus: $('.wc-forge'), traits: $('.wc-traits'), hint: $('.wc-hint'),
       equip: $('#equip-btn'), salvage: $('#salvage-btn'), merge: $('#merge-btn'),
       forge1: $('#forge-1'), forge10: $('#forge-10'), autoMerge: $('#auto-merge'),
       level: $('#fl-level'), odds: $('#fl-odds'), up: $('#forge-up'), upCost: $('#fl-cost'),
@@ -84,7 +85,16 @@ export class ForgePanel {
       else this.toast('Nothing to merge');
     });
     this.el.up.addEventListener('click', () => {
-      if (sim.upgradeForge()) this.toast(`Forge level ${sim.save.forgeLevel}`);
+      const before = sim.atk;
+      if (!sim.upgradeForge()) return;
+      const [lo, hi] = forgeTiers(sim.save.forgeLevel);
+      this.toast(`Forge Lv ${sim.save.forgeLevel}: +${Math.round(FORGE_ATK_PER_LEVEL * 100)}% weapon attack · forges T${lo === hi ? hi : `${lo}–${hi}`}`);
+      sfx.play('forge');
+      haptic(20);
+      // Show the attack gain on the equipped weapon card.
+      this.selected = -1;
+      this.flashCard();
+      this.animateAtk(before);
     });
     this.el.equip.addEventListener('click', () => {
       const before = sim.atk;
@@ -104,7 +114,7 @@ export class ForgePanel {
       if (!ok) return;
       const result = i >= 0 ? sim.save.weapons[i]! : sim.save.equipped!;
       if (i >= 0) this.flash([i], 'pop');
-      else { this.animateAtk(atkBefore); this.el.card.classList.remove('upgraded'); void this.el.card.offsetWidth; this.el.card.classList.add('upgraded'); }
+      else { this.animateAtk(atkBefore); this.flashCard(); }
       sfx.play('merge');
       haptic(20);
       this.toast(result.rarity > before.rarity ? `${RARITY_NAMES[result.rarity]}! ${weaponName(result)} T${result.tier}` : `Upgraded to ${weaponName(result)} T${result.tier}`);
@@ -115,6 +125,13 @@ export class ForgePanel {
       if (got) this.toast(`+${got} shards`);
       this.selected = -1;
     });
+  }
+
+  private flashCard(): void {
+    const card = this.el.card;
+    card.classList.remove('upgraded');
+    void card.offsetWidth;
+    card.classList.add('upgraded');
   }
 
   /** Count the equipped Attack up (or down) from `from` to its new value, with a ▲/▼ chip. */
@@ -179,7 +196,7 @@ export class ForgePanel {
     const [lo, hi] = forgeTiers(s.forgeLevel);
     const [pr, pe, pl] = forgeOdds(s.forgeLevel);
     this.set(this.el.level, `Forge Lv ${s.forgeLevel}`);
-    this.set(this.el.odds, ` · T${lo === hi ? hi : `${lo}–${hi}`} · Rare ${pct(pr)} · Epic ${pct(pe)} · Leg ${pct(pl)}`);
+    this.set(this.el.odds, ` · +${Math.round(FORGE_ATK_PER_LEVEL * 100 * (s.forgeLevel - 1))}% atk · T${lo === hi ? hi : `${lo}–${hi}`} · Rare ${pct(pr)} · Epic ${pct(pe)} · Leg ${pct(pl)}`);
     const upCost = forgeUpgradeCost(s.forgeLevel);
     this.set(this.el.upCost, maxed ? 'MAX' : fmt(upCost));
     this.disable(this.el.up, maxed || s.gold < upCost);
@@ -285,6 +302,9 @@ export class ForgePanel {
           ? (ready ? `Upgrade: merge with 2 matching ${kind} from your bag` : `Upgrade needs 3 ${kind} (have ${have} incl. this one)`)
           : `${FORMS[w.form].name}: ${FORMS[w.form].blurb.toLowerCase()} · tap a weapon below to compare`;
       }
+      // Forge mastery applies to whatever weapon you wield.
+      const fb = Math.round(FORGE_ATK_PER_LEVEL * 100 * (s.forgeLevel - 1));
+      this.el.forgeBonus.textContent = fb > 0 ? `🔨 Forge Lv ${s.forgeLevel}: +${fb}% attack` : '';
       // What the next merge would do to your Attack (before any lucky rarity bump).
       const mw = sel ?? s.equipped;
       const canShow = mw && mw.tier < MAX_TIER && (sel ? partners.length + 1 >= MERGE_COUNT : eqMatches.length > 0);

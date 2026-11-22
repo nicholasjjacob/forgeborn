@@ -18,7 +18,7 @@ import { GameMap, MAP_H, MAP_W } from './map';
 import { Gatherer, freshMaterials, type Materials } from './gather';
 import { MAX_LEVEL, levelBonus, milestoneReward, xpForKill, xpToNext, MILESTONES, type MilestoneReward } from './level';
 import {
-  FORGE_COST, INVENTORY_SIZE, MAX_FORGE_LEVEL, MERGE_COUNT, bonusWeapon, forgeUpgradeCost, forgeWeapon, matchingSlots, mergePartners, mergeWeapons,
+  FORGE_COST, INVENTORY_SIZE, MAX_FORGE_LEVEL, MERGE_COUNT, bonusWeapon, forgeAtkBonus, forgeUpgradeCost, forgeWeapon, matchingSlots, mergePartners, mergeWeapons,
   salvageValue, starterWeapon, weaponStats, type Weapon,
 } from './weapons';
 
@@ -312,7 +312,7 @@ export class Sim {
     for (const id in s.achievements) tiers += s.achievements[id];
     const ach = 1 + tiers * ACH_BONUS_PER_TIER;
     return UPGRADES.atk.value(s.upgrades.atk) * w.mult * w.form.dmg * (1 + 0.25 * p.might) * ach
-      * (1 + GLOW_DMG * s.embersEarned) * levelBonus(s.level).atk;
+      * (1 + GLOW_DMG * s.embersEarned) * levelBonus(s.level).atk * forgeAtkBonus(s.forgeLevel);
   }
 
   // --- Forge ---------------------------------------------------------------
@@ -441,6 +441,7 @@ export class Sim {
     if (s.gold < cost) return false;
     s.gold -= cost;
     s.forgeLevel++;
+    this.recalc(); // forge mastery raises weapon attack
     this.invVersion++;
     return true;
   }

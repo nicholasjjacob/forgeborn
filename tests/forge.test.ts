@@ -109,6 +109,16 @@ describe('forge commands', () => {
     expect(sim.atk).toBeGreaterThan(atk);
   });
 
+  it('upgrading the forge raises the equipped weapon attack', () => {
+    const save = freshSave();
+    save.gold = 1e9;
+    const sim = new Sim(save, 8);
+    const atk = sim.atk;
+    expect(sim.upgradeForge()).toBe(true);
+    expect(sim.atk).toBeCloseTo(atk * 1.04);
+    expect(sim.attackWith(save.equipped)).toBeCloseTo(sim.atk);
+  });
+
   it('previews a merge result before merging', () => {
     const base = w(4, 1, 0, [{ t: 'crit', v: 0.03 }]);
     const p = mergePreview(base);
