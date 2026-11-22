@@ -69,13 +69,14 @@ export class MissionsUI {
           <div class="sheet-body"></div>
           <nav class="sheet-tabs" role="tablist"></nav>
         </div>`;
-      wrap.addEventListener('click', (e) => this.onClick(e));
-      // The game keeps running behind the sheet and re-renders it as stats change. On iOS a tap
-      // spans ~100 ms+ between touch-down and click; if the button is rebuilt in between, the
-      // click is lost. So hold re-renders while a finger/mouse is down on the sheet.
-      wrap.addEventListener('pointerdown', () => { this.pressed = true; });
-      window.addEventListener('pointerup', this.release, true);
-      window.addEventListener('pointercancel', this.release, true);
+      // The sheet re-renders while the game runs behind it (stats tick every second). A browser
+      // only fires `click` when press and release hit the *same* element, so a re-render in
+      // between swallows the tap. Instead, remember which action was pressed (by its data-act
+      // name, which survives re-renders) and run it on release. `click` remains for keyboards.
+      wrap.addEventListener('pointerdown', (e) => this.onDown(e));
+      wrap.addEventListener('pointerup', (e) => this.onUp(e));
+      wrap.addEventListener('pointercancel', () => { this.down = null; });
+      wrap.addEventListener('click', (e) => { if (e.detail === 0) this.run(this.actOf(e.target as HTMLElement)); });
       document.addEventListener('keydown', this.onKey);
       document.body.appendChild(wrap);
       this.wrap = wrap;
@@ -89,24 +90,47 @@ export class MissionsUI {
     this.wrap.remove();
     this.wrap = null;
     document.removeEventListener('keydown', this.onKey);
-    window.removeEventListener('pointerup', this.release, true);
-    window.removeEventListener('pointercancel', this.release, true);
-    this.pressed = false;
+    this.down = null;
   }
 
-  private pressed = false;
-  // Released after the click has been dispatched (on iOS click can trail pointerup a little), then catch up.
-  private readonly release = () => { if (this.pressed) setTimeout(() => { this.pressed = false; this.refresh(); }, 400); };
+  private down: { act: string; x: number; y: number } | null = null;
+
+  /** What a press on `t` means: a data-act string, 'close', or null. */
+  private actOf(t: HTMLElement): string | null {
+    if (t === this.wrap || t.closest('.sheet-x')) return 'close';
+    return t.closest<HTMLElement>('[data-act]')?.dataset.act ?? null;
+  }
+
+  private onDown(e: PointerEvent): void {
+    if (e.button !== 0) { this.down = null; return; }
+    const act = this.actOf(e.target as HTMLElement);
+    this.down = act ? { act, x: e.clientX, y: e.clientY } : null;
+  }
+
+  private onUp(e: PointerEvent): void {
+    const d = this.down;
+    this.down = null;
+    // A drag (scrolling the list) isn't a tap. Touch scrolls usually cancel the pointer anyway.
+    if (!d || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 14) return;
+    const up = this.actOf(e.target as HTMLElement);
+    // Run it if released on the same action (possibly a re-rendered copy of the button), or on
+    // a spot with no action at all (the button moved a little in the re-render). Releasing on a
+    // different button or the backdrop cancels, as with a normal click.
+    if (up !== d.act && !(up === null && d.act !== 'close')) return;
+    e.preventDefault();
+    this.run(d.act);
+  }
 
   private readonly onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') this.close(); };
 
-  private onClick(e: MouseEvent): void {
-    const t = e.target as HTMLElement;
-    if (t === this.wrap || t.closest('.sheet-x')) { this.close(); return; }
-    const el = t.closest<HTMLElement>('[data-act]');
+  private run(action: string | null): void {
+    if (!action || !this.wrap) return;
+    if (action === 'close') { this.close(); return; }
+    // The current element for this action (it may have been re-rendered since the press).
+    const el = this.wrap.querySelector<HTMLElement>(`[data-act="${CSS.escape(action)}"]`);
     if (!el || (el as HTMLButtonElement).disabled) return;
     const m = this.sim.missions, now = new Date();
-    const [act, a, b] = el.dataset.act!.split(':');
+    const [act, a, b] = action.split(':');
     let reward: Reward | null = null;
     switch (act) {
       case 'tab': this.tab = a as MissionTab; sfx.play('tick'); break;
@@ -131,7 +155,7 @@ export class MissionsUI {
 
   /** Re-render the open sheet if anything it shows changed. Called by the HUD ~10×/s. */
   refresh(): void {
-    if (!this.wrap || this.pressed) return;
+    if (!this.wrap) return;
     const now = new Date();
     const m = this.sim.missions;
     const s = this.sim.save;

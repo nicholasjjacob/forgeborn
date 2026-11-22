@@ -79,8 +79,13 @@ function spill(kind: Kind, amount: number, ox: number, oy: number, delay: number
         ? { transform: `translate(-50%,-50%) translate(${t.left + t.width / 2 - ox}px,${t.top + t.height / 2 - oy}px) scale(.7) rotate(${spin}deg)`, opacity: 1, offset: 1 }
         : { transform: `translate(-50%,-50%) translate(${landX}px,${landY - 40}px) scale(.6) rotate(${spin}deg)`, opacity: 0, offset: 1 },
     ];
-    const anim = p.animate(frames, { duration: 1000 + Math.random() * 250, delay: delay + i * 35, fill: 'both' });
+    const duration = 1000 + Math.random() * 250, wait = delay + i * 35;
+    const anim = p.animate(frames, { duration, delay: wait, fill: 'both' });
+    // Safety net: if the page stops drawing frames (backgrounded mid-spill), the animation never
+    // finishes, so remove the particle on a timer as well.
+    setTimeout(() => p.remove(), wait + duration + 600);
     anim.onfinish = () => {
+      if (!p.isConnected) return;
       p.remove();
       if (!target) return;
       bump(target);
