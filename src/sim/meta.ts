@@ -76,7 +76,7 @@ export const ACHIEVEMENTS: readonly AchDef[] = [
   { id: 'explorer', name: 'Explorer', stat: 'bestEver', tiers: [10, 25, 50, 100, 200], verb: 'Reach stage {n}' },
   { id: 'hunter', name: 'Boss Hunter', stat: 'bosses', tiers: [1, 10, 50, 200, 1000], verb: 'Defeat {n} bosses' },
   { id: 'smith', name: 'Smith', stat: 'forged', tiers: [10, 100, 1000, 5000], verb: 'Forge {n} weapons' },
-  { id: 'alchemist', name: 'Alchemist', stat: 'merges', tiers: [10, 100, 1000, 5000], verb: 'Merge {n} times' },
+  { id: 'alchemist', name: 'Alchemist', stat: 'merges', tiers: [5, 50, 500, 2500], verb: 'Merge {n} times' },
   { id: 'tycoon', name: 'Tycoon', stat: 'gold', tiers: [1e4, 1e6, 1e9, 1e12, 1e15], verb: 'Earn {n} gold' },
   { id: 'reborn', name: 'Reborn', stat: 'reforges', tiers: [1, 5, 25, 100], verb: 'Reforge {n} times' },
   { id: 'legend', name: 'Legend Wielder', stat: 'legendaries', tiers: [1, 10, 50], verb: 'Obtain {n} legendary weapons' },
@@ -106,7 +106,7 @@ const QUEST_TEMPLATES: QuestTemplate[] = [
   { kind: 'stages', target: () => 3, gold: 60, shards: (s) => 12 + Math.floor(s / 2), minStage: 1, text: 'Clear {n} stages' },
   { kind: 'bosses', target: () => 1, gold: 100, shards: (s) => 20 + Math.floor(s / 2), minStage: 6, text: 'Defeat {n} boss' },
   { kind: 'forged', target: () => 5, gold: 80, shards: () => 10, minStage: 3, text: 'Forge {n} weapons' },
-  { kind: 'merges', target: () => 3, gold: 60, shards: () => 10, minStage: 3, text: 'Merge weapons {n} times' },
+  { kind: 'merges', target: () => 2, gold: 60, shards: () => 10, minStage: 3, text: 'Merge weapons {n} times' },
   { kind: 'gold', target: (s) => enemyGold(s) * 120, gold: 0, shards: (s) => 15 + Math.floor(s / 2), minStage: 1, text: 'Earn {n} gold' },
 ];
 

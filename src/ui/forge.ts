@@ -2,14 +2,15 @@ import { fmt } from '../core/format';
 import { haptic, sfx } from '../audio/sfx';
 import type { Sim } from '../sim/sim';
 import {
-  FORGE_COST, FORMS, MAX_FORGE_LEVEL, RARITY_COLORS, RARITY_NAMES, TRAITS, canMerge, forgeOdds, forgeTiers,
-  forgeUpgradeCost, salvageValue, weaponName, weaponPower, weaponSummary, type Weapon,
+  FORGE_COST, FORMS, MAX_FORGE_LEVEL, MAX_TIER, MERGE_COUNT, RARITY_COLORS, RARITY_NAMES, TRAITS, forgeOdds, forgeTiers,
+  forgeUpgradeCost, mergePartners, salvageValue, weaponName, weaponPower, weaponSummary, type Weapon,
 } from '../sim/weapons';
 
 /**
  * Forge tab: the equipped/selected weapon card, forge + auto-merge actions, forge level, and
  * the inventory grid. Tap a weapon to select it (Equip / Salvage appear, plus how your attack
- * would change); tap another weapon of the same type and tier to merge them. The grid only re-renders when the inventory actually changes.
+ * would change). Three weapons of the same type, tier and rarity can be merged (Merge button)
+ * into one of the next tier; matching weapons glow when one of them is selected. The grid only re-renders when the inventory actually changes.
  */
 export class ForgePanel {
   private selected = -1;
@@ -35,6 +36,7 @@ export class ForgePanel {
         </div>
         <div class="wc-actions">
           <button type="button" class="btn small primary" id="equip-btn">Equip</button>
+          <button type="button" class="btn small merge-btn" id="merge-btn">Merge</button>
           <button type="button" class="btn small ghost" id="salvage-btn">Salvage</button>
         </div>
       </div>
@@ -53,7 +55,7 @@ export class ForgePanel {
     this.el = {
       card: $('#weapon-card'), icon: $('.wc-icon img'), tag: $('.wc-tag'), name: $('.wc-name'),
       summary: $('.wc-summary'), atk: $('.wc-atk'), traits: $('.wc-traits'), hint: $('.wc-hint'),
-      equip: $('#equip-btn'), salvage: $('#salvage-btn'),
+      equip: $('#equip-btn'), salvage: $('#salvage-btn'), merge: $('#merge-btn'),
       forge1: $('#forge-1'), forge10: $('#forge-10'), autoMerge: $('#auto-merge'),
       level: $('#fl-level'), odds: $('#fl-odds'), up: $('#forge-up'), upCost: $('#fl-cost'),
       grid: $('#inv-grid'),
@@ -87,6 +89,17 @@ export class ForgePanel {
         this.selected = -1;
       }
     });
+    this.el.merge.addEventListener('click', () => {
+      const i = this.selected;
+      if (i < 0) return;
+      const before = sim.save.weapons[i];
+      if (!before || !sim.merge(i)) return;
+      const result = sim.save.weapons[i]!;
+      this.flash([i], 'pop');
+      sfx.play('merge');
+      haptic(20);
+      this.toast(result.rarity > before.rarity ? `${RARITY_NAMES[result.rarity]}! ${weaponName(result)} T${result.tier}` : `Merged into ${weaponName(result)} T${result.tier}`);
+    });
     this.el.salvage.addEventListener('click', () => {
       if (this.selected < 0) return;
       const got = sim.salvage(this.selected);
@@ -108,25 +121,10 @@ export class ForgePanel {
     this.renderedVersion = -1;
   }
 
+  /** Tap a slot: select it (or deselect). Merging is done with the Merge button. */
   private tap(i: number): void {
-    const inv = this.sim.save.weapons;
-    const w = inv[i];
-    if (!w) { this.selected = -1; return; }
-    if (this.selected === i) { this.selected = -1; return; }
-    const sel = this.selected >= 0 ? inv[this.selected] : null;
-    if (sel && canMerge(sel, w)) {
-      // Merge the selected weapon into the tapped one.
-      if (this.sim.merge(this.selected, i)) {
-        const result = inv[i]!;
-        this.flash([i], 'pop');
-        sfx.play('merge');
-        haptic(20);
-        this.selected = i;
-        if (result.rarity > Math.max(sel.rarity, w.rarity)) this.toast(`${RARITY_NAMES[result.rarity]}!`);
-      }
-      return;
-    }
-    this.selected = i;
+    const w = this.sim.save.weapons[i];
+    this.selected = !w || this.selected === i ? -1 : i;
   }
 
   private set(el: HTMLElement, text: string): void {
@@ -166,6 +164,7 @@ export class ForgePanel {
     const s = this.sim.save;
     const sel = this.selected >= 0 ? s.weapons[this.selected] : null;
     const eqPower = s.equipped ? weaponPower(s.equipped) : 0;
+    const partners = sel ? mergePartners(s.weapons, this.selected) : [];
 
     s.weapons.forEach((w, i) => {
       const b = this.slots[i];
@@ -183,7 +182,7 @@ export class ForgePanel {
       (b.children[1] as HTMLElement).textContent = `T${w.tier}`;
       if (weaponPower(w) > eqPower * 1.001) b.classList.add('is-better');
       if (i === this.selected) b.classList.add('selected');
-      else if (sel && canMerge(sel, w)) b.classList.add('mergeable');
+      else if (partners.includes(i)) b.classList.add('mergeable');
       if (this.highlight.has(i)) b.classList.add(this.highlightKind);
       b.setAttribute('aria-label', `${RARITY_NAMES[w.rarity]} ${weaponName(w)}, tier ${w.tier}`);
     });
@@ -216,11 +215,17 @@ export class ForgePanel {
         this.el.atk.innerHTML = `<span class="wc-atk-lbl">⚔ Attack</span> ${fmt(now)} → <b>${fmt(next)}</b> ` +
           (dir === 'same' ? '<em>no change</em>'
             : `<em>${dir === 'up' ? '▲ +' : '▼ −'}${fmt(Math.abs(diff))} (${dir === 'up' ? '+' : '−'}${Math.abs(pctDiff).toFixed(0)}%)</em>`);
-        const others = s.weapons.some((o, j) => o && j !== this.selected && canMerge(sel, o));
+        // Merge needs MERGE_COUNT of the same type, tier and rarity (this one included).
+        const have = partners.length + 1;
+        const ready = have >= MERGE_COUNT && sel.tier < MAX_TIER;
+        const kind = `${RARITY_NAMES[sel.rarity]} T${sel.tier} ${FORMS[sel.form].name}s`;
+        this.el.merge.textContent = `Merge ${Math.min(have, MERGE_COUNT)}/${MERGE_COUNT}`;
+        this.disable(this.el.merge, !ready);
         const delta = eqPower > 0 ? weaponPower(sel) / eqPower : 1;
         const overall = delta >= 1.005 ? `overall ▲ ${((delta - 1) * 100).toFixed(0)}%` : delta <= 0.995 ? `overall ▼ ${((1 - delta) * 100).toFixed(0)}%` : 'overall about the same';
-        this.el.hint.textContent = (others ? `Tap another T${sel.tier} ${FORMS[sel.form].name} to merge · ` : `Merge with a T${sel.tier} ${FORMS[sel.form].name} · `) +
-          `${overall} incl. speed & traits`;
+        this.el.hint.textContent = (sel.tier >= MAX_TIER ? 'Max tier · '
+          : ready ? `Merge 3 ${kind} → T${sel.tier + 1} · `
+          : `Merge needs 3 ${kind} (have ${have}) · `) + `${overall} incl. speed & traits`;
         this.el.salvage.textContent = `Salvage +${salvageValue(sel)}`;
       } else {
         this.el.atk.className = 'wc-atk';
@@ -242,14 +247,15 @@ export class ForgePanel {
   }
 }
 
-/** Any two weapons of the same type and tier (i.e. something to merge)? */
+/** Any MERGE_COUNT weapons of the same type, tier and rarity (i.e. something to merge)? */
 function hasPair(inv: (Weapon | null)[]): boolean {
-  const seen = new Set<number>();
+  const count = new Map<number, number>();
   for (const w of inv) {
-    if (!w || !canMerge(w, { ...w, id: -1 })) continue; // skips max-tier weapons
-    const key = w.tier * 16 + w.form;
-    if (seen.has(key)) return true;
-    seen.add(key);
+    if (!w || w.tier >= MAX_TIER) continue;
+    const key = (w.tier * 4 + w.rarity) * 16 + w.form;
+    const n = (count.get(key) ?? 0) + 1;
+    if (n >= MERGE_COUNT) return true;
+    count.set(key, n);
   }
   return false;
 }

@@ -17,7 +17,7 @@ import { MissionSystem } from './missionSystem';
 import { GameMap, MAP_H, MAP_W } from './map';
 import { MAX_LEVEL, levelBonus, milestoneReward, xpForKill, xpToNext, MILESTONES, type MilestoneReward } from './level';
 import {
-  FORGE_COST, INVENTORY_SIZE, MAX_FORGE_LEVEL, bonusWeapon, canMerge, forgeUpgradeCost, forgeWeapon, mergeWeapons,
+  FORGE_COST, INVENTORY_SIZE, MAX_FORGE_LEVEL, MERGE_COUNT, bonusWeapon, forgeUpgradeCost, forgeWeapon, mergePartners, mergeWeapons,
   salvageValue, starterWeapon, weaponStats, type Weapon,
 } from './weapons';
 
@@ -336,42 +336,50 @@ export class Sim {
     return filled;
   }
 
-  /** Merge the weapon in `from` into the one in `into` (same tier). The result lands in `into`. */
-  merge(from: number, into: number): boolean {
+  /**
+   * Merge the weapon in `into` with MERGE_COUNT - 1 matching weapons (same type, tier and
+   * rarity) into one of the next tier, which lands in `into`. Uses `withSlots` if given (and
+   * valid), otherwise picks partners automatically. Returns false if there aren't enough matches.
+   */
+  merge(into: number, withSlots?: number[]): boolean {
     const s = this.save;
-    const a = s.weapons[from], b = s.weapons[into];
-    if (!a || !b || from === into || !canMerge(a, b)) return false;
-    const m = mergeWeapons(this.rng, s.nextWeaponId++, b, a);
+    const keep = s.weapons[into];
+    if (!keep) return false;
+    const partners = mergePartners(s.weapons, into);
+    const use = withSlots ?? partners.slice(0, MERGE_COUNT - 1);
+    if (use.length !== MERGE_COUNT - 1 || new Set(use).size !== use.length || use.some((i) => !partners.includes(i))) return false;
+    const m = mergeWeapons(this.rng, s.nextWeaponId++, keep, use.map((i) => s.weapons[i]!));
     s.weapons[into] = m;
+    for (const i of use) s.weapons[i] = null;
     s.stats.merges++;
-    if (m.rarity === 3 && a.rarity < 3 && b.rarity < 3) s.stats.legendaries++;
-    s.weapons[from] = null;
+    if (m.rarity === 3 && keep.rarity < 3) s.stats.legendaries++;
     this.invVersion++;
     return true;
   }
 
   /**
-   * Repeatedly merge pairs of the same type and tier, lowest tiers first, best rarities
-   * together. Returns the merged slots.
+   * Repeatedly merge every group of MERGE_COUNT matching weapons (same type, tier and rarity),
+   * lowest tiers first, so results can merge again. Returns the slots holding merged weapons.
    */
   autoMerge(): number[] {
     const s = this.save;
     const results: number[] = [];
     for (let changed = true; changed;) {
       changed = false;
-      const groups = new Map<number, number[]>(); // key: tier * 16 + form
+      const groups = new Map<number, number[]>(); // key orders by tier, then rarity, then form
       s.weapons.forEach((w, i) => {
         if (!w) return;
-        const key = w.tier * 16 + w.form;
+        const key = (w.tier * 4 + w.rarity) * 16 + w.form;
         const list = groups.get(key);
         if (list) list.push(i); else groups.set(key, [i]);
       });
       for (const key of [...groups.keys()].sort((x, y) => x - y)) {
-        const slots = groups.get(key)!.sort((x, y) => s.weapons[y]!.rarity - s.weapons[x]!.rarity);
-        if (slots.length >= 2 && this.merge(slots[1], slots[0])) {
-          const at = results.indexOf(slots[1]);
-          if (at >= 0) results.splice(at, 1);
-          if (!results.includes(slots[0])) results.push(slots[0]);
+        const slots = groups.get(key)!;
+        if (slots.length < MERGE_COUNT) continue;
+        const [into, ...rest] = slots.slice(0, MERGE_COUNT);
+        if (this.merge(into, rest)) {
+          for (const r of rest) { const at = results.indexOf(r); if (at >= 0) results.splice(at, 1); }
+          if (!results.includes(into)) results.push(into);
           changed = true;
           break;
         }

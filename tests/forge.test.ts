@@ -28,12 +28,13 @@ describe('weapon rules', () => {
     }
   });
 
-  it('merging raises tier, keeps the better parent\'s form and traits, never lowers rarity', () => {
+  it('merging three matches raises tier, keeps form and traits, never lowers rarity', () => {
     const rng = new Rng(4);
-    const keep = w(3, 0, 1);
-    const better = w(3, 2, 3, [{ t: 'crit', v: 0.03 }, { t: 'gold', v: 0.1 }]);
+    const traits: Weapon['traits'] = [{ t: 'crit', v: 0.03 }, { t: 'gold', v: 0.1 }];
+    const keep = w(3, 2, 3, traits);
+    const others = [w(3, 2, 3), w(3, 2, 3)];
     for (let i = 0; i < 50; i++) {
-      const m = mergeWeapons(rng, 99, keep, better);
+      const m = mergeWeapons(rng, 99, keep, others);
       expect(m.tier).toBe(4);
       expect(m.form).toBe(3);
       expect(m.rarity).toBeGreaterThanOrEqual(2);
@@ -41,6 +42,13 @@ describe('weapon rules', () => {
       expect(m.traits.slice(0, 2).map((t) => t.t)).toEqual(['crit', 'gold']);
       expect(m.traits[0].v).toBeGreaterThan(0.03); // rescaled up to the new tier
     }
+  });
+
+  it('refuses merges without exactly three matching weapons', () => {
+    const rng = new Rng(4);
+    expect(() => mergeWeapons(rng, 1, w(3, 1, 0), [w(3, 1, 0)])).toThrow();
+    expect(() => mergeWeapons(rng, 1, w(3, 1, 0), [w(3, 1, 0), w(3, 2, 0)])).toThrow(); // rarity differs
+    expect(() => mergeWeapons(rng, 1, w(3, 1, 0), [w(3, 1, 0), w(3, 1, 2)])).toThrow(); // type differs
   });
 });
 
@@ -54,27 +62,33 @@ describe('forge commands', () => {
     expect(save.shards).toBe(FORGE_COST * 5);
   });
 
-  it('auto-merge combines every same-type, same-tier pair and leaves no duplicates', () => {
+  it('auto-merge leaves fewer than three of any type/tier/rarity', () => {
     const save = freshSave();
-    save.shards = FORGE_COST * 16;
+    save.shards = FORGE_COST * 20;
     const sim = new Sim(save, 2);
-    sim.forge(16);
+    sim.forge(20);
     sim.autoMerge();
-    const keys = save.weapons.filter(Boolean).map((x) => `${x!.form}:${x!.tier}`);
-    expect(new Set(keys).size).toBe(keys.length);
+    const counts = new Map<string, number>();
+    for (const x of save.weapons) if (x) { const k = `${x.form}:${x.tier}:${x.rarity}`; counts.set(k, (counts.get(k) ?? 0) + 1); }
+    for (const n of counts.values()) expect(n).toBeLessThan(3);
   });
 
-  it('only merges weapons of the same type', () => {
+  it('needs three of the same type, tier and rarity to merge', () => {
     const save = freshSave();
-    save.weapons[0] = w(3, 0, 0); // sword
-    save.weapons[1] = w(3, 0, 1); // axe, same tier
+    save.weapons[0] = w(3, 0, 0); // common sword
+    save.weapons[1] = w(3, 0, 0); // common sword
+    save.weapons[2] = w(3, 0, 1); // common axe
+    save.weapons[3] = w(3, 1, 0); // rare sword
     const sim = new Sim(save, 5);
-    expect(sim.merge(0, 1)).toBe(false);
+    expect(sim.merge(0)).toBe(false);          // only 2 common swords
+    expect(sim.merge(0, [1, 2])).toBe(false);  // axe doesn't match
+    expect(sim.merge(0, [1, 3])).toBe(false);  // rare doesn't match
     expect(sim.autoMerge()).toEqual([]);
-    save.weapons[2] = w(3, 1, 1); // a second axe
-    expect(sim.merge(2, 1)).toBe(true);
-    expect(save.weapons[1]!.tier).toBe(4);
-    expect(save.weapons[1]!.form).toBe(1);
+    save.weapons[4] = w(3, 0, 0);              // third common sword
+    expect(sim.merge(0)).toBe(true);
+    expect(save.weapons[0]!.tier).toBe(4);
+    expect(save.weapons[0]!.form).toBe(0);
+    expect(save.weapons.filter(Boolean).length).toBe(3); // 3 swords became 1; axe + rare sword stay
   });
 
   it('previews attack for a weapon without equipping it', () => {

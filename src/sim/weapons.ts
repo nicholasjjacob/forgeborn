@@ -11,7 +11,9 @@ export const INVENTORY_SIZE = 20;
 export const MAX_TIER = 30;
 export const FORGE_COST = 10;          // shards per forge
 export const MAX_FORGE_LEVEL = 25;
-export const RARITY_UP_CHANCE = 0.06;  // chance a merge bumps rarity
+export const RARITY_UP_CHANCE = 0.1;   // chance a merge bumps rarity
+/** Weapons consumed per merge: this many of the same type, tier and rarity make one of the next tier. */
+export const MERGE_COUNT = 3;
 
 export type Rarity = 0 | 1 | 2 | 3;
 export const RARITY_NAMES = ['Common', 'Rare', 'Epic', 'Legendary'] as const;
@@ -114,24 +116,36 @@ export function bonusWeapon(rng: Rng, id: number, level: number, minRarity: Rari
   return w;
 }
 
-/** Merging needs two weapons of the same type (form) and tier: Sword + Sword, Axe + Axe… */
+/**
+ * Can `a` and `b` go into the same merge? They must match in type (form), tier and rarity:
+ * MERGE_COUNT matching weapons (e.g. three Rare T3 Swords) make one weapon of the next tier.
+ */
 export function canMerge(a: Weapon, b: Weapon): boolean {
-  return a.id !== b.id && a.form === b.form && a.tier === b.tier && a.tier < MAX_TIER;
+  return a.id !== b.id && a.form === b.form && a.tier === b.tier && a.rarity === b.rarity && a.tier < MAX_TIER;
+}
+
+/** Inventory slots holding weapons that can merge with the one in `slot` (excluding it). */
+export function mergePartners(inv: readonly (Weapon | null)[], slot: number): number[] {
+  const w = inv[slot];
+  if (!w) return [];
+  const out: number[] = [];
+  inv.forEach((o, i) => { if (o && i !== slot && canMerge(w, o)) out.push(i); });
+  return out;
 }
 
 /**
- * Merge two same-type, same-tier weapons into one of the next tier. The better (higher-rarity) parent
- * keeps its form and trait types, with values rescaled to the new tier; a rarity bump adds a
- * fresh trait. Ties favour `keep` (the weapon the player merged into).
+ * Merge `keep` with matching weapons (`others`, MERGE_COUNT - 1 of them) into one of the next
+ * tier. `keep` (the weapon the player chose) passes on its trait types, rescaled to the new
+ * tier; a rarity bump adds a fresh trait.
  */
-export function mergeWeapons(rng: Rng, id: number, keep: Weapon, other: Weapon): Weapon {
-  const base = other.rarity > keep.rarity ? other : keep;
+export function mergeWeapons(rng: Rng, id: number, keep: Weapon, others: readonly Weapon[]): Weapon {
+  if (others.length !== MERGE_COUNT - 1 || others.some((o) => !canMerge(keep, o))) throw new Error('invalid merge');
   const tier = keep.tier + 1;
-  let rarity = Math.max(keep.rarity, other.rarity) as Rarity;
+  let rarity = keep.rarity;
   if (rarity < 3 && rng.chance(RARITY_UP_CHANCE)) rarity = (rarity + 1) as Rarity;
-  const k = traitScale(tier) / traitScale(base.tier);
-  const traits = base.traits.map((tr) => ({ t: tr.t, v: Math.min(TRAITS[tr.t].cap, tr.v * k) }));
-  const w: Weapon = { id, tier, rarity, form: base.form, traits };
+  const k = traitScale(tier) / traitScale(keep.tier);
+  const traits = keep.traits.map((tr) => ({ t: tr.t, v: Math.min(TRAITS[tr.t].cap, tr.v * k) }));
+  const w: Weapon = { id, tier, rarity, form: keep.form, traits };
   fillTraits(rng, w);
   return w;
 }

@@ -25,6 +25,8 @@ export function registerPwa(): { canInstall(): boolean; install(): Promise<boole
     else window.addEventListener('load', register, { once: true });
   }
 
+  if (import.meta.env.PROD) watchForUpdates();
+
   return {
     canInstall: () => deferred !== null,
     async install() {
@@ -36,4 +38,30 @@ export function registerPwa(): { canInstall(): boolean; install(): Promise<boole
       return outcome === 'accepted';
     },
   };
+}
+
+/**
+ * A Home Screen app (or a tab left open) keeps running the version it started with. Each time
+ * the game comes back to the foreground, check whether a newer build is live (its main script
+ * name changes with every build) and reload into it. The game saves when it's hidden, so the
+ * reload loses nothing.
+ */
+function watchForUpdates(): void {
+  const current = document.querySelector<HTMLScriptElement>('script[type="module"][src*="assets/index-"]')?.src;
+  if (!current) return;
+  const name = (src: string) => src.slice(src.lastIndexOf('/') + 1);
+  let checking = false;
+  const check = async () => {
+    if (checking || document.hidden) return;
+    checking = true;
+    try {
+      const res = await fetch('./', { cache: 'no-store' });
+      const html = await res.text();
+      const live = /assets\/(index-[\w-]+\.js)/.exec(html)?.[1];
+      if (live && live !== name(current)) location.reload();
+    } catch { /* offline: try again next time */ }
+    checking = false;
+  };
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+  setInterval(check, 15 * 60 * 1000);
 }
