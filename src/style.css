@@ -364,9 +364,28 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 #forge-root { padding: 2px 10px 12px; display: flex; flex-direction: column; gap: 9px; }
 .forge-actions { display: grid; grid-template-columns: 1.6fr 1fr 1.4fr; gap: 7px; }
 .forge-actions .btn.primary { background: linear-gradient(var(--purple-1), var(--purple-2)); box-shadow: inset 0 0 0 2px var(--purple-edge), inset 0 3px 0 #ffffff55, 0 4px 0 var(--purple-edge); }
-.forge-level { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--ink-soft); }
-.forge-level b { color: var(--ink); font-size: 13px; }
-.fl-text { min-width: 0; }
+/* Forge level: its own button, opening its own window (ui/forgeLevel.ts). */
+.forge-level-btn {
+  position: relative; display: flex; align-items: center; gap: 9px; width: 100%; padding: 7px 10px; border: 0; border-radius: 12px;
+  font: inherit; text-align: left; color: var(--ink); cursor: pointer;
+  background: linear-gradient(#fff6e2, var(--cream-2)); box-shadow: inset 0 0 0 2px var(--wood), 0 3px 0 var(--wood-dark);
+}
+.flb-ico { font-size: 20px; }
+.flb-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.flb-text b { font-size: 14px; }
+.flb-text small { font-size: 10px; color: var(--ink-soft); }
+.flb-go { flex: 0 0 auto; font-size: 12px; color: #fff; text-shadow: var(--outline); padding: 4px 9px; border-radius: 9px; background: linear-gradient(var(--orange-1), var(--orange-2)); box-shadow: inset 0 0 0 2px var(--orange-edge); }
+.forge-level-btn .dot { top: -6px; right: -4px; }
+.forge-level-card { text-align: left; }
+.forge-level-card h2 { text-align: center; }
+.forge-level-card.leveled { animation: card-upgraded 0.6s ease-out; }
+.flc-level { display: flex; align-items: baseline; justify-content: center; gap: 6px; font-size: 40px; line-height: 1; margin: 2px 0 8px; color: var(--ink); }
+.flc-level small { font-size: 13px; color: var(--ink-soft); }
+.flc-table { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.flc-row { display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: 8px; padding: 6px 2px; border-bottom: 2px dashed var(--cream-3); font-size: 13px; }
+.flc-row b { font-variant-numeric: tabular-nums; }
+.flc-row i { font-style: normal; color: var(--ink-soft); }
+.flc-row .next { color: #2e9a2a; }
 
 .weapon-card {
   --rc: #c8ccd8;
@@ -395,8 +414,6 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 /* Equipped card with matching weapons in the bag: just the Merge (upgrade) button. */
 .weapon-card.eq-merge .wc-actions { display: flex; justify-content: center; }
 .weapon-card.eq-merge:not(.selecting) #equip-btn, .weapon-card.eq-merge:not(.selecting) #salvage-btn { display: none; }
-.wc-forge { font-size: 12px; color: #9a5a1a; }
-.wc-forge:empty { display: none; }
 .wc-merge { font-size: 12px; color: #6a3fb0; font-variant-numeric: tabular-nums; }
 .wc-merge b { color: #4a2280; }
 .wc-merge em { font-style: normal; font-weight: 800; color: #2e9a2a; }
@@ -696,3 +713,6 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 .wchip { color: #fff; text-shadow: 0 1px 0 #0008; background: var(--rc); }
 .wchip i { font-style: normal; }
 .build-stamp { margin: 10px 0 0; text-align: center; font-size: 11px; color: var(--ink-soft); }
+.flc-row > span { text-align: left; }
+/* Disabled always wins over colour variants (primary/green/merge…), wherever they're declared. */
+.btn.btn:disabled { background: linear-gradient(var(--grey-1), var(--grey-2)); box-shadow: inset 0 0 0 2px var(--grey-edge), 0 4px 0 var(--grey-edge); color: #fffc; cursor: default; }

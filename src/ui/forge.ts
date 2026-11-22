@@ -1,8 +1,9 @@
 import { fmt } from '../core/format';
 import { haptic, sfx } from '../audio/sfx';
 import type { Sim } from '../sim/sim';
+import { ForgeLevelUI } from './forgeLevel';
 import {
-  FORGE_ATK_PER_LEVEL, FORGE_COST, FORMS, MAX_FORGE_LEVEL, MAX_TIER, MERGE_COUNT, RARITY_COLORS, RARITY_NAMES, TRAITS, forgeOdds, forgeTiers,
+  FORGE_COST, FORMS, MAX_FORGE_LEVEL, MAX_TIER, MERGE_COUNT, RARITY_COLORS, RARITY_NAMES, TRAITS, forgeOdds, forgeTiers,
   forgeUpgradeCost, matchingSlots, mergePartners, mergePreview, salvageValue, weaponName, weaponPower, weaponSummary, type Weapon,
 } from '../sim/weapons';
 
@@ -19,6 +20,7 @@ export class ForgePanel {
   private renderedAtk = -1;
   /** Attack count-up after an equip or merge: from → to over ATK_ANIM ms. */
   private atkAnim: { from: number; to: number; start: number } | null = null;
+  private readonly levelUI: ForgeLevelUI;
   private readonly slots: HTMLButtonElement[] = [];
   private readonly cache = new Map<HTMLElement, string>();
   private readonly el: Record<string, HTMLElement>;
@@ -35,7 +37,6 @@ export class ForgePanel {
           <div class="wc-merge"></div>
           <div class="wc-summary"></div>
           <ul class="wc-traits"></ul>
-          <div class="wc-forge"></div>
           <div class="wc-hint"></div>
         </div>
         <div class="wc-actions">
@@ -49,19 +50,21 @@ export class ForgePanel {
         <button type="button" class="btn" id="forge-10">x10</button>
         <button type="button" class="btn" id="auto-merge">Auto-merge</button>
       </div>
-      <div class="forge-level">
-        <div class="fl-text"><b id="fl-level"></b><span id="fl-odds"></span></div>
-        <button type="button" class="btn small" id="forge-up">Upgrade forge <span class="coin-dot"></span><span id="fl-cost"></span></button>
-      </div>
+      <button type="button" class="forge-level-btn" id="forge-level-btn" aria-label="Forge level and upgrades">
+        <span class="flb-ico">🔨</span>
+        <span class="flb-text"><b id="fl-level"></b><small id="fl-odds"></small></span>
+        <span class="flb-go">Forge level ›</span>
+        <b class="dot" id="fl-dot" hidden>!</b>
+      </button>
       <div class="inv-grid" id="inv-grid" role="grid" aria-label="Weapon inventory"></div>`;
 
     const $ = (sel: string) => root.querySelector<HTMLElement>(sel)!;
     this.el = {
       card: $('#weapon-card'), icon: $('.wc-icon img'), tag: $('.wc-tag'), name: $('.wc-name'),
-      summary: $('.wc-summary'), atk: $('.wc-atk'), mergeInfo: $('.wc-merge'), forgeBonus: $('.wc-forge'), traits: $('.wc-traits'), hint: $('.wc-hint'),
+      summary: $('.wc-summary'), atk: $('.wc-atk'), mergeInfo: $('.wc-merge'), traits: $('.wc-traits'), hint: $('.wc-hint'),
       equip: $('#equip-btn'), salvage: $('#salvage-btn'), merge: $('#merge-btn'),
       forge1: $('#forge-1'), forge10: $('#forge-10'), autoMerge: $('#auto-merge'),
-      level: $('#fl-level'), odds: $('#fl-odds'), up: $('#forge-up'), upCost: $('#fl-cost'),
+      level: $('#fl-level'), odds: $('#fl-odds'), levelBtn: $('#forge-level-btn'), levelDot: $('#fl-dot'),
       grid: $('#inv-grid'),
     };
 
@@ -84,18 +87,9 @@ export class ForgePanel {
       if (merged.length) { this.flash(merged, 'pop'); this.selected = -1; sfx.play('merge'); haptic(20); }
       else this.toast('Nothing to merge');
     });
-    this.el.up.addEventListener('click', () => {
-      const before = sim.atk;
-      if (!sim.upgradeForge()) return;
-      const [lo, hi] = forgeTiers(sim.save.forgeLevel);
-      this.toast(`Forge Lv ${sim.save.forgeLevel}: +${Math.round(FORGE_ATK_PER_LEVEL * 100)}% weapon attack · forges T${lo === hi ? hi : `${lo}–${hi}`}`);
-      sfx.play('forge');
-      haptic(20);
-      // Show the attack gain on the equipped weapon card.
-      this.selected = -1;
-      this.flashCard();
-      this.animateAtk(before);
-    });
+    // The forge's level lives in its own window (separate from the weapon card).
+    this.levelUI = new ForgeLevelUI(sim, toast, () => { this.renderedAtk = -1; });
+    this.el.levelBtn.addEventListener('click', () => { sfx.play('tick'); this.levelUI.open(); });
     this.el.equip.addEventListener('click', () => {
       const before = sim.atk;
       if (this.selected >= 0 && sim.equip(this.selected)) {
@@ -195,11 +189,11 @@ export class ForgePanel {
     const maxed = s.forgeLevel >= MAX_FORGE_LEVEL;
     const [lo, hi] = forgeTiers(s.forgeLevel);
     const [pr, pe, pl] = forgeOdds(s.forgeLevel);
-    this.set(this.el.level, `Forge Lv ${s.forgeLevel}`);
-    this.set(this.el.odds, ` · +${Math.round(FORGE_ATK_PER_LEVEL * 100 * (s.forgeLevel - 1))}% atk · T${lo === hi ? hi : `${lo}–${hi}`} · Rare ${pct(pr)} · Epic ${pct(pe)} · Leg ${pct(pl)}`);
-    const upCost = forgeUpgradeCost(s.forgeLevel);
-    this.set(this.el.upCost, maxed ? 'MAX' : fmt(upCost));
-    this.disable(this.el.up, maxed || s.gold < upCost);
+    this.set(this.el.level, `Forge Level ${s.forgeLevel}${maxed ? ' (max)' : ''}`);
+    this.set(this.el.odds, `Forges T${lo === hi ? hi : `${lo}–${hi}`} · Rare ${pct(pr)} · Epic ${pct(pe)} · Leg ${pct(pl)}`);
+    // "!" when the next forge level is affordable.
+    this.el.levelDot.hidden = maxed || s.gold < forgeUpgradeCost(s.forgeLevel);
+    this.levelUI.refresh();
 
     if (this.selected >= 0 && !s.weapons[this.selected]) this.selected = -1;
     // Also redraw when attack changes (upgrades, level-ups) so the preview stays accurate.
@@ -302,9 +296,6 @@ export class ForgePanel {
           ? (ready ? `Upgrade: merge with 2 matching ${kind} from your bag` : `Upgrade needs 3 ${kind} (have ${have} incl. this one)`)
           : `${FORMS[w.form].name}: ${FORMS[w.form].blurb.toLowerCase()} · tap a weapon below to compare`;
       }
-      // Forge mastery applies to whatever weapon you wield.
-      const fb = Math.round(FORGE_ATK_PER_LEVEL * 100 * (s.forgeLevel - 1));
-      this.el.forgeBonus.textContent = fb > 0 ? `🔨 Forge Lv ${s.forgeLevel}: +${fb}% attack` : '';
       // What the next merge would do to your Attack (before any lucky rarity bump).
       const mw = sel ?? s.equipped;
       const canShow = mw && mw.tier < MAX_TIER && (sel ? partners.length + 1 >= MERGE_COUNT : eqMatches.length > 0);
