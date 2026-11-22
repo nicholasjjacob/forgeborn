@@ -1,0 +1,94 @@
+# Forgeborn
+
+An original top-down action/idle RPG for the web (Chrome, Safari on iOS), built with TypeScript, Vite and PixiJS.
+
+**Controls:** drag anywhere on the battlefield for a floating joystick (touch), click or hold to walk (mouse), or WASD / arrow keys. With **Auto** on, the hero hunts on their own whenever you stop steering.
+
+**Forge:** monsters drop shards (bosses drop bundles). Spend 10 shards to forge a random weapon: Sword (balanced), Axe (wide sweeps), Spear (long, narrow reach) or Hammer (slow, heavy, big knockback). Merge two weapons of the same tier into the next tier: the higher-rarity parent keeps its form and traits, and a merge can roll a rarity upgrade. Rarity (Common → Rare → Epic → Legendary) multiplies attack and adds one bonus trait per step: crit chance, crit damage, swing speed, lifesteal, gold find, chain shock or reach. Upgrade the forge with gold for higher tiers and better odds; salvage spares for shards.
+
+**Reforge (prestige):** from stage 30 you can reforge: restart the run for embers (more the deeper you got). Embers buy permanent perks (damage, HP, gold, shard drops, speed, starting forge level, head start, longer offline cap), and every ember ever earned also adds Ember Glow (+2% damage, +1% HP), so each run goes further than the last.
+
+**Quests & achievements:** three rolling quests (defeat monsters, clear stages, beat a boss, forge, merge, earn gold) pay gold and shards and are replaced when claimed. Achievements track lifetime milestones; every tier unlocked adds +3% damage and gold permanently.
+
+**Missions (side icons on the main screen):** a 7-day login calendar with a grand prize on day 7; daily and weekly mission boards (points from tasks open reward chests at 20/40/60/80/100, reset at local midnight / Monday); a 7-day starter journey that unlocks a new task set each day; a monster codex with kill milestones per area; and a gem shop. A tracker on the main screen shows the two closest daily missions. Gems come from logins, chests and the codex.
+
+**Saving & offline:** progress autosaves every 10 seconds (and when you leave) to IndexedDB, mirrored to localStorage. While you're away your hero keeps earning 50% of your recent gold and shard rate (shards at a 20% share), measured over the last 5 minutes of play, for up to 8 hours (more with the Night Watch perk); a welcome-back screen shows what you got.
+
+**Structure:** every 10 stages is a new area (Greenfield Meadow → Mirewood → Sunscar Dunes → Hollow Deep → Frostveil → Emberforge Caldera, then "+" tiers) with its own map, props and monster roster. Clear a stage by defeating enough monsters; stage 10 of each area is a timed boss fight.
+
+## Run
+
+```
+npm install
+npm run dev      # http://localhost:5173 (also on your local network, for testing on a phone)
+npm test         # simulation + balance tests
+npm run build    # production build in dist/
+```
+
+**Install as an app:** the production build is an installable web app (manifest + service worker for offline play). Chrome/Android/desktop: Settings → Install. iPhone: open it in Safari → Share → Add to Home Screen. Regenerate the icons with `npm run icons`.
+
+**Testing on an iPhone:** run `npm run dev`, then open the "Network" URL Vite prints (e.g. `http://192.168.x.x:5173`) in Safari on a phone on the same Wi-Fi.
+
+## Layout
+
+| Path | What it does |
+|---|---|
+| `src/sim/` | Game rules: fixed 30 Hz simulation, movement/steering, combat, balance, event queue. No rendering, fully testable. |
+| `src/sim/areas.ts` | Area definitions: ground palette, props, monster roster and boss per biome. |
+| `src/sim/weapons.ts` | Weapon model, forms, traits, forge odds, merge rules. Pure functions, fully testable. |
+| `src/sim/map.ts` | Seeded map generation, prop collision grid, obstacle steering. |
+| `src/render/` | PixiJS top-down scene: camera, depth sorting, culling, pooled effects. Art is generated in code in a soft shaded cartoon style at 4× resolution (`sprites.ts`); pre-rendered 3D sprites can replace it without touching game code. Reads sim state only. |
+| `src/audio/sfx.ts` | Procedural sound effects (Web Audio, no files), haptics. |
+| `src/ui/settings.ts` | Settings sheet: sound, graphics quality, frame rate, install, reset. |
+| `src/pwa.ts`, `public/sw.js`, `public/manifest.webmanifest` | Installable app + offline caching. |
+| `scripts/make-icons.mjs` | Draws the app icons and writes the PNGs (pure Node). |
+| `src/ui/input.ts` | Joystick, click-to-move and keyboard controls. |
+| `src/ui/quests.ts`, `src/ui/reforge.ts` | Quests/achievements tab and Reforge/perk shop tab. |
+| `src/ui/forge.ts` | Forge tab: weapon card, forge/auto-merge, inventory grid with tap-to-merge. |
+| `src/ui/hud.ts` | DOM HUD and upgrade panel, refreshed at 10 Hz with change-only writes. |
+| `src/core/` | RNG, number formatting, save/load (IndexedDB + localStorage mirror, migrations). |
+| `src/sim/meta.ts` | Reforge rewards, ember perks, achievements and quest templates. |
+| `src/sim/missions.ts`, `src/sim/missionSystem.ts` | Login calendar, daily/weekly boards, 7-day journey, codex, gem shop (clock passed in, fully testable). |
+| `src/ui/missions.ts` | Missions sheet, side icons, main-screen mission tracker. |
+| `src/sim/offline.ts` | Offline earnings: pure calculation from saved earning rates. |
+| `tests/` | Vitest tests, including a headless greedy-player pacing check. |
+
+## Performance notes
+
+- Fixed-timestep sim (30 Hz) with interpolated rendering at up to 60 fps; FPS cap toggle (30/60) for battery.
+- Sprites come from one shared atlas plus one small atlas per area, so the scene draws in very few batches.
+- Off-screen props and monsters are culled each frame; depth sorting only touches what's on the ground layer.
+- Enemy separation uses a typed-array spatial grid; prop collisions use a static grid built once per map.
+- Enemies, damage numbers, coins and particles use preallocated pools; the render loop allocates nothing per frame.
+- Sim → renderer events go through a typed-array queue (no per-event objects).
+- Render resolution capped at 2x device pixels (1x in Low graphics); rendering and audio stop entirely while the tab is hidden.
+- Only the WebGL renderer is downloaded: WebGPU/Canvas renderers and Pixi's pointer-events/accessibility layers are split out and never fetched (~160 KB gzipped to first frame).
+- Sound effects are synthesized (no audio downloads), throttled per sound and capped at 14 voices.
+- Storage can't hang startup: if IndexedDB doesn't answer within 1.5 s the localStorage copy is used.
+
+## Roadmap
+
+1. ~~Combat prototype~~
+1b. ~~Top-down view, player control, areas & monster rosters~~
+2. ~~Weapons & forge: inventory, merging, rarities, traits~~
+3. ~~Progression: IndexedDB saves with migrations, offline earnings~~
+4. ~~Meta: prestige (Reforge), quests, achievements~~
+5. ~~Polish: audio, juice, PWA install, trim PixiJS imports, low-end device pass~~
+6. Native wrappers via Capacitor (iOS / Android)
+
+## 3D sprites
+
+Characters, monsters and scenery are pre-rendered from CC0 3D models with Blender:
+
+```
+blender -b --factory-startup -P tools/blender/render_sprites.py -- tools/blender/sources.json
+```
+
+- `tools/blender/sources.json` points at the source packs on this machine (copy `sources.example.json` and edit the paths). It's git-ignored.
+- The script normalises each model to a game size, renders it from the game's ¾ camera (30°, facing right) with soft lighting, adds a cartoon outline, and packs idle / walk / attack frames into `public/sprites/*.png` plus `sprites.json` (frame rects, feet anchor, visible height). A full render takes under a minute.
+- Which model plays which monster is the `MANIFEST` table at the top of the script; prop models are in `PROPS`. The hero wears `Helmet3` from the knight pack (`helmet` in `sources.json`; `helmet_pos` / `helmet_scale` tune its fit), attached to the head bone so it follows every animation.
+- The game loads the hero and scenery sheets at start and each area's monster sheet the first time you reach it. Anything not loaded (or missing) falls back to the code-drawn art in `src/render/sprites.ts`.
+
+## Credits
+
+3D models by [Quaternius](https://quaternius.com) (CC0): Ultimate Monsters, Stylized Nature MegaKit, LowPoly Animated Knight. Thank you!

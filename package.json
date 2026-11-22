@@ -1,0 +1,25 @@
+{
+  "name": "forgeborn",
+  "version": "0.1.0",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "icons": "node scripts/make-icons.mjs"
+  },
+  "type": "module",
+  "dependencies": {
+    "pixi.js": "^8.23.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^7.3.8",
+    "vitest": "^4.1.12"
+  },
+  "private": true
+}

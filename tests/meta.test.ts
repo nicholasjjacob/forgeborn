@@ -1,0 +1,129 @@
+import { describe, expect, it } from 'vitest';
+import { migrate } from '../src/core/save';
+import { ACHIEVEMENTS, PERKS, QUEST_SLOTS, REFORGE_MIN_STAGE, embersFor } from '../src/sim/meta';
+import { Sim, freshSave } from '../src/sim/sim';
+
+const tickN = (sim: Sim, n: number) => { for (let i = 0; i < n; i++) { sim.tick(); sim.events.clear(); } };
+
+describe('reforge', () => {
+  it('pays nothing below the unlock stage and more for deeper runs', () => {
+    expect(embersFor(REFORGE_MIN_STAGE - 1)).toBe(0);
+    expect(embersFor(REFORGE_MIN_STAGE)).toBeGreaterThan(0);
+    for (let s = REFORGE_MIN_STAGE; s < 300; s++) expect(embersFor(s + 1)).toBeGreaterThanOrEqual(embersFor(s));
+  });
+
+  it('resets the run but keeps embers, perks, achievements and lifetime stats', () => {
+    const save = freshSave();
+    Object.assign(save, { stage: 47, highestStage: 50, bestEver: 50, gold: 1e6, shards: 300, forgeLevel: 6, kills: 5000 });
+    save.upgrades.atk = 80;
+    save.weapons[0] = { id: 77, tier: 9, rarity: 2, form: 1, traits: [] };
+    save.perks.might = 3;
+    save.achievements.slayer = 2;
+    const sim = new Sim(save, 1);
+    const gain = sim.reforge();
+    expect(gain).toBe(embersFor(50));
+    expect(save.embers).toBe(gain);
+    expect(save.embersEarned).toBe(gain);
+    expect(save.stage).toBe(1);
+    expect(save.highestStage).toBe(1);
+    expect(save.gold).toBe(0);
+    expect(save.shards).toBe(0);
+    expect(save.upgrades.atk).toBe(0);
+    expect(save.weapons.every((w) => w === null)).toBe(true);
+    expect(save.equipped?.tier).toBe(1);
+    expect(save.forgeLevel).toBe(1);
+    expect(save.perks.might).toBe(3);
+    expect(save.achievements.slayer).toBeGreaterThanOrEqual(2);
+    expect(save.kills).toBe(5000);
+    expect(save.stats.reforges).toBe(1);
+    expect(sim.area).toBe(0);
+    expect(save.quests.length).toBe(QUEST_SLOTS);
+  });
+
+  it('refuses to reforge before the unlock stage', () => {
+    const sim = new Sim(freshSave(), 2);
+    expect(sim.reforge()).toBe(0);
+    expect(sim.save.stats.reforges).toBe(0);
+  });
+
+  it('head start and forgemaster perks shape the next run (head start capped by best ever)', () => {
+    const save = freshSave();
+    Object.assign(save, { stage: 40, highestStage: 40, bestEver: 40 });
+    save.perks.headstart = 10; // would be stage 51, but best ever is 40
+    save.perks.forgemaster = 3;
+    const sim = new Sim(save, 3);
+    sim.reforge();
+    expect(save.stage).toBe(40);
+    expect(save.forgeLevel).toBe(4);
+  });
+
+  it('ember glow and perks raise damage and HP', () => {
+    const sim = new Sim(freshSave(), 4);
+    const atk = sim.atk, hp = sim.hero.maxHp;
+    sim.save.embers = 1000;
+    sim.buyPerk('might');
+    sim.buyPerk('vigor');
+    expect(sim.atk).toBeCloseTo(atk * 1.25, 6);
+    expect(sim.hero.maxHp).toBeCloseTo(hp * 1.25, 6);
+    sim.save.embersEarned = 50;
+    sim.recalc();
+    expect(sim.atk).toBeCloseTo(atk * 1.25 * 2, 6);
+  });
+
+  it('perk purchases spend embers and respect max level', () => {
+    const sim = new Sim(freshSave(), 5);
+    sim.save.embers = 1e9;
+    for (let i = 0; i < 50; i++) sim.buyPerk('swift');
+    expect(sim.save.perks.swift).toBe(PERKS.swift.maxLevel);
+    expect(sim.perkQuote('swift')).toBe(Infinity);
+  });
+});
+
+describe('quests', () => {
+  it('keeps three distinct quests and pays out on claim', () => {
+    const sim = new Sim(freshSave(), 6);
+    const qs = sim.save.quests;
+    expect(qs.length).toBe(QUEST_SLOTS);
+    expect(new Set(qs.map((q) => q.kind)).size).toBe(QUEST_SLOTS);
+    expect(sim.claimQuest(0)).toBe(false); // not done yet
+
+    // Play until some quest completes, then claim it.
+    let done = -1;
+    for (let t = 0; t < 30 * 600 && done < 0; t += 30) {
+      tickN(sim, 30);
+      done = qs.findIndex((q) => sim.questDone(q));
+    }
+    expect(done).toBeGreaterThanOrEqual(0);
+    const q = qs[done];
+    const gold = sim.save.gold, shards = sim.save.shards;
+    expect(sim.claimQuest(done)).toBe(true);
+    expect(sim.save.gold).toBeCloseTo(gold + q.gold, 6);
+    expect(sim.save.shards).toBe(shards + q.shards);
+    expect(qs[done]).not.toBe(q);
+    expect(new Set(qs.map((x) => x.kind)).size).toBe(QUEST_SLOTS);
+  });
+});
+
+describe('achievements', () => {
+  it('unlock tiers from lifetime stats and add a damage bonus', () => {
+    const sim = new Sim(freshSave(), 7);
+    const atk = sim.atk;
+    sim.save.kills = 1500; // Slayer I and II
+    tickN(sim, 20);
+    expect(sim.save.achievements.slayer).toBe(2);
+    expect(sim.atk).toBeGreaterThan(atk * 1.05);
+    expect(sim.notices.some((n) => n.includes('Slayer'))).toBe(true);
+  });
+
+  it('every achievement has ascending tiers', () => {
+    for (const a of ACHIEVEMENTS) for (let i = 1; i < a.tiers.length; i++) expect(a.tiers[i]).toBeGreaterThan(a.tiers[i - 1]);
+  });
+
+  it('v2 saves migrate to the current version with best-ever and empty meta', () => {
+    const s = migrate({ v: 2, stage: 33, highestStage: 41, gold: 5 });
+    expect(s.v).toBe(4);
+    expect(s.bestEver).toBe(41);
+    expect(s.embers).toBe(0);
+    expect(s.stats.bosses).toBe(0);
+  });
+});

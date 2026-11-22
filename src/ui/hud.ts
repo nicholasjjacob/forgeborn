@@ -1,0 +1,235 @@
+import { fmt } from '../core/format';
+import { areaName } from '../sim/areas';
+import { BOSS_TIME, UPGRADES, UPGRADE_IDS, type UpgradeId } from '../sim/balance';
+import type { BuyMode, Sim } from '../sim/sim';
+import { ForgePanel } from './forge';
+import { sfx } from '../audio/sfx';
+import { QuestPanel } from './quests';
+import { ReforgePanel } from './reforge';
+import { MissionsUI } from './missions';
+
+type Tab = 'upgrades' | 'forge' | 'quests' | 'reforge';
+
+const ICONS: Record<UpgradeId, string> = { atk: '⚔', hp: '♥', aspd: '»', crit: '◎', gold: '◆' };
+
+interface Row {
+  id: UpgradeId;
+  level: HTMLElement;
+  value: HTMLElement;
+  btn: HTMLButtonElement;
+  count: HTMLElement;
+  cost: HTMLElement;
+}
+
+/**
+ * DOM HUD. Text only changes when its value changes (cached strings), and the HUD refreshes
+ * at ~10 Hz rather than every frame, so it costs almost nothing while the battle renders.
+ */
+export class Hud {
+  private readonly rows: Row[] = [];
+  private readonly cache = new Map<HTMLElement, string>();
+  private readonly el: Record<string, HTMLElement>;
+  private toastTimer = 0;
+  private tab: Tab = 'upgrades';
+  private readonly forge: ForgePanel;
+  private readonly quests: QuestPanel;
+  private readonly reforge: ReforgePanel;
+  private readonly badges: Record<Exclude<Tab, 'upgrades'>, HTMLElement>;
+  private toastUntil = 0;
+  readonly missions: MissionsUI;
+
+  constructor(root: HTMLElement, private readonly sim: Sim, weaponIcons: string[][], codexIcon: (area: number, slot: number) => string, onSettings: () => void) {
+    const $ = <T extends HTMLElement = HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
+    this.el = {
+      stage: $('#stage-label'),
+      area: $('#area-label'),
+      progress: $('#progress'),
+      progressFill: $('#progress-fill'),
+      progressText: $('#progress-text'),
+      auto: $('#auto-btn'),
+      gold: $('#gold-label'),
+      shards: $('#shard-label'),
+      ember: $('#ember-label'),
+      emberPill: $('.embers'),
+      buyModes: $('.buy-modes'),
+      challenge: $('#challenge-btn'),
+      toast: $('#toast'),
+      settings: $('#settings-btn'),
+      vignette: $('#vignette'),
+      list: $('#upgrade-list'),
+    };
+
+    this.el.challenge.addEventListener('click', () => sim.challengeBoss());
+    this.el.settings.addEventListener('click', () => onSettings());
+    // UI click sound for every panel button.
+    $('#panel').addEventListener('click', (e) => { if ((e.target as HTMLElement).closest('button:not(:disabled)')) sfx.play('tick'); });
+    this.el.auto.addEventListener('click', () => { sim.setAuto(!sim.save.auto); this.refresh(); });
+
+    for (const btn of root.querySelectorAll<HTMLButtonElement>('[data-buy-mode]')) {
+      btn.addEventListener('click', () => {
+        const m = btn.dataset.buyMode!;
+        sim.setBuyMode((m === 'max' ? 'max' : Number(m)) as BuyMode);
+        this.refresh();
+      });
+    }
+
+    for (const id of UPGRADE_IDS) this.rows.push(this.buildRow(id));
+    this.forge = new ForgePanel($('#forge-root'), sim, weaponIcons, (m) => this.toast(m));
+    this.quests = new QuestPanel($('#quests-root'), sim);
+    this.reforge = new ReforgePanel($('#reforge-root'), sim, (m) => this.toast(m, 'boss'));
+    this.missions = new MissionsUI(sim, (m) => this.toast(m), codexIcon);
+    this.badges = { forge: $('#forge-badge'), quests: $('#quests-badge'), reforge: $('#reforge-badge') };
+
+    for (const t of root.querySelectorAll<HTMLButtonElement>('[data-tab]')) {
+      t.addEventListener('click', () => this.showTab(t.dataset.tab as Tab));
+    }
+    this.refresh();
+  }
+
+  private buildRow(id: UpgradeId): Row {
+    const def = UPGRADES[id];
+    const li = document.createElement('li');
+    li.className = 'upgrade';
+    li.innerHTML = `
+      <span class="icon" style="--c:#${def.color.toString(16).padStart(6, '0')}">${ICONS[id]}</span>
+      <span class="info">
+        <span class="name">${def.name} <span class="lvl"></span></span>
+        <span class="value"></span>
+      </span>
+      <button class="buy" type="button"><span class="count"></span><span class="cost"></span></button>`;
+    this.el.list.appendChild(li);
+    const btn = li.querySelector<HTMLButtonElement>('.buy')!;
+    this.bindHoldToRepeat(btn, () => {
+      if (this.sim.buy(id)) this.refresh();
+    });
+    return {
+      id,
+      level: li.querySelector('.lvl')!,
+      value: li.querySelector('.value')!,
+      btn,
+      count: li.querySelector('.count')!,
+      cost: li.querySelector('.cost')!,
+    };
+  }
+
+  /** Tap to buy once; hold to keep buying (accelerating). Pointer events work for touch and mouse. */
+  private bindHoldToRepeat(btn: HTMLButtonElement, action: () => void): void {
+    let timer = 0;
+    let delay = 0;
+    const stop = () => { clearTimeout(timer); timer = 0; };
+    const loop = () => {
+      action();
+      delay = Math.max(50, delay * 0.8);
+      timer = window.setTimeout(loop, delay);
+    };
+    btn.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      try { btn.setPointerCapture(e.pointerId); } catch { /* unsupported: hold-repeat just ends on pointerup */ }
+      action();
+      delay = 220;
+      timer = window.setTimeout(loop, 380);
+    });
+    btn.addEventListener('pointerup', stop);
+    btn.addEventListener('pointercancel', stop);
+    btn.addEventListener('lostpointercapture', stop);
+    // Keyboard access: Enter/Space trigger click without pointer events.
+    btn.addEventListener('click', (e) => { if (e.detail === 0) action(); });
+  }
+
+  private showTab(tab: Tab): void {
+    this.tab = tab;
+    for (const t of document.querySelectorAll<HTMLElement>('[data-tab]')) t.setAttribute('aria-selected', String(t.dataset.tab === tab));
+    for (const p of document.querySelectorAll<HTMLElement>('[data-page]')) p.hidden = p.dataset.page !== tab;
+    this.refresh();
+  }
+
+  private setBadge(tab: Exclude<Tab, 'upgrades'>, text: string): void {
+    const el = this.badges[tab];
+    this.set(el, text);
+    this.toggle(el, 'show', text !== '');
+  }
+
+  private set(el: HTMLElement, text: string): void {
+    if (this.cache.get(el) === text) return;
+    this.cache.set(el, text);
+    el.textContent = text;
+  }
+
+  private toggle(el: HTMLElement, cls: string, on: boolean): void {
+    if (el.classList.contains(cls) !== on) el.classList.toggle(cls, on);
+  }
+
+  toast(msg: string, kind: 'good' | 'bad' | 'boss' = 'good'): void {
+    const t = this.el.toast;
+    t.textContent = msg;
+    t.classList.toggle('long', msg.length > 22);
+    t.dataset.kind = kind;
+    t.classList.remove('show');
+    void t.offsetWidth; // restart the CSS animation
+    t.classList.add('show');
+    clearTimeout(this.toastTimer);
+    this.toastTimer = window.setTimeout(() => t.classList.remove('show'), 1800);
+    this.toastUntil = performance.now() + 1900;
+  }
+
+  /** Called ~10× per second. */
+  refresh(): void {
+    const sim = this.sim;
+    const s = sim.save;
+    this.set(this.el.stage, `Stage ${s.stage}`);
+    this.set(this.el.area, areaName(sim.area));
+    const boss = sim.isBossStage;
+    this.toggle(this.el.progress, 'boss', boss);
+    let frac: number, label: string;
+    if (boss) { frac = sim.bossT / BOSS_TIME; label = `BOSS ${Math.ceil(sim.bossT)}s`; }
+    else if (s.farming) { frac = sim.killsInStage / sim.killsNeeded; label = 'Farming'; }
+    else { frac = sim.killsInStage / sim.killsNeeded; label = `${sim.killsInStage} / ${sim.killsNeeded}`; }
+    this.set(this.el.progressText, label);
+    const scale = `scaleX(${Math.max(0, Math.min(1, frac)).toFixed(3)})`;
+    if (this.cache.get(this.el.progressFill) !== scale) {
+      this.cache.set(this.el.progressFill, scale);
+      this.el.progressFill.style.transform = scale;
+    }
+    this.toggle(this.el.auto, 'on', s.auto);
+    this.set(this.el.gold, fmt(s.gold));
+    this.set(this.el.shards, fmt(s.shards));
+    this.set(this.el.ember, fmt(s.embers));
+    this.toggle(this.el.emberPill, 'show', s.embersEarned > 0 || sim.reforgeGain > 0);
+    this.setBadge('forge', this.forge.badge());
+    this.setBadge('quests', this.quests.badge());
+    this.setBadge('reforge', this.reforge.badge());
+
+    // Sim notices (achievements, finished quests) become toasts, one at a time.
+    if (sim.notices.length && performance.now() > this.toastUntil) {
+      this.toast(sim.notices.shift()!);
+      sfx.play('achieve');
+    }
+    this.toggle(this.el.vignette, 'boss', sim.isBossStage && sim.phase === 'playing');
+    const now = new Date();
+    this.missions.refreshMain(now);
+    this.missions.refresh();
+
+    this.toggle(this.el.challenge, 'show', s.farming);
+
+    for (const b of document.querySelectorAll<HTMLElement>('[data-buy-mode]')) {
+      this.toggle(b, 'active', b.dataset.buyMode === String(s.buyMode));
+    }
+
+    if (this.tab === 'forge') { this.forge.refresh(); return; }
+    if (this.tab === 'quests') { this.quests.refresh(); return; }
+    if (this.tab === 'reforge') { this.reforge.refresh(); return; }
+    for (const r of this.rows) {
+      const def = UPGRADES[r.id];
+      const lvl = s.upgrades[r.id];
+      const maxed = lvl >= def.maxLevel;
+      const q = sim.quote(r.id);
+      this.set(r.level, `Lv ${lvl}`);
+      const now = def.show(def.value(lvl));
+      this.set(r.value, maxed ? `${now} (max)` : `${now} → ${def.show(def.value(lvl + Math.max(1, q.count)))}`);
+      this.set(r.count, maxed ? 'MAX' : `+${q.count}`);
+      this.set(r.cost, maxed ? '' : fmt(q.cost));
+      const can = !maxed && q.cost <= s.gold;
+      if (r.btn.disabled === can) r.btn.disabled = !can;
+    }
+  }
+}

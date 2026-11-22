@@ -1,0 +1,7 @@
+{
+  "monsters": "C:/path/to/Ultimate Monsters",
+  "nature": "C:/path/to/Stylized Nature MegaKit[Standard]/glTF",
+  "knight": "C:/path/to/Knight Character Animated by Quaternius/FBX/KnightCharacter.fbx",
+  "out": "C:/path/to/forgeborn/public/sprites",
+  "helmet": "C:/path/to/Knight Character Animated by Quaternius/FBX/Helmet3.fbx"
+}
