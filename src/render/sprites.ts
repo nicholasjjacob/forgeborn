@@ -363,6 +363,9 @@ export interface Art {
   crown: Texture;
   coin: Texture;
   gem: Texture;
+  /** Building-material pickups lying on the ground. */
+  wood: Texture;
+  stone: Texture;
   pixel: Texture;
   dot: Texture;
   shadow: Texture;
@@ -392,6 +395,27 @@ export function buildArt(): Art {
       const g = c.createLinearGradient(0, 0, 6, 7); g.addColorStop(0, '#f6e6ff'); g.addColorStop(0.5, '#b06cff'); g.addColorStop(1, '#4a1a8a');
       c.fillStyle = g; c.fill(); c.lineWidth = 0.4; c.strokeStyle = '#2a0a5a'; c.stroke();
       c.fillStyle = 'rgba(255,255,255,0.7)'; c.beginPath(); c.moveTo(3, 0.8); c.lineTo(1.4, 2.6); c.lineTo(3, 2.6); c.fill();
+    }),
+    // A short log lying on its side: bark body, pale cut end with rings.
+    wood: a.draw(10, 6, (c) => {
+      c.beginPath(); c.moveTo(1.6, 1); c.lineTo(7.6, 1); c.lineTo(7.6, 5); c.lineTo(1.6, 5);
+      c.ellipse(1.6, 3, 1.1, 2, 0, Math.PI / 2, -Math.PI / 2); c.closePath();
+      const g = c.createLinearGradient(0, 1, 0, 5); g.addColorStop(0, '#b0743c'); g.addColorStop(0.5, '#8a5428'); g.addColorStop(1, '#5e3416');
+      c.fillStyle = g; c.fill(); c.lineWidth = 0.45; c.strokeStyle = '#3a1e0a'; c.stroke();
+      c.lineWidth = 0.3; c.strokeStyle = 'rgba(58,30,10,0.55)';
+      for (const [x0, x1, y] of [[2.4, 5.2, 2.2], [3.4, 6.8, 3.4], [2.2, 4.6, 4.3]] as const) { c.beginPath(); c.moveTo(x0, y); c.lineTo(x1, y); c.stroke(); }
+      ellipsePath(c, 7.6, 3, 1.2, 2); c.fillStyle = '#f0cf98'; c.fill(); c.lineWidth = 0.45; c.strokeStyle = '#3a1e0a'; c.stroke();
+      ellipsePath(c, 7.6, 3, 0.6, 1.1); c.lineWidth = 0.3; c.strokeStyle = '#b8864a'; c.stroke();
+      gloss(c, 4, 1.7, 2, 0.35, 0.35);
+    }),
+    // A chunky grey stone.
+    stone: a.draw(8, 7, (c) => {
+      c.beginPath(); c.moveTo(1, 5.6); c.lineTo(0.6, 3.2); c.lineTo(2.2, 1.2); c.lineTo(5, 0.7); c.lineTo(7.2, 2.4); c.lineTo(7.4, 5); c.lineTo(5.6, 6.3); c.lineTo(2.4, 6.4); c.closePath();
+      const g = c.createLinearGradient(0, 0, 4, 7); g.addColorStop(0, '#d8dee6'); g.addColorStop(0.55, '#9aa4b0'); g.addColorStop(1, '#5e6672');
+      c.fillStyle = g; c.fill(); c.lineWidth = 0.45; c.strokeStyle = '#2a2e36'; c.stroke();
+      c.lineWidth = 0.3; c.strokeStyle = 'rgba(42,46,54,0.5)';
+      c.beginPath(); c.moveTo(2.2, 1.2); c.lineTo(3.4, 3.4); c.lineTo(7.2, 2.4); c.moveTo(3.4, 3.4); c.lineTo(3, 6.3); c.stroke();
+      gloss(c, 3.6, 1.8, 1.4, 0.5, 0.6);
     }),
     pixel: a.draw(2, 2, (c) => { c.fillStyle = '#fff'; c.fillRect(0, 0, 2, 2); }),
     dot: a.draw(4, 4, (c) => {
@@ -429,7 +453,7 @@ export function buildArt(): Art {
     weaponIcons: weaponRegions.map((row) => row.map((reg) => a.icon(reg))),
     hero: tex(r.hero),
     sword: tex(weaponRegions[0][0]),
-    crown: tex(r.crown), coin: tex(r.coin), gem: tex(r.gem), pixel: tex(r.pixel), dot: tex(r.dot),
+    crown: tex(r.crown), coin: tex(r.coin), gem: tex(r.gem), wood: tex(r.wood), stone: tex(r.stone), pixel: tex(r.pixel), dot: tex(r.dot),
     shadow: tex(r.shadow), slash: tex(r.slash), ring: tex(r.ring),
   };
 }

@@ -55,6 +55,9 @@ export class Hud {
       shards: $('#shard-label'),
       ember: $('#ember-label'),
       emberPill: $('.embers'),
+      mats: $('.mats'),
+      wood: $('#wood-label'),
+      stone: $('#stone-label'),
       buyModes: $('.buy-modes'),
       challenge: $('#challenge-btn'),
       toast: $('#toast'),
@@ -166,6 +169,15 @@ export class Hud {
     if (el.classList.contains(cls) !== on) el.classList.toggle(cls, on);
   }
 
+  /** Pop the wood/stone counter when a piece is collected. */
+  bumpMaterial(kind: 'wood' | 'stone'): void {
+    const el = (kind === 'wood' ? this.el.wood : this.el.stone).parentElement;
+    if (!el) return;
+    el.classList.remove('fx-bump');
+    void el.offsetWidth;
+    el.classList.add('fx-bump');
+  }
+
   toast(msg: string, kind: 'good' | 'bad' | 'boss' = 'good'): void {
     const t = this.el.toast;
     t.textContent = msg;
@@ -202,6 +214,10 @@ export class Hud {
     this.set(this.el.shards, fmt(s.shards));
     this.set(this.el.ember, fmt(s.embers));
     this.toggle(this.el.emberPill, 'show', s.embersEarned > 0 || sim.reforgeGain > 0);
+    // Materials appear once the first piece is picked up.
+    this.toggle(this.el.mats, 'show', s.materials.wood + s.materials.stone > 0);
+    this.set(this.el.wood, fmt(s.materials.wood));
+    this.set(this.el.stone, fmt(s.materials.stone));
     this.setBadge('forge', this.forge.badge());
     this.setBadge('quests', this.quests.badge());
     this.setBadge('reforge', this.reforge.badge());

@@ -4,6 +4,7 @@ import { areaFor } from '../sim/areas';
 import { Ev } from '../sim/events';
 import { MAP_H, MAP_W, type GameMap } from '../sim/map';
 import { MAX_ENEMIES, type Enemy, type Sim } from '../sim/sim';
+import { MAX_PICKUPS } from '../sim/gather';
 import { FONT, FONT_PX, Fx } from './fx';
 import { areaArt, artVersion, ensureAreaSprites, heroAnim, spriteAnchor, type AnimSet, type Art } from './sprites';
 import { haptic, sfx } from '../audio/sfx';
@@ -30,6 +31,7 @@ export interface SceneHooks {
   onBossSpawn?(): void;
   onAreaEnter?(area: number): void;
   onLevelUp?(level: number): void;
+  onPickup?(kind: 'wood' | 'stone'): void;
 }
 
 /**
@@ -52,6 +54,12 @@ export class Scene {
   /** "Lv 12" over the hero's head, tinted by level tier. */
   private readonly levelText = new BitmapText({ text: 'Lv 1', style: { fontFamily: FONT, fontSize: FONT_PX } });
   private shownLevel = 0;
+  /** Wood/stone pieces on the ground (pooled, one per sim pickup slot). */
+  private readonly pickupViews: { root: Container; body: Sprite }[] = [];
+  private readonly woodTex: Sprite['texture'];
+  private readonly stoneTex: Sprite['texture'];
+  /** Props currently shaking from a chop: prop index → seconds left. */
+  private readonly shaking = new Map<number, number>();
   private levelPop = 0;
   private readonly sword: Sprite;
   private weaponId = -1;
@@ -121,6 +129,19 @@ export class Scene {
     this.levelText.position.set(0, -24.5);
     this.hero.addChild(shadow(12), this.heroBody, this.swordArm, this.slash, this.heroBarBg, this.heroBarFg, this.levelText);
     this.entities.addChild(this.hero);
+
+    this.woodTex = art.wood;
+    this.stoneTex = art.stone;
+    for (let i = 0; i < MAX_PICKUPS; i++) {
+      const root = new Container();
+      const sh = shadow(7);
+      const body = new Sprite(art.wood);
+      body.anchor.set(0.5, 1);
+      root.addChild(sh, body);
+      root.visible = false;
+      this.entities.addChild(root);
+      this.pickupViews.push({ root, body });
+    }
 
     this.fx = new Fx(art.coin, art.dot, art.gem, art.ring);
     this.world.addChild(this.fx.world);
@@ -286,6 +307,33 @@ export class Scene {
     this.heroBarFg.width = 16 * hpFrac;
     this.heroBarFg.tint = hpFrac > 0.5 ? 0x5cc04f : hpFrac > 0.25 ? 0xffca28 : 0xe4572e;
 
+    // Wood / stone pieces: bob gently; newly dropped ones pop in.
+    const pk = sim.gather.pickups;
+    for (let i = 0; i < MAX_PICKUPS; i++) {
+      const p = pk[i], v = this.pickupViews[i];
+      if (!p.alive) { v.root.visible = false; continue; }
+      const px = p.prevX + (p.x - p.prevX) * alpha, py = p.prevY + (p.y - p.prevY) * alpha;
+      v.root.visible = true;
+      v.root.position.set(Math.round(px), Math.round(py));
+      v.root.zIndex = py;
+      const tex = p.kind === 'wood' ? this.woodTex : this.stoneTex;
+      if (v.body.texture !== tex) v.body.texture = tex;
+      const pop = Math.min(1, p.age / 0.25);
+      v.body.scale.set(1.25 * (0.6 + 0.4 * pop));
+      v.body.y = Math.round(-1 - Math.abs(Math.sin(this.t * 3 + i)) * 1.2);
+      v.root.alpha = p.age > 110 ? Math.max(0, (120 - p.age) / 10) : 1;
+    }
+
+    // Chopped trees/rocks shake briefly.
+    for (const [idx, left] of this.shaking) {
+      const view = this.props[idx];
+      const nl = left - dt;
+      if (!view) { this.shaking.delete(idx); continue; }
+      if (nl <= 0) { view.sprite.rotation = 0; this.shaking.delete(idx); continue; }
+      view.sprite.rotation = Math.sin(nl * 60) * 0.06 * (nl / 0.3);
+      this.shaking.set(idx, nl);
+    }
+
     // Enemies
     for (let i = 0; i < MAX_ENEMIES; i++) {
       const e = sim.enemies[i];
@@ -427,6 +475,18 @@ export class Scene {
           this.levelPop = 0.6;
           haptic(40);
           this.hooks.onLevelUp?.(v);
+          break;
+        case Ev.Chop:
+          this.shaking.set(v, 0.3);
+          fx.burst(x, y - 6, 0xd8c8a0, 4, 30);
+          break;
+        case Ev.Drop:
+          fx.burst(x, y - 2, v ? 0xc8d0dc : 0xd8a868, 5, 25);
+          break;
+        case Ev.Pickup:
+          sfx.play('shard', 0.6);
+          fx.burst(x, y - 3, v ? 0xe8eef6 : 0xf0c890, 6, 35);
+          this.hooks.onPickup?.(v ? 'stone' : 'wood');
           break;
         case Ev.AreaEnter:
           this.camX = MAP_W / 2; this.camY = MAP_H / 2;

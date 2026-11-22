@@ -74,7 +74,9 @@ export class GameMap {
     }
 
     for (let i = 0; i < 220; i++) {
-      this.decals.push({ x: rng.range(10, MAP_W - 10), y: rng.range(10, MAP_H - 10), variant: rng.int(3) });
+      // Grass tufts only: the small flower and pebble decals looked like loose wood and stone,
+      // which are now real pickups (see gather.ts).
+      this.decals.push({ x: rng.range(10, MAP_W - 10), y: rng.range(10, MAP_H - 10), variant: 0 });
     }
 
     this.grid = Array.from({ length: this.cols * this.rows }, () => []);

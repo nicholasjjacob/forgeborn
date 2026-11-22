@@ -15,6 +15,7 @@ import { OFFLINE_CAP_HOURS } from './offline';
 import { freshMissions, type MissionSave } from './missions';
 import { MissionSystem } from './missionSystem';
 import { GameMap, MAP_H, MAP_W } from './map';
+import { Gatherer, freshMaterials, type Materials } from './gather';
 import { MAX_LEVEL, levelBonus, milestoneReward, xpForKill, xpToNext, MILESTONES, type MilestoneReward } from './level';
 import {
   FORGE_COST, INVENTORY_SIZE, MAX_FORGE_LEVEL, MERGE_COUNT, bonusWeapon, forgeUpgradeCost, forgeWeapon, mergePartners, mergeWeapons,
@@ -60,6 +61,8 @@ export interface SaveData {
   level: number;
   xp: number;                // progress toward the next level
   levelClaimed: number[];    // Level Road milestones already claimed (5, 10, …)
+  // Building materials, gathered from the ground and by chopping trees/rocks. Kept through Reforge.
+  materials: Materials;
   /** Recent earnings per second, used to pay out offline progress. */
   rates: { gold: number; shards: number };
   savedAt: number;
@@ -74,7 +77,7 @@ export function freshSave(): SaveData {
     rates: { gold: 0, shards: 0 },
     embers: 0, embersEarned: 0, perks: freshPerks(), bestEver: 1, stats: freshStats(), quests: [], achievements: {},
     missions: freshMissions(),
-    level: 1, xp: 0, levelClaimed: [],
+    level: 1, xp: 0, levelClaimed: [], materials: freshMaterials(),
     savedAt: Date.now(),
   };
 }
@@ -128,7 +131,7 @@ export class Sim {
   readonly save: SaveData;
   readonly events = new EventQueue();
   readonly enemies: Enemy[] = [];
-  private readonly rng: Rng;
+  readonly rng: Rng;
 
   map: GameMap;
   phase: Phase = 'playing';
@@ -167,6 +170,7 @@ export class Sim {
   /** Messages for the HUD (quest complete, achievement unlocked). Drained by the UI. */
   readonly notices: string[] = [];
   readonly missions = new MissionSystem(this);
+  readonly gather = new Gatherer(this);
   private metaT = 0;
 
   // Rolling window of recent earnings: 60 buckets × 5 s = the last 5 minutes of play.
@@ -200,6 +204,7 @@ export class Sim {
       });
     }
     this.map = new GameMap(areaIndex(save.stage));
+    this.gather.reset();
     this.fillQuests();
     this.recalc();
     this.hero.hp = this.hero.maxHp;
@@ -453,6 +458,7 @@ export class Sim {
     this.moveHero(dt);
     this.updateEnemies(dt);
     this.heroAttack();
+    this.gather.update(dt);
     this.spawn(dt);
 
     if (this.bossActive) {
@@ -692,6 +698,7 @@ export class Sim {
     h.swingAngle = ang;
     h.faceX = Math.cos(ang) >= 0 ? 1 : -1;
     this.events.push(Ev.Swing, h.x, h.y, ang);
+    this.gather.chop(ang, this.range, this.arc);
 
     const isCrit = this.rng.chance(this.crit);
     const dmg = this.atk * (isCrit ? this.critMult : 1);
@@ -1027,6 +1034,7 @@ export class Sim {
     h.hp = h.maxHp;
     this.input.hasTarget = false;
     this.spawnT = 1;
+    this.gather.reset();
     this.events.push(Ev.AreaEnter, 0, 0, area);
   }
 

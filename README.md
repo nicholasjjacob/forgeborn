@@ -12,6 +12,8 @@ An original top-down action/idle RPG for the web (Chrome, Safari on iOS), built 
 
 **Hero level (1–100):** every kill gives XP (more on later stages; bosses give 20×). Each level adds +3% damage and HP and +1% gold, permanently: levels survive Reforge. Your level shows above the hero's head and in the chip under the stage bar, coloured by tier (bronze, silver at 25, gold at 50, ruby at 75, diamond at 100). Tap the chip for the **Level Road**: a reward every 5 levels, sized to your best stage when you claim it. Every milestone gives gold and shards, every 10 levels adds gems, every 20 a bonus weapon (Rare, Epic from 60, Legendary at 100), and every 25 embers.
 
+**Wood & stone:** logs lie near trees and stones near rocks (new ones appear over time), and a swing that clips a tree or rock can knock a piece loose. Walk close to collect it; nearby pieces drift to you. Materials show in the purse once you have some and are kept through Reforge, ready for building later.
+
 **Missions (side icons on the main screen):** a 7-day login calendar with a grand prize on day 7; daily and weekly mission boards (points from tasks open reward chests at 20/40/60/80/100, reset at local midnight / Monday); a 7-day starter journey that unlocks a new task set each day; a monster codex with kill milestones per area; and a gem shop. A tracker on the main screen shows the two closest daily missions. Gems come from logins, chests and the codex.
 
 **Saving & offline:** progress autosaves every 10 seconds (and when you leave) to IndexedDB, mirrored to localStorage. While you're away your hero keeps earning 50% of your recent gold and shard rate (shards at a 20% share), measured over the last 5 minutes of play, for up to 8 hours (more with the Night Watch perk); a welcome-back screen shows what you got.
@@ -53,6 +55,7 @@ npm run build    # production build in dist/
 | `src/sim/missions.ts`, `src/sim/missionSystem.ts` | Login calendar, daily/weekly boards, 7-day journey, codex, gem shop (clock passed in, fully testable). |
 | `src/ui/missions.ts` | Missions sheet, side icons, main-screen mission tracker. |
 | `src/sim/level.ts`, `src/ui/levelRoad.ts` | Hero level: XP curve, level bonuses, milestone rewards; Level Road sheet. |
+| `src/sim/gather.ts` | Wood/stone pickups: ground spawns, chopping trees and rocks, collection. |
 | `src/ui/tap.ts`, `src/ui/rewardFx.ts` | Reliable taps on live-updating sheets; reward "spill" animation. |
 | `src/sim/offline.ts` | Offline earnings: pure calculation from saved earning rates. |
 | `tests/` | Vitest tests, including a headless greedy-player pacing check. |
