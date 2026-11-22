@@ -376,6 +376,10 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 .flb-text small { font-size: 10px; color: var(--ink-soft); }
 .flb-go { flex: 0 0 auto; font-size: 12px; color: #fff; text-shadow: var(--outline); padding: 4px 9px; border-radius: 9px; background: linear-gradient(var(--orange-1), var(--orange-2)); box-shadow: inset 0 0 0 2px var(--orange-edge); }
 .forge-level-btn .dot { top: -6px; right: -4px; }
+.forge-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.forge-meta .forge-level-btn { padding: 6px 8px; gap: 6px; }
+.forge-meta .flb-ico { font-size: 18px; }
+.forge-meta .flb-text b { font-size: 13px; }
 .forge-level-card { text-align: left; }
 .forge-level-card h2 { text-align: center; }
 .forge-level-card.leveled { animation: card-upgraded 0.6s ease-out; }

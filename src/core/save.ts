@@ -1,6 +1,6 @@
 import { freshMaterials } from '../sim/gather';
 import { freshSave, type SaveData } from '../sim/sim';
-import { INVENTORY_SIZE } from '../sim/weapons';
+import { INVENTORY_SIZE, INVENTORY_STEP, MAX_INVENTORY } from '../sim/weapons';
 import { freshPerks, freshStats } from '../sim/meta';
 import { freshMissions } from '../sim/missions';
 
@@ -143,9 +143,13 @@ export function migrate(input: unknown): SaveData {
   save.level = Number.isFinite(save.level) ? Math.max(1, Math.min(100, Math.floor(save.level))) : 1;
   save.xp = Number.isFinite(save.xp) ? Math.max(0, save.xp) : 0;
   save.bestEver = Math.max(save.bestEver ?? 1, save.highestStage ?? 1, save.stage ?? 1);
-  // Normalise the inventory to exactly INVENTORY_SIZE slots.
-  const inv = Array.isArray(save.weapons) ? save.weapons.slice(0, INVENTORY_SIZE) : [];
-  while (inv.length < INVENTORY_SIZE) inv.push(null);
+  // Normalise the inventory size: at least the starting size, whole rows, at most the maximum
+  // (it grows when the player buys expansions).
+  const raw = Array.isArray(save.weapons) ? save.weapons : [];
+  const rows = Math.ceil(Math.max(0, raw.length - INVENTORY_SIZE) / INVENTORY_STEP);
+  const size = Math.min(MAX_INVENTORY, INVENTORY_SIZE + rows * INVENTORY_STEP);
+  const inv = raw.slice(0, size);
+  while (inv.length < size) inv.push(null);
   save.weapons = inv;
   // Keep weapon ids unique even if the counter was lost.
   let maxId = save.equipped?.id ?? 0;

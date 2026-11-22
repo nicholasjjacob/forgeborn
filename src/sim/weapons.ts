@@ -7,7 +7,13 @@ import { fmt } from '../core/format';
  * traits the weapon carries; form changes how the hero swings.
  */
 
-export const INVENTORY_SIZE = 20;
+export const INVENTORY_SIZE = 20;      // starting slots
+export const INVENTORY_STEP = 5;       // slots added per expansion (one grid row)
+export const MAX_INVENTORY = 60;
+/** Gold to grow the inventory from `size` slots by one row: 1.5K, 4.5K, 13.5K, … */
+export function inventoryExpandCost(size: number): number {
+  return Math.round(1500 * Math.pow(3, Math.max(0, size - INVENTORY_SIZE) / INVENTORY_STEP));
+}
 export const MAX_TIER = 30;
 export const FORGE_COST = 10;          // shards per forge
 export const MAX_FORGE_LEVEL = 25;

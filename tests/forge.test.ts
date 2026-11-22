@@ -124,6 +124,22 @@ describe('forge commands', () => {
     expect(save.weapons.length).toBe(INVENTORY_SIZE);
   });
 
+  it('expands the inventory a row at a time with gold, up to the maximum', () => {
+    const save = freshSave();
+    const sim = new Sim(save, 10);
+    expect(sim.expandInventory()).toBe(false); // no gold
+    save.gold = 1e12;
+    expect(sim.expandInventory()).toBe(true);
+    expect(save.weapons.length).toBe(INVENTORY_SIZE + 5);
+    while (sim.expandInventory());
+    expect(save.weapons.length).toBe(60);
+    save.weapons[59] = w(3, 0, 0);
+    Object.assign(save, { stage: 60, highestStage: 60, bestEver: 60 });
+    sim.reforge();
+    expect(save.weapons.length).toBe(60); // extra slots survive Reforge
+    expect(migrate({ ...save, weapons: save.weapons.slice(0, 33) }).weapons.length).toBe(35); // whole rows
+  });
+
   it('upgrading the forge raises the equipped weapon attack', () => {
     const save = freshSave();
     save.gold = 1e9;

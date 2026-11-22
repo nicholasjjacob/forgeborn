@@ -18,7 +18,7 @@ import { GameMap, MAP_H, MAP_W } from './map';
 import { Gatherer, freshMaterials, type Materials } from './gather';
 import { MAX_LEVEL, levelBonus, milestoneReward, xpForKill, xpToNext, MILESTONES, type MilestoneReward } from './level';
 import {
-  FORGE_COST, INVENTORY_SIZE, MAX_FORGE_LEVEL, MERGE_COUNT, bonusWeapon, compareWeapons, forgeAtkBonus, forgeUpgradeCost, forgeWeapon, matchingSlots, mergePartners, mergeWeapons,
+  FORGE_COST, INVENTORY_SIZE, INVENTORY_STEP, MAX_FORGE_LEVEL, MAX_INVENTORY, inventoryExpandCost, MERGE_COUNT, bonusWeapon, compareWeapons, forgeAtkBonus, forgeUpgradeCost, forgeWeapon, matchingSlots, mergePartners, mergeWeapons,
   salvageValue, starterWeapon, weaponStats, type Weapon,
 } from './weapons';
 
@@ -445,6 +445,19 @@ export class Sim {
     s.shards += value;
     this.invVersion++;
     return value;
+  }
+
+  /** Buy one more row of inventory slots with gold. Permanent (kept through Reforge). */
+  expandInventory(): boolean {
+    const s = this.save;
+    const size = s.weapons.length;
+    if (size >= MAX_INVENTORY) return false;
+    const cost = inventoryExpandCost(size);
+    if (s.gold < cost) return false;
+    s.gold -= cost;
+    s.weapons = [...s.weapons, ...Array(Math.min(INVENTORY_STEP, MAX_INVENTORY - size)).fill(null)];
+    this.invVersion++;
+    return true;
   }
 
   upgradeForge(): boolean {
