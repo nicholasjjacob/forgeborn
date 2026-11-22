@@ -3,7 +3,7 @@ import { Rng } from '../src/core/rng';
 import { migrate } from '../src/core/save';
 import { Sim, freshSave } from '../src/sim/sim';
 import {
-  FORGE_COST, INVENTORY_SIZE, TRAITS, forgeWeapon, mergeWeapons, weaponMult, type Weapon,
+  FORGE_COST, INVENTORY_SIZE, TRAITS, forgeWeapon, mergePreview, mergeWeapons, weaponMult, type Weapon,
 } from '../src/sim/weapons';
 
 const w = (tier: number, rarity: 0 | 1 | 2 | 3, form: 0 | 1 | 2 | 3 = 0, traits: Weapon['traits'] = []): Weapon =>
@@ -89,6 +89,33 @@ describe('forge commands', () => {
     expect(save.weapons[0]!.tier).toBe(4);
     expect(save.weapons[0]!.form).toBe(0);
     expect(save.weapons.filter(Boolean).length).toBe(3); // 3 swords became 1; axe + rare sword stay
+  });
+
+  it('upgrades the equipped weapon with two matching weapons from the bag', () => {
+    const save = freshSave();
+    save.equipped = w(2, 2, 1, [{ t: 'gold', v: 0.1 }]); // epic T2 axe
+    save.weapons[0] = w(2, 2, 1);
+    save.weapons[5] = w(2, 1, 1); // rare: doesn't match
+    const sim = new Sim(save, 7);
+    const atk = sim.atk;
+    expect(sim.mergeEquipped()).toBe(false); // only 2 of 3
+    save.weapons[3] = w(2, 2, 1);
+    expect(sim.mergeEquipped()).toBe(true);
+    expect(save.equipped!.tier).toBe(3);
+    expect(save.equipped!.form).toBe(1);
+    expect(save.weapons[0]).toBeNull();
+    expect(save.weapons[3]).toBeNull();
+    expect(save.weapons[5]).not.toBeNull();
+    expect(sim.atk).toBeGreaterThan(atk);
+  });
+
+  it('previews a merge result before merging', () => {
+    const base = w(4, 1, 0, [{ t: 'crit', v: 0.03 }]);
+    const p = mergePreview(base);
+    expect(p.tier).toBe(5);
+    expect(p.rarity).toBe(1);
+    expect(p.traits[0].v).toBeGreaterThan(0.03);
+    expect(base.tier).toBe(4); // input untouched
   });
 
   it('previews attack for a weapon without equipping it', () => {

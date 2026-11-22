@@ -18,7 +18,7 @@ import { GameMap, MAP_H, MAP_W } from './map';
 import { Gatherer, freshMaterials, type Materials } from './gather';
 import { MAX_LEVEL, levelBonus, milestoneReward, xpForKill, xpToNext, MILESTONES, type MilestoneReward } from './level';
 import {
-  FORGE_COST, INVENTORY_SIZE, MAX_FORGE_LEVEL, MERGE_COUNT, bonusWeapon, forgeUpgradeCost, forgeWeapon, mergePartners, mergeWeapons,
+  FORGE_COST, INVENTORY_SIZE, MAX_FORGE_LEVEL, MERGE_COUNT, bonusWeapon, forgeUpgradeCost, forgeWeapon, matchingSlots, mergePartners, mergeWeapons,
   salvageValue, starterWeapon, weaponStats, type Weapon,
 } from './weapons';
 
@@ -359,6 +359,25 @@ export class Sim {
     s.stats.merges++;
     if (m.rarity === 3 && keep.rarity < 3) s.stats.legendaries++;
     this.invVersion++;
+    return true;
+  }
+
+  /**
+   * Upgrade the equipped weapon: merge it with MERGE_COUNT - 1 matching inventory weapons. The
+   * result stays equipped. Returns false if there aren't enough matches.
+   */
+  mergeEquipped(): boolean {
+    const s = this.save;
+    const eq = s.equipped;
+    if (!eq) return false;
+    const use = matchingSlots(s.weapons, eq).slice(0, MERGE_COUNT - 1);
+    if (use.length < MERGE_COUNT - 1) return false;
+    const m = mergeWeapons(this.rng, s.nextWeaponId++, eq, use.map((i) => s.weapons[i]!));
+    s.equipped = m;
+    for (const i of use) s.weapons[i] = null;
+    s.stats.merges++;
+    if (m.rarity === 3 && eq.rarity < 3) s.stats.legendaries++;
+    this.applyWeaponChange();
     return true;
   }
 

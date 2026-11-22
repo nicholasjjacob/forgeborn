@@ -124,6 +124,20 @@ export function canMerge(a: Weapon, b: Weapon): boolean {
   return a.id !== b.id && a.form === b.form && a.tier === b.tier && a.rarity === b.rarity && a.tier < MAX_TIER;
 }
 
+/** What merging `w` gives before the random rarity roll: next tier, same traits rescaled. */
+export function mergePreview(w: Weapon): Weapon {
+  const tier = Math.min(MAX_TIER, w.tier + 1);
+  const k = traitScale(tier) / traitScale(w.tier);
+  return { ...w, tier, traits: w.traits.map((tr) => ({ t: tr.t, v: Math.min(TRAITS[tr.t].cap, tr.v * k) })) };
+}
+
+/** Inventory slots holding weapons that can merge with `w` (which may be the equipped one). */
+export function matchingSlots(inv: readonly (Weapon | null)[], w: Weapon | null): number[] {
+  const out: number[] = [];
+  if (w) inv.forEach((o, i) => { if (o && canMerge(w, o)) out.push(i); });
+  return out;
+}
+
 /** Inventory slots holding weapons that can merge with the one in `slot` (excluding it). */
 export function mergePartners(inv: readonly (Weapon | null)[], slot: number): number[] {
   const w = inv[slot];

@@ -3,7 +3,7 @@ import { haptic, sfx } from '../audio/sfx';
 import type { Sim } from '../sim/sim';
 import {
   FORGE_COST, FORMS, MAX_FORGE_LEVEL, MAX_TIER, MERGE_COUNT, RARITY_COLORS, RARITY_NAMES, TRAITS, forgeOdds, forgeTiers,
-  forgeUpgradeCost, mergePartners, salvageValue, weaponName, weaponPower, weaponSummary, type Weapon,
+  forgeUpgradeCost, matchingSlots, mergePartners, mergePreview, salvageValue, weaponName, weaponPower, weaponSummary, type Weapon,
 } from '../sim/weapons';
 
 /**
@@ -17,6 +17,8 @@ export class ForgePanel {
   private renderedVersion = -1;
   private renderedSelected = -2;
   private renderedAtk = -1;
+  /** Attack count-up after an equip or merge: from → to over ATK_ANIM ms. */
+  private atkAnim: { from: number; to: number; start: number } | null = null;
   private readonly slots: HTMLButtonElement[] = [];
   private readonly cache = new Map<HTMLElement, string>();
   private readonly el: Record<string, HTMLElement>;
@@ -30,6 +32,7 @@ export class ForgePanel {
         <div class="wc-body">
           <div class="wc-title"><span class="wc-tag"></span><span class="wc-name"></span></div>
           <div class="wc-atk"></div>
+          <div class="wc-merge"></div>
           <div class="wc-summary"></div>
           <ul class="wc-traits"></ul>
           <div class="wc-hint"></div>
@@ -54,7 +57,7 @@ export class ForgePanel {
     const $ = (sel: string) => root.querySelector<HTMLElement>(sel)!;
     this.el = {
       card: $('#weapon-card'), icon: $('.wc-icon img'), tag: $('.wc-tag'), name: $('.wc-name'),
-      summary: $('.wc-summary'), atk: $('.wc-atk'), traits: $('.wc-traits'), hint: $('.wc-hint'),
+      summary: $('.wc-summary'), atk: $('.wc-atk'), mergeInfo: $('.wc-merge'), traits: $('.wc-traits'), hint: $('.wc-hint'),
       equip: $('#equip-btn'), salvage: $('#salvage-btn'), merge: $('#merge-btn'),
       forge1: $('#forge-1'), forge10: $('#forge-10'), autoMerge: $('#auto-merge'),
       level: $('#fl-level'), odds: $('#fl-odds'), up: $('#forge-up'), upCost: $('#fl-cost'),
@@ -84,21 +87,27 @@ export class ForgePanel {
       if (sim.upgradeForge()) this.toast(`Forge level ${sim.save.forgeLevel}`);
     });
     this.el.equip.addEventListener('click', () => {
+      const before = sim.atk;
       if (this.selected >= 0 && sim.equip(this.selected)) {
         this.flash([this.selected], 'pop');
         this.selected = -1;
+        this.animateAtk(before);
       }
     });
     this.el.merge.addEventListener('click', () => {
       const i = this.selected;
-      if (i < 0) return;
-      const before = sim.save.weapons[i];
-      if (!before || !sim.merge(i)) return;
-      const result = sim.save.weapons[i]!;
-      this.flash([i], 'pop');
+      const before = i >= 0 ? sim.save.weapons[i] : sim.save.equipped;
+      const atkBefore = sim.atk;
+      if (!before) return;
+      // A selected inventory weapon merges in place; with nothing selected, upgrade the equipped one.
+      const ok = i >= 0 ? sim.merge(i) : sim.mergeEquipped();
+      if (!ok) return;
+      const result = i >= 0 ? sim.save.weapons[i]! : sim.save.equipped!;
+      if (i >= 0) this.flash([i], 'pop');
+      else { this.animateAtk(atkBefore); this.el.card.classList.remove('upgraded'); void this.el.card.offsetWidth; this.el.card.classList.add('upgraded'); }
       sfx.play('merge');
       haptic(20);
-      this.toast(result.rarity > before.rarity ? `${RARITY_NAMES[result.rarity]}! ${weaponName(result)} T${result.tier}` : `Merged into ${weaponName(result)} T${result.tier}`);
+      this.toast(result.rarity > before.rarity ? `${RARITY_NAMES[result.rarity]}! ${weaponName(result)} T${result.tier}` : `Upgraded to ${weaponName(result)} T${result.tier}`);
     });
     this.el.salvage.addEventListener('click', () => {
       if (this.selected < 0) return;
@@ -106,6 +115,26 @@ export class ForgePanel {
       if (got) this.toast(`+${got} shards`);
       this.selected = -1;
     });
+  }
+
+  /** Count the equipped Attack up (or down) from `from` to its new value, with a ▲/▼ chip. */
+  private animateAtk(from: number): void {
+    const to = this.sim.atk;
+    if (Math.abs(to - from) < 0.01) return;
+    this.atkAnim = { from, to, start: performance.now() };
+    const step = () => {
+      const a = this.atkAnim;
+      if (!a) return;
+      const k = Math.min(1, (performance.now() - a.start) / ATK_ANIM);
+      const e = 1 - Math.pow(1 - k, 3);
+      const num = this.el.atk.querySelector('b');
+      if (num) num.textContent = fmt(a.from + (a.to - a.from) * e);
+      if (k < 1) requestAnimationFrame(step);
+      else this.atkAnim = null;
+    };
+    this.renderedAtk = -1; // force a redraw with the delta chip
+    this.render();
+    requestAnimationFrame(step);
   }
 
   private doForge(n: number): void {
@@ -194,6 +223,11 @@ export class ForgePanel {
     const w = sel ?? s.equipped;
     const card = this.el.card;
     card.classList.toggle('selecting', !!sel);
+    // Matching weapons for the card's weapon: inventory partners, or for the equipped weapon,
+    // matching inventory weapons (the equipped one counts as the first of the three).
+    const eqMatches = !sel ? matchingSlots(s.weapons, s.equipped) : [];
+    card.classList.toggle('eq-merge', !sel && eqMatches.length > 0);
+    if (!sel) for (const i of eqMatches) this.slots[i].classList.add('mergeable');
     if (w) {
       const img = this.el.icon as HTMLImageElement;
       img.src = this.icons[w.form][w.rarity];
@@ -237,9 +271,30 @@ export class ForgePanel {
           : `Merge needs 3 ${kind} (have ${have}).${rarityNote} · `) + `${overall} incl. speed & traits`;
         this.el.salvage.textContent = `Salvage +${salvageValue(sel)}`;
       } else {
-        this.el.atk.className = 'wc-atk';
-        this.el.atk.innerHTML = `<span class="wc-atk-lbl">⚔ Attack</span> <b>${fmt(now)}</b>`;
-        this.el.hint.textContent = `${FORMS[w.form].name}: ${FORMS[w.form].blurb.toLowerCase()} · tap a weapon below to compare`;
+        const a = this.atkAnim;
+        const delta = a ? a.to - a.from : 0;
+        this.el.atk.className = `wc-atk ${a ? (delta > 0 ? 'up' : 'down') : ''}`;
+        this.el.atk.innerHTML = `<span class="wc-atk-lbl">⚔ Attack</span> <b>${fmt(a ? a.from : now)}</b>` +
+          (a ? ` <i class="atk-delta">${delta > 0 ? '▲ +' : '▼ −'}${fmt(Math.abs(delta))}</i>` : '');
+        const have = eqMatches.length + 1;
+        const ready = have >= MERGE_COUNT && w.tier < MAX_TIER;
+        this.el.merge.textContent = `Merge ${Math.min(have, MERGE_COUNT)}/${MERGE_COUNT}`;
+        this.disable(this.el.merge, !ready);
+        const kind = `${RARITY_NAMES[w.rarity]} T${w.tier} ${FORMS[w.form].name}s`;
+        this.el.hint.textContent = eqMatches.length
+          ? (ready ? `Upgrade: merge with 2 matching ${kind} from your bag` : `Upgrade needs 3 ${kind} (have ${have} incl. this one)`)
+          : `${FORMS[w.form].name}: ${FORMS[w.form].blurb.toLowerCase()} · tap a weapon below to compare`;
+      }
+      // What the next merge would do to your Attack (before any lucky rarity bump).
+      const mw = sel ?? s.equipped;
+      const canShow = mw && mw.tier < MAX_TIER && (sel ? partners.length + 1 >= MERGE_COUNT : eqMatches.length > 0);
+      if (canShow && mw) {
+        const after = this.sim.attackWith(mergePreview(mw));
+        const base = sel ? this.sim.attackWith(sel) : now;
+        this.el.mergeInfo.innerHTML = `⇧ After merge (T${mw.tier + 1}): Attack ${fmt(base)} → <b>${fmt(after)}</b> <em>▲ +${fmt(after - base)}</em>`;
+        this.el.mergeInfo.hidden = false;
+      } else {
+        this.el.mergeInfo.hidden = true;
       }
     }
     this.renderedVersion = this.sim.invVersion;
@@ -252,7 +307,7 @@ export class ForgePanel {
     const s = this.sim.save;
     const forges = Math.min(Math.floor(s.shards / FORGE_COST), this.sim.freeSlots());
     if (forges > 0) return String(forges);
-    return hasPair(s.weapons) ? '!' : '';
+    return hasPair(s.weapons) || matchingSlots(s.weapons, s.equipped).length >= MERGE_COUNT - 1 ? '!' : '';
   }
 }
 
@@ -268,6 +323,8 @@ function hasPair(inv: (Weapon | null)[]): boolean {
   }
   return false;
 }
+
+const ATK_ANIM = 700; // ms
 
 function pct(v: number): string {
   return `${(v * 100).toFixed(v < 0.1 ? 1 : 0)}%`;

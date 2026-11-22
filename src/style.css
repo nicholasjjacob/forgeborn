@@ -392,6 +392,18 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 .wc-hint { font-size: 11px; color: var(--ink-soft); margin-top: 2px; }
 .wc-actions { display: none; flex-direction: column; gap: 6px; }
 .weapon-card.selecting .wc-actions { display: flex; }
+/* Equipped card with matching weapons in the bag: just the Merge (upgrade) button. */
+.weapon-card.eq-merge .wc-actions { display: flex; justify-content: center; }
+.weapon-card.eq-merge:not(.selecting) #equip-btn, .weapon-card.eq-merge:not(.selecting) #salvage-btn { display: none; }
+.wc-merge { font-size: 12px; color: #6a3fb0; font-variant-numeric: tabular-nums; }
+.wc-merge b { color: #4a2280; }
+.wc-merge em { font-style: normal; font-weight: 800; color: #2e9a2a; }
+.atk-delta { font-style: normal; font-weight: 800; margin-left: 4px; display: inline-block; animation: atk-delta 1.6s ease-out forwards; }
+.wc-atk.up .atk-delta { color: #2e9a2a; }
+.wc-atk.down .atk-delta { color: #d0342c; }
+@keyframes atk-delta { 0% { transform: translateY(4px) scale(0.6); opacity: 0; } 15% { transform: translateY(-2px) scale(1.25); opacity: 1; } 30% { transform: none; } 80% { opacity: 1; } 100% { opacity: 0; } }
+.weapon-card.upgraded { animation: card-upgraded 0.6s ease-out; }
+@keyframes card-upgraded { 30% { transform: scale(1.03); box-shadow: 0 0 0 3px #ffd23f, 0 0 18px #ffb000; } }
 .btn.merge-btn:not(:disabled) { background: linear-gradient(var(--purple-1), var(--purple-2)); box-shadow: inset 0 0 0 2px var(--purple-edge), inset 0 3px 0 #ffffff55, 0 4px 0 var(--purple-edge); }
 
 .inv-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
