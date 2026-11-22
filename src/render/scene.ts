@@ -276,6 +276,10 @@ export class Scene {
     this.hero.alpha = dead ? 0.5 : 1;
     this.heroBody.tint = h.hitT > 0 ? 0xff7070 : 0xffffff;
 
+    // Mirror the weapon with the hero. Rotations below are already mirrored (× faceX), and
+    // mirror·rotate(r) = rotate(−r)·mirror, so with this flip the whole pose is a true mirror
+    // image: an axe head or hammer face points the right way when running left.
+    this.swordArm.scale.x = h.faceX;
     if (h.swingT > 0) {
       // Sweep the blade across the swing direction; the slash arc fades out over the swing.
       const p = 1 - h.swingT / SWING_TIME;
