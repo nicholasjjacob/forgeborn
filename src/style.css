@@ -716,7 +716,8 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 .lv-row .task-done { width: 64px; }
 .wchip { color: #fff; text-shadow: 0 1px 0 #0008; background: var(--rc); }
 .wchip i { font-style: normal; }
-.build-stamp { margin: 10px 0 0; text-align: center; font-size: 11px; color: var(--ink-soft); }
+/* Below the Done/Reset buttons: clear their 4px drop shadow, and beat `.modal-card p`. */
+.modal-card .build-stamp { margin: 16px 0 6px; text-align: center; font-size: 11px; line-height: 1.3; color: var(--ink-soft); }
 .flc-row > span { text-align: left; }
 /* Disabled always wins over colour variants (primary/green/merge…), wherever they're declared. */
 .btn.btn:disabled { background: linear-gradient(var(--grey-1), var(--grey-2)); box-shadow: inset 0 0 0 2px var(--grey-edge), 0 4px 0 var(--grey-edge); color: #fffc; cursor: default; }
