@@ -385,8 +385,14 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
   position: relative; aspect-ratio: 1; min-height: 48px; padding: 0; border: 0; border-radius: 12px;
   display: grid; place-items: center;
   background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--rc) 45%, #fff), color-mix(in srgb, var(--rc) 25%, var(--cream-3)));
-  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--rc) 75%, #000), 0 3px 0 var(--wood-dark);
+  box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--rc) 85%, #000), 0 3px 0 var(--wood-dark);
 }
+.slot .rar {
+  position: absolute; right: 3px; top: 3px; min-width: 14px; height: 14px; padding: 0 2px; border-radius: 4px;
+  font-size: 10px; line-height: 14px; text-align: center; color: #fff; text-shadow: 0 1px 0 #0009;
+  background: color-mix(in srgb, var(--rc) 85%, #000); box-shadow: 0 0 0 1px #fff8;
+}
+.slot.empty .rar { display: none; }
 .slot img { width: 20px; height: 36px; filter: drop-shadow(0 1px 1px #0005); }
 .slot.empty { background: var(--cream-3); box-shadow: inset 0 2px 0 #0002, inset 0 0 0 2px #c9a86a; }
 .slot.empty img, .slot.empty .tier { display: none; }

@@ -65,7 +65,7 @@ export class ForgePanel {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'slot';
-      b.innerHTML = '<img alt="" /><span class="tier"></span><span class="better">▲</span>';
+      b.innerHTML = '<img alt="" /><span class="tier"></span><span class="better">▲</span><span class="rar"></span>';
       b.addEventListener('click', () => { this.tap(i); this.refresh(); });
       this.el.grid.appendChild(b);
       this.slots.push(b);
@@ -180,6 +180,8 @@ export class ForgePanel {
       if (img.getAttribute('src') !== src) img.src = src;
       b.style.setProperty('--rc', RARITY_COLORS[w.rarity]);
       (b.children[1] as HTMLElement).textContent = `T${w.tier}`;
+      // Rarity letter (C/R/E/L): merges need matching rarity, so make it readable at a glance.
+      (b.children[3] as HTMLElement).textContent = RARITY_NAMES[w.rarity][0];
       if (weaponPower(w) > eqPower * 1.001) b.classList.add('is-better');
       if (i === this.selected) b.classList.add('selected');
       else if (partners.includes(i)) b.classList.add('mergeable');
@@ -197,7 +199,7 @@ export class ForgePanel {
       img.src = this.icons[w.form][w.rarity];
       card.style.setProperty('--rc', RARITY_COLORS[w.rarity]);
       this.el.tag.textContent = sel ? `${RARITY_NAMES[w.rarity]} · T${w.tier}` : `Equipped · ${RARITY_NAMES[w.rarity]} · T${w.tier}`;
-      this.el.name.textContent = weaponName(w);
+      this.el.name.textContent = `${RARITY_NAMES[w.rarity]} ${weaponName(w)}`;
       this.el.summary.textContent = weaponSummary(w);
       this.el.traits.replaceChildren(...w.traits.map((t) => {
         const li = document.createElement('li');
@@ -223,9 +225,16 @@ export class ForgePanel {
         this.disable(this.el.merge, !ready);
         const delta = eqPower > 0 ? weaponPower(sel) / eqPower : 1;
         const overall = delta >= 1.005 ? `overall ▲ ${((delta - 1) * 100).toFixed(0)}%` : delta <= 0.995 ? `overall ▼ ${((1 - delta) * 100).toFixed(0)}%` : 'overall about the same';
+        // Same type and tier but another rarity don't count: say so, it's the easy thing to miss.
+        const otherRarity = new Map<number, number>();
+        for (const o of s.weapons) {
+          if (o && o.form === sel.form && o.tier === sel.tier && o.rarity !== sel.rarity) otherRarity.set(o.rarity, (otherRarity.get(o.rarity) ?? 0) + 1);
+        }
+        const others = [...otherRarity].map(([r, n]) => `${n} ${RARITY_NAMES[r]}`).join(', ');
+        const rarityNote = !ready && others ? ` Your ${others} T${sel.tier} ${FORMS[sel.form].name} don't count: rarity must match.` : '';
         this.el.hint.textContent = (sel.tier >= MAX_TIER ? 'Max tier · '
           : ready ? `Merge 3 ${kind} → T${sel.tier + 1} · `
-          : `Merge needs 3 ${kind} (have ${have}) · `) + `${overall} incl. speed & traits`;
+          : `Merge needs 3 ${kind} (have ${have}).${rarityNote} · `) + `${overall} incl. speed & traits`;
         this.el.salvage.textContent = `Salvage +${salvageValue(sel)}`;
       } else {
         this.el.atk.className = 'wc-atk';
