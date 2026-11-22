@@ -652,3 +652,4 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 .lv-row .task-done { width: 64px; }
 .wchip { color: #fff; text-shadow: 0 1px 0 #0008; background: var(--rc); }
 .wchip i { font-style: normal; }
+.build-stamp { margin: 10px 0 0; text-align: center; font-size: 11px; color: var(--ink-soft); }

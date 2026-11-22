@@ -33,6 +33,7 @@ export function openSettings(sim: Sim, act: SettingsActions): void {
         <button type="button" class="btn ghost" id="reset-progress">Reset progress</button>
         <button type="button" class="btn primary" id="close-settings">Done</button>
       </div>
+      <p class="build-stamp">Version ${__BUILD__}</p>
     </div>`;
 
   const sync = () => {
