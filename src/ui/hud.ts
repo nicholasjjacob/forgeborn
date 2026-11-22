@@ -8,6 +8,7 @@ import { QuestPanel } from './quests';
 import { ReforgePanel } from './reforge';
 import { MissionsUI } from './missions';
 import { LevelRoad } from './levelRoad';
+import { BagUI } from './bag';
 import { MAX_LEVEL, levelTier } from '../sim/level';
 
 type Tab = 'upgrades' | 'forge' | 'quests' | 'reforge';
@@ -40,6 +41,7 @@ export class Hud {
   private toastUntil = 0;
   readonly missions: MissionsUI;
   readonly levelRoad: LevelRoad;
+  readonly bag: BagUI;
   private readonly lv: { chip: HTMLElement; num: HTMLElement; fill: HTMLElement; dot: HTMLElement };
 
   constructor(root: HTMLElement, private readonly sim: Sim, weaponIcons: string[][], codexIcon: (area: number, slot: number) => string, onSettings: () => void) {
@@ -55,9 +57,6 @@ export class Hud {
       shards: $('#shard-label'),
       ember: $('#ember-label'),
       emberPill: $('.embers'),
-      mats: $('.mats'),
-      wood: $('#wood-label'),
-      stone: $('#stone-label'),
       buyModes: $('.buy-modes'),
       challenge: $('#challenge-btn'),
       toast: $('#toast'),
@@ -86,6 +85,8 @@ export class Hud {
     this.reforge = new ReforgePanel($('#reforge-root'), sim, (m) => this.toast(m, 'boss'));
     this.missions = new MissionsUI(sim, (m) => this.toast(m), codexIcon);
     this.levelRoad = new LevelRoad(sim, (m, k) => this.toast(m, k));
+    this.bag = new BagUI(sim, () => this.showTab('forge'));
+    $('#side-bag').addEventListener('click', () => { sfx.play('tick'); this.bag.open(); });
     this.lv = { chip: $('#level-chip'), num: $('#level-num'), fill: $('#xp-fill'), dot: $('#level-dot') };
     this.lv.chip.addEventListener('click', () => { sfx.play('tick'); this.levelRoad.open(); });
     this.badges = { forge: $('#forge-badge'), quests: $('#quests-badge'), reforge: $('#reforge-badge') };
@@ -169,9 +170,9 @@ export class Hud {
     if (el.classList.contains(cls) !== on) el.classList.toggle(cls, on);
   }
 
-  /** Pop the wood/stone counter when a piece is collected. */
-  bumpMaterial(kind: 'wood' | 'stone'): void {
-    const el = (kind === 'wood' ? this.el.wood : this.el.stone).parentElement;
+  /** Pop the Bag icon when a wood/stone piece is collected. */
+  bumpMaterial(_kind: 'wood' | 'stone'): void {
+    const el = document.getElementById('side-bag');
     if (!el) return;
     el.classList.remove('fx-bump');
     void el.offsetWidth;
@@ -214,10 +215,7 @@ export class Hud {
     this.set(this.el.shards, fmt(s.shards));
     this.set(this.el.ember, fmt(s.embers));
     this.toggle(this.el.emberPill, 'show', s.embersEarned > 0 || sim.reforgeGain > 0);
-    // Materials appear once the first piece is picked up.
-    this.toggle(this.el.mats, 'show', s.materials.wood + s.materials.stone > 0);
-    this.set(this.el.wood, fmt(s.materials.wood));
-    this.set(this.el.stone, fmt(s.materials.stone));
+    this.bag.refresh();
     this.setBadge('forge', this.forge.badge());
     this.setBadge('quests', this.quests.badge());
     this.setBadge('reforge', this.reforge.badge());

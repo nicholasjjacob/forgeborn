@@ -16,10 +16,10 @@ export class InventoryUI {
     wrap.className = 'modal';
     wrap.setAttribute('role', 'dialog');
     wrap.setAttribute('aria-modal', 'true');
-    wrap.setAttribute('aria-label', 'Inventory');
+    wrap.setAttribute('aria-label', 'Weapon slots');
     wrap.innerHTML = `
       <div class="modal-card forge-level-card inv-card">
-        <h2>🎒 Inventory</h2>
+        <h2>⚔ Weapon Slots</h2>
         <div class="flc-body"></div>
         <div class="set-actions">
           <button type="button" class="btn ghost" data-close>Close</button>
@@ -50,7 +50,7 @@ export class InventoryUI {
     if (!this.sim.expandInventory()) return;
     sfx.play('forge');
     haptic(20);
-    this.toast(`Inventory: ${this.sim.save.weapons.length} slots`);
+    this.toast(`Weapon slots: ${this.sim.save.weapons.length}`);
     const card = this.wrap?.querySelector<HTMLElement>('.inv-card');
     if (card) { card.classList.remove('leveled'); void card.offsetWidth; card.classList.add('leveled'); }
     this.onExpand();

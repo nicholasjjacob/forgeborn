@@ -59,7 +59,7 @@ export class ForgePanel {
           <b class="dot" id="fl-dot" hidden>!</b>
         </button>
         <button type="button" class="forge-level-btn" id="inv-btn" aria-label="Inventory size">
-          <span class="flb-ico">🎒</span>
+          <span class="flb-ico">⚔</span>
           <span class="flb-text"><b id="inv-count"></b><small id="inv-sub"></small></span>
           <b class="dot" id="inv-dot" hidden>!</b>
         </button>
@@ -159,7 +159,7 @@ export class ForgePanel {
   private doForge(n: number): void {
     const filled = this.sim.forge(n);
     if (filled.length) { this.flash(this.resort(filled), 'new'); this.selected = -1; sfx.play('forge'); }
-    else if (this.sim.freeSlots() === 0) this.toast('Inventory full: merge, salvage, or tap 🎒 to expand');
+    else if (this.sim.freeSlots() === 0) this.toast('Weapon slots full: merge, salvage, or buy more slots');
     else this.toast(`Need ${FORGE_COST} shards`);
   }
 
@@ -227,7 +227,7 @@ export class ForgePanel {
     // Inventory: used / size; "!" when it's (nearly) full and another row is affordable.
     const size = s.weapons.length, used = size - free;
     const invMaxed = size >= MAX_INVENTORY;
-    this.set(this.el.invCount, `Inventory ${used}/${size}`);
+    this.set(this.el.invCount, `Slots ${used}/${size}`);
     this.set(this.el.invSub, invMaxed ? 'Max size' : `+5 slots · ${fmt(inventoryExpandCost(size))} gold`);
     this.el.invDot.hidden = invMaxed || free > 2 || s.gold < inventoryExpandCost(size);
     this.invUI.refresh();

@@ -490,6 +490,7 @@ export class Scene {
         case Ev.Pickup:
           sfx.play('shard', 0.6);
           fx.burst(x, y - 3, v ? 0xe8eef6 : 0xf0c890, 6, 35);
+          fx.text(x, y - 8, 1, v ? 0xd8e0ea : 0xf0b070, false, '+');
           this.hooks.onPickup?.(v ? 'stone' : 'wood');
           break;
         case Ev.AreaEnter:

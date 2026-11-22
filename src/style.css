@@ -109,14 +109,6 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 .gold { font-size: 17px; }
 .embers { display: none; }
 .embers.show { display: flex; }
-/* Wood + stone, side by side in one pill */
-.mats {
-  display: none; align-items: center; gap: 8px; padding: 2px 10px 2px 5px; border-radius: 999px;
-  background: linear-gradient(#3a3456e6, #221d38e6); box-shadow: inset 0 0 0 2px #00000055, 0 2px 0 #0004;
-  color: #fff; font-size: 13px; text-shadow: var(--outline); font-variant-numeric: tabular-nums;
-}
-.mats.show { display: flex; }
-.mat { display: inline-flex; align-items: center; gap: 4px; }
 .log { display: inline-block; width: 16px; height: 9px; border-radius: 5px 3px 3px 5px; background: linear-gradient(#b0743c, #6e3e1a); box-shadow: inset -4px 0 0 #f0cf98, 0 0 0 1.5px #3a1e0a; }
 .rock { display: inline-block; width: 13px; height: 11px; clip-path: polygon(12% 85%, 6% 45%, 28% 12%, 62% 5%, 92% 32%, 94% 72%, 70% 95%, 30% 97%); background: linear-gradient(160deg, #e2e8ee, #9aa4b0 55%, #5e6672); }
 .coin, .gem, .ember, .jewel { display: inline-block; flex: 0 0 auto; }
@@ -779,3 +771,34 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 .btn.btn:disabled { color: #fff; text-shadow: 0 1px 0 #0007; }
 .btn.btn:disabled .jewel { filter: grayscale(0.6); }
 .sheet-body > .sheet-note:first-child { padding: 0 34px; }
+
+/* --- Bag (ui/bag.ts) ----------------------------------------------------------------------- */
+.bag-detail { display: flex; align-items: center; gap: 12px; margin: 4px 0 6px; padding: 10px; border-radius: 14px; background: linear-gradient(#fff6e2, var(--cream-2)); box-shadow: inset 0 0 0 2px var(--wood), 0 3px 0 var(--wood-dark); }
+.bag-detail-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.bag-detail-name { font-size: 16px; }
+.bag-detail-name b { float: right; font-variant-numeric: tabular-nums; }
+.bag-about { font-size: 12px; color: var(--ink); }
+.bag-source { font-size: 11px; color: var(--ink-soft); }
+.bag-title { margin: 12px 2px 6px; font-size: 14px; color: var(--wood-dark); }
+.bag-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+.bag-tile { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 8px 2px 7px; border: 0; border-radius: 12px; font: inherit; color: var(--ink); cursor: pointer; background: linear-gradient(#fffaf0, var(--cream-2)); box-shadow: inset 0 0 0 2px var(--wood), 0 3px 0 var(--wood-dark); }
+.bag-tile.sel { box-shadow: inset 0 0 0 3px var(--orange-2), 0 0 0 2px #ffd28a, 0 3px 0 var(--orange-edge); }
+.bag-ico { width: 40px; height: 34px; display: grid; place-items: center; border-radius: 10px; background: radial-gradient(circle, #fff, #ffffff00 70%); }
+.bag-ico.big { flex: 0 0 auto; width: 56px; height: 56px; border-radius: 14px; background: radial-gradient(circle, #fff, var(--cream-3)); box-shadow: inset 0 0 0 2px var(--wood); }
+.bag-ico .coin { width: 24px; height: 24px; }
+.bag-ico .gem { width: 16px; height: 16px; }
+.bag-ico .jewel { width: 22px; height: 20px; }
+.bag-ico .ember { width: 18px; height: 23px; }
+.bag-ico .log { width: 26px; height: 14px; }
+.bag-ico .rock { width: 22px; height: 19px; }
+.bag-ico.big .coin { width: 34px; height: 34px; }
+.bag-ico.big .gem { width: 24px; height: 24px; }
+.bag-ico.big .jewel { width: 32px; height: 29px; }
+.bag-ico.big .ember { width: 26px; height: 33px; }
+.bag-ico.big .log { width: 38px; height: 20px; }
+.bag-ico.big .rock { width: 32px; height: 27px; }
+.bag-name { font-size: 11px; color: var(--ink-soft); }
+.bag-amt { font-size: 14px; font-variant-numeric: tabular-nums; }
+.bag-weapons { display: flex; flex-direction: column; gap: 5px; padding: 10px 12px; border-radius: 14px; background: linear-gradient(#fffaf0, var(--cream-2)); box-shadow: inset 0 0 0 2px var(--wood), 0 3px 0 var(--wood-dark); font-size: 13px; }
+.bag-weapons .btn { align-self: flex-end; margin-top: 4px; }
+.sheet.bag-sheet { height: auto; max-height: 100%; } /* no tab bar to keep in place: fit the contents */
