@@ -88,7 +88,7 @@ describe('save migration', () => {
     const v1 = { v: 1, stage: 23, highestStage: 25, gold: 1234, kills: 999, farming: false,
       upgrades: { atk: 10, hp: 5, aspd: 1, crit: 0, gold: 2 }, buyMode: 10, fps: 30, savedAt: 1 };
     const s = migrate(v1);
-    expect(s.v).toBe(4);
+    expect(s.v).toBe(5);
     expect(s.bestEver).toBe(25);
     expect(s.perks.might).toBe(0);
     expect(s.stage).toBe(23);

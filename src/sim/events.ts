@@ -11,6 +11,7 @@ export const Ev = {
   AreaEnter: 10, // value = area index
   Shard: 11,     // x, y, value = shard count
   Shock: 12,     // x, y = chained enemy; x2, y2 = where the arc came from
+  LevelUp: 13,   // x, y = hero; value = new level
 } as const;
 export type Ev = (typeof Ev)[keyof typeof Ev];
 

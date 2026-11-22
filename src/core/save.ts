@@ -109,16 +109,17 @@ export function migrate(input: unknown): SaveData {
   const base = freshSave();
   if (!input || typeof input !== 'object') return base;
   const data = { ...(input as Record<string, unknown>) } as Omit<Partial<SaveData>, 'v'> & { v?: number };
-  if (data.v !== 1 && data.v !== 2 && data.v !== 3 && data.v !== 4) return base;
+  if (data.v !== 1 && data.v !== 2 && data.v !== 3 && data.v !== 4 && data.v !== 5) return base;
 
   // v1 → v2: forge added (shards, forge level, inventory, starter weapon).
   // v2 → v3: reforge/perks, lifetime stats, quests, achievements.
   // v3 → v4: gems, login calendar, daily/weekly boards, 7-day journey, codex.
+  // v4 → v5: hero level, XP and Level Road claims.
   // All additions are filled from defaults by the merge below.
   const fm = freshMissions();
   const dm = (data.missions ?? {}) as Partial<typeof fm>;
   const save = {
-    ...base, ...data, v: 4,
+    ...base, ...data, v: 5,
     missions: {
       ...fm, ...dm,
       attendance: { ...fm.attendance, ...dm.attendance },
@@ -134,8 +135,11 @@ export function migrate(input: unknown): SaveData {
     stats: { ...freshStats(), ...data.stats },
     achievements: { ...data.achievements },
     quests: Array.isArray(data.quests) ? data.quests : [],
+    levelClaimed: Array.isArray(data.levelClaimed) ? data.levelClaimed : [],
   } as SaveData;
   save.embersEarned = Math.max(save.embersEarned ?? 0, save.embers ?? 0);
+  save.level = Number.isFinite(save.level) ? Math.max(1, Math.min(100, Math.floor(save.level))) : 1;
+  save.xp = Number.isFinite(save.xp) ? Math.max(0, save.xp) : 0;
   save.bestEver = Math.max(save.bestEver ?? 1, save.highestStage ?? 1, save.stage ?? 1);
   // Normalise the inventory to exactly INVENTORY_SIZE slots.
   const inv = Array.isArray(save.weapons) ? save.weapons.slice(0, INVENTORY_SIZE) : [];

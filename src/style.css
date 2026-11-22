@@ -589,3 +589,48 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 .fx-p.fx-star { font-size: 20px; line-height: 1; color: #ffd84a; text-shadow: 0 0 0 #7a4a00, 0 2px 0 #7a4a00, 0 0 8px #fff3a0; }
 .fx-bump { animation: fx-bump 0.22s ease-out; }
 @keyframes fx-bump { 40% { transform: scale(1.25); filter: brightness(1.35); } }
+
+/* --- Hero level (chip under the stage capsule + Level Road sheet) ------------------------ */
+.level-chip {
+  --tier: #f0b07a;
+  position: relative; display: flex; align-items: center; gap: 6px; margin-top: 5px;
+  padding: 2px 8px 2px 6px; border: 0; border-radius: 999px; background: #120e22cc;
+  box-shadow: 0 0 0 2px #00000066; color: var(--tier); font: inherit; font-size: 11px; line-height: 16px;
+  text-shadow: 0 1px 0 #000; cursor: pointer;
+}
+.level-chip .xp-bar { position: relative; width: 70px; height: 7px; border-radius: 4px; overflow: hidden; background: #2a2440; box-shadow: inset 0 1px 0 #0008; }
+#xp-fill { position: absolute; inset: 0; transform-origin: left; transform: scaleX(0); background: linear-gradient(#b8e7ff, #4fa8ff 60%, #2a6fd0); will-change: transform; transition: transform 0.25s ease-out; }
+.level-chip .dot { top: -8px; right: -10px; }
+
+.level-sheet .lv-head { display: flex; align-items: center; gap: 12px; padding: 30px 16px 10px; border-bottom: 3px solid var(--cream-3); }
+.lv-badge {
+  --tier: #f0b07a;
+  flex: 0 0 auto; width: 62px; height: 62px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-size: 24px; line-height: 1; color: #fff; text-shadow: var(--outline);
+  background: radial-gradient(circle at 38% 30%, #fff8, transparent 45%), var(--tier);
+  box-shadow: inset 0 0 0 3px #0003, 0 0 0 3px var(--wood), 0 4px 0 var(--wood-dark);
+}
+.lv-badge small { font-size: 11px; }
+.lv-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.lv-tier { font-size: 15px; text-shadow: 0 1px 0 #0005, 0 0 1px #000; }
+.lv-xp .bar-fill { background: linear-gradient(#b8e7ff, #4fa8ff 60%, #2a6fd0); }
+.lv-xp span { position: relative; display: block; text-align: center; font-size: 11px; line-height: 16px; color: #fff; text-shadow: 0 1px 0 #000c; font-variant-numeric: tabular-nums; }
+.lv-bonus { font-size: 12px; color: var(--ink-soft); }
+
+.lv-road { display: flex; flex-direction: column; gap: 7px; }
+.lv-row { display: flex; align-items: center; gap: 9px; padding: 7px 8px; border-radius: 14px; background: linear-gradient(#fffaf0, var(--cream-2)); box-shadow: inset 0 0 0 2px var(--wood), 0 3px 0 var(--wood-dark); }
+.lv-row.big { background: linear-gradient(#fff6d8, #f8dc9a); }
+.lv-row.ready { box-shadow: inset 0 0 0 3px var(--green-2), 0 3px 0 var(--green-edge); }
+.lv-row.claimed { opacity: 0.6; }
+.lv-medal {
+  --tier: #f0b07a;
+  flex: 0 0 auto; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 14px; color: #fff; text-shadow: var(--outline);
+  background: radial-gradient(circle at 38% 30%, #fff8, transparent 45%), var(--tier); box-shadow: inset 0 0 0 2px #0004;
+}
+.lv-rewards { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 2px; }
+.lv-row .btn { flex: 0 0 auto; min-width: 64px; }
+.lv-lock { flex: 0 0 auto; width: 64px; text-align: center; font-size: 18px; opacity: 0.55; }
+.lv-row .task-done { width: 64px; }
+.wchip { color: #fff; text-shadow: 0 1px 0 #0008; background: var(--rc); }
+.wchip i { font-style: normal; }

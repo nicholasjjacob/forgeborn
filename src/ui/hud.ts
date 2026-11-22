@@ -7,6 +7,8 @@ import { sfx } from '../audio/sfx';
 import { QuestPanel } from './quests';
 import { ReforgePanel } from './reforge';
 import { MissionsUI } from './missions';
+import { LevelRoad } from './levelRoad';
+import { MAX_LEVEL, levelTier } from '../sim/level';
 
 type Tab = 'upgrades' | 'forge' | 'quests' | 'reforge';
 
@@ -37,6 +39,8 @@ export class Hud {
   private readonly badges: Record<Exclude<Tab, 'upgrades'>, HTMLElement>;
   private toastUntil = 0;
   readonly missions: MissionsUI;
+  readonly levelRoad: LevelRoad;
+  private readonly lv: { chip: HTMLElement; num: HTMLElement; fill: HTMLElement; dot: HTMLElement };
 
   constructor(root: HTMLElement, private readonly sim: Sim, weaponIcons: string[][], codexIcon: (area: number, slot: number) => string, onSettings: () => void) {
     const $ = <T extends HTMLElement = HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
@@ -78,6 +82,9 @@ export class Hud {
     this.quests = new QuestPanel($('#quests-root'), sim);
     this.reforge = new ReforgePanel($('#reforge-root'), sim, (m) => this.toast(m, 'boss'));
     this.missions = new MissionsUI(sim, (m) => this.toast(m), codexIcon);
+    this.levelRoad = new LevelRoad(sim, (m, k) => this.toast(m, k));
+    this.lv = { chip: $('#level-chip'), num: $('#level-num'), fill: $('#xp-fill'), dot: $('#level-dot') };
+    this.lv.chip.addEventListener('click', () => { sfx.play('tick'); this.levelRoad.open(); });
     this.badges = { forge: $('#forge-badge'), quests: $('#quests-badge'), reforge: $('#reforge-badge') };
 
     for (const t of root.querySelectorAll<HTMLButtonElement>('[data-tab]')) {
@@ -198,6 +205,16 @@ export class Hud {
     this.setBadge('forge', this.forge.badge());
     this.setBadge('quests', this.quests.badge());
     this.setBadge('reforge', this.reforge.badge());
+    // Hero level chip: level, XP bar, red dot when a Level Road reward is waiting.
+    this.set(this.lv.num, `Lv ${s.level}`);
+    const xpScale = `scaleX(${s.level >= MAX_LEVEL ? 1 : Math.min(1, s.xp / sim.xpNeeded).toFixed(3)})`;
+    if (this.cache.get(this.lv.fill) !== xpScale) { this.cache.set(this.lv.fill, xpScale); this.lv.fill.style.transform = xpScale; }
+    const tierCss = levelTier(s.level).css;
+    if (this.cache.get(this.lv.chip) !== tierCss) { this.cache.set(this.lv.chip, tierCss); this.lv.chip.style.setProperty('--tier', tierCss); }
+    const ready = sim.levelRewardsReady();
+    this.lv.dot.hidden = ready === 0;
+    this.set(this.lv.dot, String(ready));
+    this.levelRoad.refresh();
 
     // Sim notices (achievements, finished quests) become toasts, one at a time.
     if (sim.notices.length && performance.now() > this.toastUntil) {

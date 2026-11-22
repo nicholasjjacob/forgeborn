@@ -140,7 +140,7 @@ describe('gem shop', () => {
 describe('migration', () => {
   it('v3 saves gain empty missions without losing progress', () => {
     const s = migrate({ v: 3, stage: 12, embers: 7, stats: { stages: 11 } });
-    expect(s.v).toBe(4);
+    expect(s.v).toBe(5);
     expect(s.stage).toBe(12);
     expect(s.embers).toBe(7);
     expect(s.stats.stages).toBe(11);

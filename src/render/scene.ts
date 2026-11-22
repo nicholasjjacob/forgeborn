@@ -1,9 +1,10 @@
-import { Container, Sprite, TilingSprite, type Application } from 'pixi.js';
+import { BitmapText, Container, Sprite, TilingSprite, type Application } from 'pixi.js';
+import { levelTier } from '../sim/level';
 import { areaFor } from '../sim/areas';
 import { Ev } from '../sim/events';
 import { MAP_H, MAP_W, type GameMap } from '../sim/map';
 import { MAX_ENEMIES, type Enemy, type Sim } from '../sim/sim';
-import { Fx } from './fx';
+import { FONT, FONT_PX, Fx } from './fx';
 import { areaArt, artVersion, ensureAreaSprites, heroAnim, spriteAnchor, type AnimSet, type Art } from './sprites';
 import { haptic, sfx } from '../audio/sfx';
 
@@ -28,6 +29,7 @@ export interface SceneHooks {
   onBossFail?(): void;
   onBossSpawn?(): void;
   onAreaEnter?(area: number): void;
+  onLevelUp?(level: number): void;
 }
 
 /**
@@ -47,6 +49,10 @@ export class Scene {
   private readonly hero = new Container();
   private readonly heroBody: Sprite;
   private readonly swordArm = new Container();
+  /** "Lv 12" over the hero's head, tinted by level tier. */
+  private readonly levelText = new BitmapText({ text: 'Lv 1', style: { fontFamily: FONT, fontSize: FONT_PX } });
+  private shownLevel = 0;
+  private levelPop = 0;
   private readonly sword: Sprite;
   private weaponId = -1;
   private readonly slash: Sprite;
@@ -110,7 +116,10 @@ export class Scene {
     this.heroBarFg = bar(16, 2, 0x5cc04f);
     this.heroBarBg.position.set(-8, -23);
     this.heroBarFg.position.set(-8, -23);
-    this.hero.addChild(shadow(12), this.heroBody, this.swordArm, this.slash, this.heroBarBg, this.heroBarFg);
+    this.levelText.anchor.set(0.5, 1);
+    this.levelText.scale.set(LEVEL_TEXT_H / FONT_PX);
+    this.levelText.position.set(0, -24.5);
+    this.hero.addChild(shadow(12), this.heroBody, this.swordArm, this.slash, this.heroBarBg, this.heroBarFg, this.levelText);
     this.entities.addChild(this.hero);
 
     this.fx = new Fx(art.coin, art.dot, art.gem, art.ring);
@@ -263,6 +272,16 @@ export class Scene {
       this.swordArm.rotation = (moving ? 0.9 : 0.35 + Math.sin(this.t * 3) * 0.05) * h.faceX;
       this.slash.visible = false;
     }
+    if (sim.save.level !== this.shownLevel) {
+      this.shownLevel = sim.save.level;
+      this.levelText.text = `Lv ${this.shownLevel}`;
+      this.levelText.tint = levelTier(this.shownLevel).color;
+    }
+    if (this.levelPop > 0) {
+      this.levelPop = Math.max(0, this.levelPop - dt);
+      const k = this.levelPop / 0.6;
+      this.levelText.scale.set((LEVEL_TEXT_H / FONT_PX) * (1 + 0.6 * Math.sin(k * Math.PI)));
+    }
     const hpFrac = h.maxHp > 0 ? Math.max(0, h.hp / h.maxHp) : 0;
     this.heroBarFg.width = 16 * hpFrac;
     this.heroBarFg.tint = hpFrac > 0.5 ? 0x5cc04f : hpFrac > 0.25 ? 0xffca28 : 0xe4572e;
@@ -400,6 +419,15 @@ export class Scene {
           sfx.play('zap');
           fx.zap(q.x2[i], q.y2[i], x, y);
           break;
+        case Ev.LevelUp:
+          sfx.play('achieve');
+          fx.ring(x, y, 0xffd23f, 4);
+          fx.ring(x, y, 0xffffff, 2.5);
+          fx.burst(x, y - 10, 0xffd23f, 26, 70);
+          this.levelPop = 0.6;
+          haptic(40);
+          this.hooks.onLevelUp?.(v);
+          break;
         case Ev.AreaEnter:
           this.camX = MAP_W / 2; this.camY = MAP_H / 2;
           sfx.play('area');
@@ -411,6 +439,8 @@ export class Scene {
     q.clear();
   }
 }
+
+const LEVEL_TEXT_H = 4.6; // world units
 
 function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;

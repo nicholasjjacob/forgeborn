@@ -6,8 +6,8 @@ import { fmt } from '../core/format';
  * free-list, so a busy fight allocates nothing per frame.
  */
 
-const FONT = 'fb-dmg';
-const FONT_PX = 32;
+export const FONT = 'fb-dmg';
+export const FONT_PX = 32;
 
 export function installFonts(): void {
   BitmapFont.install({
@@ -19,7 +19,7 @@ export function installFonts(): void {
       fill: '#ffffff',
       stroke: { color: '#1b1626', width: 7, join: 'round' },
     },
-    chars: [['0', '9'], ['a', 'z'], '.KMBT!+-'],
+    chars: [['0', '9'], ['a', 'z'], '.KMBT!+- LVEUP'],
     resolution: 2,
   });
 }

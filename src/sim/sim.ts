@@ -15,8 +15,9 @@ import { OFFLINE_CAP_HOURS } from './offline';
 import { freshMissions, type MissionSave } from './missions';
 import { MissionSystem } from './missionSystem';
 import { GameMap, MAP_H, MAP_W } from './map';
+import { MAX_LEVEL, levelBonus, milestoneReward, xpForKill, xpToNext, MILESTONES, type MilestoneReward } from './level';
 import {
-  FORGE_COST, INVENTORY_SIZE, MAX_FORGE_LEVEL, canMerge, forgeUpgradeCost, forgeWeapon, mergeWeapons,
+  FORGE_COST, INVENTORY_SIZE, MAX_FORGE_LEVEL, bonusWeapon, canMerge, forgeUpgradeCost, forgeWeapon, mergeWeapons,
   salvageValue, starterWeapon, weaponStats, type Weapon,
 } from './weapons';
 
@@ -28,7 +29,7 @@ export type BuyMode = 1 | 10 | 'max';
 
 /** Everything that persists between sessions. Kept flat and JSON-friendly. */
 export interface SaveData {
-  v: 4;
+  v: 5;
   stage: number;
   highestStage: number;
   gold: number;
@@ -55,6 +56,10 @@ export interface SaveData {
   achievements: Record<string, number>; // tiers unlocked per achievement id
   // Engagement (v4): gems, login calendar, daily/weekly boards, 7-day journey, codex
   missions: MissionSave;
+  // Hero level (v5): persists through Reforge.
+  level: number;
+  xp: number;                // progress toward the next level
+  levelClaimed: number[];    // Level Road milestones already claimed (5, 10, …)
   /** Recent earnings per second, used to pay out offline progress. */
   rates: { gold: number; shards: number };
   savedAt: number;
@@ -62,13 +67,14 @@ export interface SaveData {
 
 export function freshSave(): SaveData {
   return {
-    v: 4, stage: 1, highestStage: 1, gold: 0, kills: 0, farming: false,
+    v: 5, stage: 1, highestStage: 1, gold: 0, kills: 0, farming: false,
     upgrades: { atk: 0, hp: 0, aspd: 0, crit: 0, gold: 0 },
     buyMode: 1, fps: 60, auto: true, sound: true, quality: 'high',
     shards: 0, forgeLevel: 1, weapons: Array(INVENTORY_SIZE).fill(null), equipped: starterWeapon(), nextWeaponId: 2,
     rates: { gold: 0, shards: 0 },
     embers: 0, embersEarned: 0, perks: freshPerks(), bestEver: 1, stats: freshStats(), quests: [], achievements: {},
     missions: freshMissions(),
+    level: 1, xp: 0, levelClaimed: [],
     savedAt: Date.now(),
   };
 }
@@ -278,14 +284,15 @@ export class Sim {
     this.achBonus = 1 + tiers * ACH_BONUS_PER_TIER;
     const swift = 1 + 0.04 * p.swift;
     const glow = this.save.embersEarned;
-    this.atk = UPGRADES.atk.value(u.atk) * w.mult * w.form.dmg * (1 + 0.25 * p.might) * this.achBonus * (1 + GLOW_DMG * glow);
-    this.hero.maxHp = UPGRADES.hp.value(u.hp) * (1 + 0.25 * p.vigor) * (1 + GLOW_HP * glow);
+    const lb = levelBonus(this.save.level);
+    this.atk = UPGRADES.atk.value(u.atk) * w.mult * w.form.dmg * (1 + 0.25 * p.might) * this.achBonus * (1 + GLOW_DMG * glow) * lb.atk;
+    this.hero.maxHp = UPGRADES.hp.value(u.hp) * (1 + 0.25 * p.vigor) * (1 + GLOW_HP * glow) * lb.hp;
     this.aspd = UPGRADES.aspd.value(u.aspd) * w.form.speed * (1 + w.speed) * swift;
     this.moveSpeed = HERO_SPEED * swift;
     this.shardMult = 1 + 0.15 * p.shards;
     this.crit = Math.min(0.9, UPGRADES.crit.value(u.crit) + w.crit);
     this.critMult = CRIT_MULT + w.critDmg;
-    this.goldMult = UPGRADES.gold.value(u.gold) * (1 + w.gold) * (1 + 0.2 * p.fortune) * this.achBonus;
+    this.goldMult = UPGRADES.gold.value(u.gold) * (1 + w.gold) * (1 + 0.2 * p.fortune) * this.achBonus * lb.gold;
     this.range = w.form.range * (1 + w.reach);
     this.arc = w.form.arc;
     this.knockback = w.form.knockback;
@@ -892,6 +899,7 @@ export class Sim {
     this.save.kills++;
     this.events.push(Ev.Kill, e.x, e.y, gold, e.boss ? 1 : 0);
     this.missions.recordKill(this.map.area, e.boss ? 3 : e.monster);
+    this.gainXp(xpForKill(this.save.stage, e.boss));
 
     // Shards for the forge: bosses always drop a bundle, regular monsters sometimes drop one.
     const per = 1 + Math.floor(this.save.stage / 12);
@@ -915,6 +923,61 @@ export class Sim {
       this.killsInStage = 0;
       if (!this.save.farming) this.advanceStage();
     }
+  }
+
+  // --- Hero level ----------------------------------------------------------
+
+  /** XP needed for the next level (Infinity at the cap). */
+  get xpNeeded(): number { return xpToNext(this.save.level); }
+
+  gainXp(amount: number): void {
+    const s = this.save;
+    if (s.level >= MAX_LEVEL) return;
+    s.xp += amount;
+    let ups = 0;
+    while (s.level < MAX_LEVEL && s.xp >= xpToNext(s.level)) {
+      s.xp -= xpToNext(s.level);
+      s.level++;
+      ups++;
+    }
+    if (!ups) return;
+    if (s.level >= MAX_LEVEL) s.xp = 0;
+    const before = this.hero.maxHp;
+    this.recalc();
+    // Level-ups heal you fully: a small reward you feel immediately.
+    this.hero.hp = Math.max(this.hero.hp + (this.hero.maxHp - before), this.hero.maxHp);
+    this.events.push(Ev.LevelUp, this.hero.x, this.hero.y, s.level);
+    if (MILESTONES.some((m) => m > s.level - ups && m <= s.level)) this.notices.push('Level reward ready! Tap your level');
+  }
+
+  /** Milestones reached but not yet claimed. */
+  levelRewardsReady(): number {
+    return MILESTONES.filter((m) => m <= this.save.level && !this.save.levelClaimed.includes(m)).length;
+  }
+
+  /** The reward milestone `level` would give right now (it scales with your best stage). */
+  levelReward(level: number): MilestoneReward {
+    return milestoneReward(level, this.save.bestEver);
+  }
+
+  /**
+   * Claim a Level Road milestone. Returns the reward, 'full' if a weapon reward needs a free
+   * inventory slot, or null if it isn't claimable.
+   */
+  claimLevelReward(level: number): MilestoneReward | 'full' | null {
+    const s = this.save;
+    if (!MILESTONES.includes(level) || level > s.level || s.levelClaimed.includes(level)) return null;
+    const r = this.levelReward(level);
+    if (r.weapon) {
+      const slot = s.weapons.indexOf(null);
+      if (slot < 0) return 'full';
+      const tier = Math.min(MAX_FORGE_LEVEL, s.forgeLevel + r.weapon.tierBonus);
+      s.weapons[slot] = bonusWeapon(this.rng, s.nextWeaponId++, tier, r.weapon.rarity);
+      this.invVersion++;
+    }
+    s.levelClaimed.push(level);
+    this.missions.apply(r);
+    return r;
   }
 
   private advanceStage(): void {

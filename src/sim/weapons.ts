@@ -107,6 +107,13 @@ export function forgeWeapon(rng: Rng, id: number, level: number): Weapon {
   return w;
 }
 
+/** A forged weapon with a guaranteed minimum rarity (Level Road rewards). */
+export function bonusWeapon(rng: Rng, id: number, level: number, minRarity: Rarity): Weapon {
+  const w = forgeWeapon(rng, id, level);
+  if (w.rarity < minRarity) { w.rarity = minRarity; fillTraits(rng, w); }
+  return w;
+}
+
 export function canMerge(a: Weapon, b: Weapon): boolean {
   return a.id !== b.id && a.tier === b.tier && a.tier < MAX_TIER;
 }

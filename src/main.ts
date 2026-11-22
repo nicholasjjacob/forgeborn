@@ -60,6 +60,7 @@ async function boot() {
     onBossSpawn: () => hud?.toast('BOSS!', 'boss'),
     onBossFail: () => hud?.toast('Boss escaped… farm and try again', 'bad'),
     onAreaEnter: (area) => hud?.toast(areaName(area), 'boss'),
+    onLevelUp: (level) => hud?.toast(`Level ${level}!`, 'boss'),
   });
   new Input(document.getElementById('battle')!, sim, scene);
 

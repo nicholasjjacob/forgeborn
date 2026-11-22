@@ -121,7 +121,7 @@ describe('achievements', () => {
 
   it('v2 saves migrate to the current version with best-ever and empty meta', () => {
     const s = migrate({ v: 2, stage: 33, highestStage: 41, gold: 5 });
-    expect(s.v).toBe(4);
+    expect(s.v).toBe(5);
     expect(s.bestEver).toBe(41);
     expect(s.embers).toBe(0);
     expect(s.stats.bosses).toBe(0);
