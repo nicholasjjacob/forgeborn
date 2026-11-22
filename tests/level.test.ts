@@ -80,7 +80,8 @@ describe('levelling in the sim', () => {
     expect(sim.claimLevelReward(20)).toBe('full');
     save.weapons[3] = null;
     expect(sim.claimLevelReward(20)).not.toBe('full');
-    expect(save.weapons[3]!.rarity).toBeGreaterThanOrEqual(1);
+    const reward = save.weapons.find((x) => x?.id === save.nextWeaponId - 1);
+    expect(reward!.rarity).toBeGreaterThanOrEqual(1);
   });
 
   it('keeps the level through Reforge and migrates old saves to level 1', () => {

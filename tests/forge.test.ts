@@ -109,6 +109,21 @@ describe('forge commands', () => {
     expect(sim.atk).toBeGreaterThan(atk);
   });
 
+  it('sorts the inventory by type, tier and rarity with empty slots last', () => {
+    const save = freshSave();
+    save.weapons[4] = w(2, 0, 3); // common T2 hammer
+    save.weapons[0] = w(3, 1, 1); // rare T3 axe
+    save.weapons[7] = w(3, 2, 1); // epic T3 axe
+    save.weapons[2] = w(1, 0, 0); // common T1 sword
+    const sim = new Sim(save, 9);
+    const keepId = save.weapons[4]!.id;
+    const where = sim.sortInventory();
+    const order = save.weapons.slice(0, 5).map((x) => x && `${x.form}:${x.tier}:${x.rarity}`);
+    expect(order).toEqual(['0:1:0', '1:3:2', '1:3:1', '3:2:0', null]);
+    expect(save.weapons[where.get(keepId)!]!.id).toBe(keepId);
+    expect(save.weapons.length).toBe(INVENTORY_SIZE);
+  });
+
   it('upgrading the forge raises the equipped weapon attack', () => {
     const save = freshSave();
     save.gold = 1e9;

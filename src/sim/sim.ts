@@ -18,7 +18,7 @@ import { GameMap, MAP_H, MAP_W } from './map';
 import { Gatherer, freshMaterials, type Materials } from './gather';
 import { MAX_LEVEL, levelBonus, milestoneReward, xpForKill, xpToNext, MILESTONES, type MilestoneReward } from './level';
 import {
-  FORGE_COST, INVENTORY_SIZE, MAX_FORGE_LEVEL, MERGE_COUNT, bonusWeapon, forgeAtkBonus, forgeUpgradeCost, forgeWeapon, matchingSlots, mergePartners, mergeWeapons,
+  FORGE_COST, INVENTORY_SIZE, MAX_FORGE_LEVEL, MERGE_COUNT, bonusWeapon, compareWeapons, forgeAtkBonus, forgeUpgradeCost, forgeWeapon, matchingSlots, mergePartners, mergeWeapons,
   salvageValue, starterWeapon, weaponStats, type Weapon,
 } from './weapons';
 
@@ -410,6 +410,19 @@ export class Sim {
       }
     }
     return results;
+  }
+
+  /**
+   * Sort the inventory (type, tier, rarity; empties last). Returns where each weapon id ended up,
+   * so callers can keep a selection or highlight on the same weapons.
+   */
+  sortInventory(): Map<number, number> {
+    const s = this.save;
+    const list = s.weapons.filter((w): w is Weapon => w !== null).sort(compareWeapons);
+    const changed = list.some((w, i) => s.weapons[i] !== w);
+    s.weapons = [...list, ...Array(s.weapons.length - list.length).fill(null)];
+    if (changed) this.invVersion++;
+    return new Map(list.map((w, i) => [w.id, i]));
   }
 
   /** Swap the weapon in `slot` with the equipped one. */
@@ -1023,6 +1036,7 @@ export class Sim {
       const tier = Math.min(MAX_FORGE_LEVEL, s.forgeLevel + r.weapon.tierBonus);
       s.weapons[slot] = bonusWeapon(this.rng, s.nextWeaponId++, tier, r.weapon.rarity);
       this.invVersion++;
+      this.sortInventory();
     }
     s.levelClaimed.push(level);
     this.missions.apply(r);

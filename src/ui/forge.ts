@@ -78,13 +78,16 @@ export class ForgePanel {
       this.slots.push(b);
     }
 
+    // Tidy an existing save's inventory right away (it's kept sorted after every action).
+    sim.sortInventory();
+
     // Every action redraws immediately rather than waiting for the next HUD tick.
     root.addEventListener('click', () => queueMicrotask(() => this.refresh()));
     this.el.forge1.addEventListener('click', () => this.doForge(1));
     this.el.forge10.addEventListener('click', () => this.doForge(10));
     this.el.autoMerge.addEventListener('click', () => {
       const merged = sim.autoMerge();
-      if (merged.length) { this.flash(merged, 'pop'); this.selected = -1; sfx.play('merge'); haptic(20); }
+      if (merged.length) { this.flash(this.resort(merged), 'pop'); this.selected = -1; sfx.play('merge'); haptic(20); }
       else this.toast('Nothing to merge');
     });
     // The forge's level lives in its own window (separate from the weapon card).
@@ -93,7 +96,7 @@ export class ForgePanel {
     this.el.equip.addEventListener('click', () => {
       const before = sim.atk;
       if (this.selected >= 0 && sim.equip(this.selected)) {
-        this.flash([this.selected], 'pop');
+        this.flash(this.resort([this.selected]), 'pop'); // the previously equipped weapon
         this.selected = -1;
         this.animateAtk(before);
       }
@@ -107,8 +110,8 @@ export class ForgePanel {
       const ok = i >= 0 ? sim.merge(i) : sim.mergeEquipped();
       if (!ok) return;
       const result = i >= 0 ? sim.save.weapons[i]! : sim.save.equipped!;
-      if (i >= 0) this.flash([i], 'pop');
-      else { this.animateAtk(atkBefore); this.flashCard(); }
+      if (i >= 0) { const [at] = this.resort([i]); this.selected = at; this.flash([at], 'pop'); }
+      else { this.resort([]); this.animateAtk(atkBefore); this.flashCard(); }
       sfx.play('merge');
       haptic(20);
       this.toast(result.rarity > before.rarity ? `${RARITY_NAMES[result.rarity]}! ${weaponName(result)} T${result.tier}` : `Upgraded to ${weaponName(result)} T${result.tier}`);
@@ -118,6 +121,7 @@ export class ForgePanel {
       const got = sim.salvage(this.selected);
       if (got) this.toast(`+${got} shards`);
       this.selected = -1;
+      this.resort([]);
     });
   }
 
@@ -150,9 +154,17 @@ export class ForgePanel {
 
   private doForge(n: number): void {
     const filled = this.sim.forge(n);
-    if (filled.length) { this.flash(filled, 'new'); this.selected = -1; sfx.play('forge'); }
+    if (filled.length) { this.flash(this.resort(filled), 'new'); this.selected = -1; sfx.play('forge'); }
     else if (this.sim.freeSlots() === 0) this.toast('Inventory full: merge or salvage');
     else this.toast(`Need ${FORGE_COST} shards`);
+  }
+
+  /** Sort the inventory and return the new positions of the weapons that were in `slots`. */
+  private resort(slots: number[]): number[] {
+    const inv = this.sim.save.weapons;
+    const ids = slots.map((i) => inv[i]?.id).filter((id): id is number => id !== undefined);
+    const where = this.sim.sortInventory();
+    return ids.map((id) => where.get(id)!).filter((i) => i !== undefined);
   }
 
   private flash(slots: number[], kind: 'new' | 'pop'): void {

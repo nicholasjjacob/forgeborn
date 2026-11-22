@@ -135,6 +135,14 @@ export function mergePreview(w: Weapon): Weapon {
   return { ...w, tier, traits: w.traits.map((tr) => ({ t: tr.t, v: Math.min(TRAITS[tr.t].cap, tr.v * k) })) };
 }
 
+/**
+ * Inventory order: by type (Sword, Axe, Spear, Hammer), then highest tier, then best rarity,
+ * empty slots last. Identical weapons end up side by side, which makes merges easy to spot.
+ */
+export function compareWeapons(a: Weapon, b: Weapon): number {
+  return a.form - b.form || b.tier - a.tier || b.rarity - a.rarity || a.id - b.id;
+}
+
 /** Inventory slots holding weapons that can merge with `w` (which may be the equipped one). */
 export function matchingSlots(inv: readonly (Weapon | null)[], w: Weapon | null): number[] {
   const out: number[] = [];
