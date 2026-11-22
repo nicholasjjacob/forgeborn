@@ -8,13 +8,14 @@ import {
 
 /**
  * Forge tab: the equipped/selected weapon card, forge + auto-merge actions, forge level, and
- * the inventory grid. Tap a weapon to select it (Equip / Salvage appear); tap another weapon of
- * the same tier to merge them. The grid only re-renders when the inventory actually changes.
+ * the inventory grid. Tap a weapon to select it (Equip / Salvage appear, plus how your attack
+ * would change); tap another weapon of the same type and tier to merge them. The grid only re-renders when the inventory actually changes.
  */
 export class ForgePanel {
   private selected = -1;
   private renderedVersion = -1;
   private renderedSelected = -2;
+  private renderedAtk = -1;
   private readonly slots: HTMLButtonElement[] = [];
   private readonly cache = new Map<HTMLElement, string>();
   private readonly el: Record<string, HTMLElement>;
@@ -27,6 +28,7 @@ export class ForgePanel {
         <div class="wc-icon"><img alt="" /></div>
         <div class="wc-body">
           <div class="wc-title"><span class="wc-tag"></span><span class="wc-name"></span></div>
+          <div class="wc-atk"></div>
           <div class="wc-summary"></div>
           <ul class="wc-traits"></ul>
           <div class="wc-hint"></div>
@@ -50,7 +52,7 @@ export class ForgePanel {
     const $ = (sel: string) => root.querySelector<HTMLElement>(sel)!;
     this.el = {
       card: $('#weapon-card'), icon: $('.wc-icon img'), tag: $('.wc-tag'), name: $('.wc-name'),
-      summary: $('.wc-summary'), traits: $('.wc-traits'), hint: $('.wc-hint'),
+      summary: $('.wc-summary'), atk: $('.wc-atk'), traits: $('.wc-traits'), hint: $('.wc-hint'),
       equip: $('#equip-btn'), salvage: $('#salvage-btn'),
       forge1: $('#forge-1'), forge10: $('#forge-10'), autoMerge: $('#auto-merge'),
       level: $('#fl-level'), odds: $('#fl-odds'), up: $('#forge-up'), upCost: $('#fl-cost'),
@@ -156,7 +158,8 @@ export class ForgePanel {
     this.disable(this.el.up, maxed || s.gold < upCost);
 
     if (this.selected >= 0 && !s.weapons[this.selected]) this.selected = -1;
-    if (sim.invVersion !== this.renderedVersion || this.selected !== this.renderedSelected) this.render();
+    // Also redraw when attack changes (upgrades, level-ups) so the preview stays accurate.
+    if (sim.invVersion !== this.renderedVersion || this.selected !== this.renderedSelected || Math.round(sim.atk) !== this.renderedAtk) this.render();
   }
 
   private render(): void {
@@ -202,18 +205,32 @@ export class ForgePanel {
         li.textContent = TRAITS[t.t].show(t.v);
         return li;
       }));
+      const now = this.sim.atk;
       if (sel) {
+        // Attack if equipped, vs. the current attack.
+        const next = this.sim.attackWith(sel);
+        const diff = next - now;
+        const pctDiff = now > 0 ? (diff / now) * 100 : 0;
+        const dir = Math.abs(pctDiff) < 0.5 ? 'same' : diff > 0 ? 'up' : 'down';
+        this.el.atk.className = `wc-atk ${dir}`;
+        this.el.atk.innerHTML = `<span class="wc-atk-lbl">⚔ Attack</span> ${fmt(now)} → <b>${fmt(next)}</b> ` +
+          (dir === 'same' ? '<em>no change</em>'
+            : `<em>${dir === 'up' ? '▲ +' : '▼ −'}${fmt(Math.abs(diff))} (${dir === 'up' ? '+' : '−'}${Math.abs(pctDiff).toFixed(0)}%)</em>`);
         const others = s.weapons.some((o, j) => o && j !== this.selected && canMerge(sel, o));
         const delta = eqPower > 0 ? weaponPower(sel) / eqPower : 1;
-        this.el.hint.textContent = (others ? `Tap another T${sel.tier} to merge · ` : '') +
-          (delta >= 1.001 ? `▲ ${((delta - 1) * 100).toFixed(0)}% stronger than equipped` : delta <= 0.999 ? `▼ ${((1 - delta) * 100).toFixed(0)}% weaker than equipped` : 'Same as equipped');
+        const overall = delta >= 1.005 ? `overall ▲ ${((delta - 1) * 100).toFixed(0)}%` : delta <= 0.995 ? `overall ▼ ${((1 - delta) * 100).toFixed(0)}%` : 'overall about the same';
+        this.el.hint.textContent = (others ? `Tap another T${sel.tier} ${FORMS[sel.form].name} to merge · ` : `Merge with a T${sel.tier} ${FORMS[sel.form].name} · `) +
+          `${overall} incl. speed & traits`;
         this.el.salvage.textContent = `Salvage +${salvageValue(sel)}`;
       } else {
-        this.el.hint.textContent = `${FORMS[w.form].name}: ${FORMS[w.form].blurb.toLowerCase()} · tap a weapon below to inspect`;
+        this.el.atk.className = 'wc-atk';
+        this.el.atk.innerHTML = `<span class="wc-atk-lbl">⚔ Attack</span> <b>${fmt(now)}</b>`;
+        this.el.hint.textContent = `${FORMS[w.form].name}: ${FORMS[w.form].blurb.toLowerCase()} · tap a weapon below to compare`;
       }
     }
     this.renderedVersion = this.sim.invVersion;
     this.renderedSelected = this.selected;
+    this.renderedAtk = Math.round(this.sim.atk);
   }
 
   /** Something worth doing in the forge (for the tab badge). */
@@ -225,12 +242,14 @@ export class ForgePanel {
   }
 }
 
+/** Any two weapons of the same type and tier (i.e. something to merge)? */
 function hasPair(inv: (Weapon | null)[]): boolean {
   const seen = new Set<number>();
   for (const w of inv) {
-    if (!w) continue;
-    if (seen.has(w.tier)) return true;
-    seen.add(w.tier);
+    if (!w || !canMerge(w, { ...w, id: -1 })) continue; // skips max-tier weapons
+    const key = w.tier * 16 + w.form;
+    if (seen.has(key)) return true;
+    seen.add(key);
   }
   return false;
 }

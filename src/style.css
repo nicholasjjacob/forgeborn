@@ -367,6 +367,12 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 .wc-tag { display: block; font-size: 10px; color: color-mix(in srgb, var(--rc) 60%, #000); text-transform: uppercase; letter-spacing: 0.05em; }
 .wc-name { font-size: 15px; }
 .wc-summary { font-size: 12px; color: var(--ink-soft); }
+.wc-atk { font-size: 13px; font-variant-numeric: tabular-nums; }
+.wc-atk-lbl { color: var(--ink-soft); }
+.wc-atk em { font-style: normal; font-weight: 800; margin-left: 2px; }
+.wc-atk.up em, .wc-atk.up b { color: #2e9a2a; }
+.wc-atk.down em, .wc-atk.down b { color: #d0342c; }
+.wc-atk.same em { color: var(--ink-soft); }
 .wc-traits { list-style: none; margin: 3px 0 0; padding: 0; font-size: 12px; color: #2f8a2a; }
 .wc-hint { font-size: 11px; color: var(--ink-soft); margin-top: 2px; }
 .wc-actions { display: none; flex-direction: column; gap: 6px; }

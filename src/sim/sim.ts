@@ -285,7 +285,7 @@ export class Sim {
     const swift = 1 + 0.04 * p.swift;
     const glow = this.save.embersEarned;
     const lb = levelBonus(this.save.level);
-    this.atk = UPGRADES.atk.value(u.atk) * w.mult * w.form.dmg * (1 + 0.25 * p.might) * this.achBonus * (1 + GLOW_DMG * glow) * lb.atk;
+    this.atk = this.attackWith(this.save.equipped);
     this.hero.maxHp = UPGRADES.hp.value(u.hp) * (1 + 0.25 * p.vigor) * (1 + GLOW_HP * glow) * lb.hp;
     this.aspd = UPGRADES.aspd.value(u.aspd) * w.form.speed * (1 + w.speed) * swift;
     this.moveSpeed = HERO_SPEED * swift;
@@ -298,6 +298,16 @@ export class Sim {
     this.knockback = w.form.knockback;
     this.lifesteal = w.lifesteal;
     this.shock = w.shock;
+  }
+
+  /** Hero attack if `weapon` were equipped (everything else unchanged). Used for previews. */
+  attackWith(weapon: Weapon | null): number {
+    const s = this.save, p = s.perks, w = weaponStats(weapon);
+    let tiers = 0;
+    for (const id in s.achievements) tiers += s.achievements[id];
+    const ach = 1 + tiers * ACH_BONUS_PER_TIER;
+    return UPGRADES.atk.value(s.upgrades.atk) * w.mult * w.form.dmg * (1 + 0.25 * p.might) * ach
+      * (1 + GLOW_DMG * s.embersEarned) * levelBonus(s.level).atk;
   }
 
   // --- Forge ---------------------------------------------------------------
@@ -340,20 +350,24 @@ export class Sim {
     return true;
   }
 
-  /** Repeatedly merge same-tier pairs, lowest tiers first, best rarities together. Returns the merged slots. */
+  /**
+   * Repeatedly merge pairs of the same type and tier, lowest tiers first, best rarities
+   * together. Returns the merged slots.
+   */
   autoMerge(): number[] {
     const s = this.save;
     const results: number[] = [];
     for (let changed = true; changed;) {
       changed = false;
-      const byTier = new Map<number, number[]>();
+      const groups = new Map<number, number[]>(); // key: tier * 16 + form
       s.weapons.forEach((w, i) => {
         if (!w) return;
-        const list = byTier.get(w.tier);
-        if (list) list.push(i); else byTier.set(w.tier, [i]);
+        const key = w.tier * 16 + w.form;
+        const list = groups.get(key);
+        if (list) list.push(i); else groups.set(key, [i]);
       });
-      for (const tier of [...byTier.keys()].sort((x, y) => x - y)) {
-        const slots = byTier.get(tier)!.sort((x, y) => s.weapons[y]!.rarity - s.weapons[x]!.rarity);
+      for (const key of [...groups.keys()].sort((x, y) => x - y)) {
+        const slots = groups.get(key)!.sort((x, y) => s.weapons[y]!.rarity - s.weapons[x]!.rarity);
         if (slots.length >= 2 && this.merge(slots[1], slots[0])) {
           const at = results.indexOf(slots[1]);
           if (at >= 0) results.splice(at, 1);

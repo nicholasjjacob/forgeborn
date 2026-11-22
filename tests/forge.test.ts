@@ -54,14 +54,39 @@ describe('forge commands', () => {
     expect(save.shards).toBe(FORGE_COST * 5);
   });
 
-  it('auto-merge combines every same-tier pair and leaves no duplicates', () => {
+  it('auto-merge combines every same-type, same-tier pair and leaves no duplicates', () => {
     const save = freshSave();
     save.shards = FORGE_COST * 16;
     const sim = new Sim(save, 2);
     sim.forge(16);
     sim.autoMerge();
-    const tiers = save.weapons.filter(Boolean).map((x) => x!.tier);
-    expect(new Set(tiers).size).toBe(tiers.length);
+    const keys = save.weapons.filter(Boolean).map((x) => `${x!.form}:${x!.tier}`);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it('only merges weapons of the same type', () => {
+    const save = freshSave();
+    save.weapons[0] = w(3, 0, 0); // sword
+    save.weapons[1] = w(3, 0, 1); // axe, same tier
+    const sim = new Sim(save, 5);
+    expect(sim.merge(0, 1)).toBe(false);
+    expect(sim.autoMerge()).toEqual([]);
+    save.weapons[2] = w(3, 1, 1); // a second axe
+    expect(sim.merge(2, 1)).toBe(true);
+    expect(save.weapons[1]!.tier).toBe(4);
+    expect(save.weapons[1]!.form).toBe(1);
+  });
+
+  it('previews attack for a weapon without equipping it', () => {
+    const save = freshSave();
+    save.weapons[0] = w(6, 1, 0);
+    const sim = new Sim(save, 6);
+    const before = sim.atk;
+    expect(sim.attackWith(save.equipped)).toBeCloseTo(before);
+    const preview = sim.attackWith(save.weapons[0]);
+    expect(preview).toBeGreaterThan(before);
+    sim.equip(0);
+    expect(sim.atk).toBeCloseTo(preview);
   });
 
   it('equipping swaps with the inventory and changes attack', () => {

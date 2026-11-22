@@ -114,12 +114,13 @@ export function bonusWeapon(rng: Rng, id: number, level: number, minRarity: Rari
   return w;
 }
 
+/** Merging needs two weapons of the same type (form) and tier: Sword + Sword, Axe + Axe… */
 export function canMerge(a: Weapon, b: Weapon): boolean {
-  return a.id !== b.id && a.tier === b.tier && a.tier < MAX_TIER;
+  return a.id !== b.id && a.form === b.form && a.tier === b.tier && a.tier < MAX_TIER;
 }
 
 /**
- * Merge two same-tier weapons into one of the next tier. The better (higher-rarity) parent
+ * Merge two same-type, same-tier weapons into one of the next tier. The better (higher-rarity) parent
  * keeps its form and trait types, with values rescaled to the new tier; a rarity bump adds a
  * fresh trait. Ties favour `keep` (the weapon the player merged into).
  */
