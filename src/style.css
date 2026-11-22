@@ -578,22 +578,22 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 /* Ready to open: gold glow pulsing behind, the gift wiggles and hops, a sparkle twinkles. */
 .chest.ready::before {
   content: ''; position: absolute; left: 50%; top: 11px; width: 40px; height: 40px; translate: -50% -50%; border-radius: 50%;
-  background: radial-gradient(circle, #fff6b0 0, #ffd23fcc 35%, #ffb00000 70%); animation: chest-glow 2.6s ease-in-out infinite alternate; z-index: -1;
+  background: radial-gradient(circle, #fff6b0 0, #ffd23fcc 35%, #ffb00000 70%); animation: chest-glow 2.6s ease-in-out var(--t, 0s) infinite alternate; z-index: -1;
 }
 .chest.ready::after {
   content: '✦'; position: absolute; right: -3px; top: -6px; font-size: 12px; color: #fff; text-shadow: 0 0 4px #ffd23f, 0 0 8px #ffb000;
-  animation: chest-spark 3.2s ease-in-out infinite;
+  animation: chest-spark 3.2s ease-in-out var(--t, 0s) infinite;
 }
-.chest.ready .chest-ico { filter: drop-shadow(0 0 3px #ffd23f); font-size: 26px; animation: chest-wiggle 3.6s ease-in-out infinite; transform-origin: 50% 90%; }
+.chest.ready .chest-ico { filter: drop-shadow(0 0 3px #ffd23f); font-size: 26px; animation: chest-wiggle 2.2s ease-in-out var(--t, 0s) infinite; transform-origin: 50% 90%; }
 .chest.ready .chest-pts { color: #b06a00; font-weight: 800; }
 .chest.open .chest-ico { filter: none; color: var(--green-2); font-size: 18px; }
 .chest:disabled { cursor: default; }
 @keyframes chest-wiggle {
-  0%, 62%, 100% { transform: translateY(0) rotate(0); }
-  70% { transform: translateY(-4px) rotate(-8deg) scale(1.08); }
-  78% { transform: translateY(-4px) rotate(7deg) scale(1.08); }
-  86% { transform: translateY(-2px) rotate(-4deg) scale(1.03); }
-  93% { transform: translateY(0) rotate(2deg); }
+  0%, 80%, 100% { transform: translateY(0) rotate(0); }
+  16% { transform: translateY(-5px) rotate(-12deg) scale(1.1); }
+  32% { transform: translateY(-5px) rotate(10deg) scale(1.1); }
+  48% { transform: translateY(-3px) rotate(-8deg) scale(1.05); }
+  64% { transform: translateY(0) rotate(4deg); }
 }
 @keyframes chest-glow { from { opacity: 0.55; transform: scale(0.85); } to { opacity: 1; transform: scale(1.15); } }
 @keyframes chest-spark { 0%, 100% { opacity: 0; transform: scale(0.4) rotate(0); } 50% { opacity: 1; transform: scale(1.1) rotate(90deg); } }

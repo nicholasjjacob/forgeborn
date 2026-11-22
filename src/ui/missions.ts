@@ -196,7 +196,9 @@ export class MissionsUI {
         <div class="ptrack-bar"><div class="ptrack-fill" style="transform:scaleX(${Math.min(1, b.points / max)})"></div>
           ${ms.map((p, i) => {
             const open = b.chests.includes(i), ready = m.canClaimChest(kind, i);
-            return `<button type="button" class="chest ${open ? 'open' : ''} ${ready ? 'ready' : ''}" style="left:${(p / max) * 100}%"
+            // The sheet re-renders every second; a negative delay from a shared clock keeps the
+            // chest animations running smoothly instead of restarting on every re-render.
+            return `<button type="button" class="chest ${open ? 'open' : ''} ${ready ? 'ready' : ''}" style="left:${(p / max) * 100}%;--t:-${Math.round(performance.now())}ms"
               data-act="chest:${kind}:${i}" ${ready ? '' : 'disabled'} title="${describeReward(m.chestReward(kind, i))}">
               <span class="chest-ico">${open ? '✔' : '🎁'}</span><span class="chest-pts">${p}</span></button>`;
           }).join('')}
