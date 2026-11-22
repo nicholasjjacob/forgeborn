@@ -41,9 +41,10 @@ export function registerPwa(): { canInstall(): boolean; install(): Promise<boole
 }
 
 /**
- * A Home Screen app (or a tab left open) keeps running the version it started with. Each time
- * the game comes back to the foreground, check whether a newer build is live (its main script
- * name changes with every build) and reload into it. The game saves when it's hidden, so the
+ * A Home Screen app (or a tab left open) keeps running the version it started with. Check for
+ * a newer build (its main script name changes with every build): when the game comes back to
+ * the foreground, reload straight into it; while it's open, check every minute and offer a
+ * "New version ready" banner instead of interrupting play. The game saves on pagehide, so a
  * reload loses nothing.
  */
 function watchForUpdates(): void {
@@ -51,17 +52,32 @@ function watchForUpdates(): void {
   if (!current) return;
   const name = (src: string) => src.slice(src.lastIndexOf('/') + 1);
   let checking = false;
-  const check = async () => {
+  let banner: HTMLButtonElement | null = null;
+  const newer = async (): Promise<boolean> => {
+    const res = await fetch('./', { cache: 'no-store' });
+    const live = /assets\/(index-[\w-]+\.js)/.exec(await res.text())?.[1];
+    return !!live && live !== name(current);
+  };
+  const check = async (reloadNow: boolean) => {
     if (checking || document.hidden) return;
     checking = true;
     try {
-      const res = await fetch('./', { cache: 'no-store' });
-      const html = await res.text();
-      const live = /assets\/(index-[\w-]+\.js)/.exec(html)?.[1];
-      if (live && live !== name(current)) location.reload();
+      if (await newer()) {
+        if (reloadNow) location.reload();
+        else showBanner();
+      }
     } catch { /* offline: try again next time */ }
     checking = false;
   };
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
-  setInterval(check, 15 * 60 * 1000);
+  const showBanner = () => {
+    if (banner) return;
+    banner = document.createElement('button');
+    banner.type = 'button';
+    banner.className = 'update-banner';
+    banner.textContent = '✨ New version ready · Tap to update';
+    banner.addEventListener('click', () => location.reload());
+    document.body.appendChild(banner);
+  };
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) check(true); });
+  setInterval(() => check(false), 60 * 1000);
 }
