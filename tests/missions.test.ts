@@ -135,6 +135,19 @@ describe('gem shop', () => {
     expect(sim.missions.buy('shards')).toBeNull();
     expect(sim.save.missions.gems).toBe(10);
   });
+
+  it('new offers grant materials, XP and embers', () => {
+    const sim = new Sim(freshSave(), 9);
+    sim.save.missions.gems = 1000;
+    expect(sim.missions.buy('mats')).not.toBeNull();
+    expect(sim.save.materials).toEqual({ wood: 20, stone: 20 });
+    const lv = sim.save.level;
+    expect(sim.missions.buy('xp')).not.toBeNull();
+    expect(sim.save.level).toBeGreaterThan(lv);
+    expect(sim.missions.buy('embers')).not.toBeNull();
+    expect(sim.save.embers).toBe(3);
+    expect(sim.save.embersEarned).toBe(3);
+  });
 });
 
 describe('migration', () => {

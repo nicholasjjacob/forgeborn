@@ -4,7 +4,7 @@ import { actionElement, bindSheetTaps } from './tap';
 import { fmt } from '../core/format';
 import { areaFor, areaName } from '../sim/areas';
 import {
-  DAILY_TASKS, JOURNEY_DAYS, JOURNEY_TASKS, SHOP, codexTiers, describeReward, formatCountdown, msUntilNextDay,
+  DAILY_TASKS, JOURNEY_DAYS, JOURNEY_TASKS, SHOP, codexReward, codexTiers, describeReward, formatCountdown, msUntilNextDay,
   msUntilNextWeek, type Reward, type TaskDef,
 } from '../sim/missions';
 import type { BoardKind } from '../sim/missionSystem';
@@ -27,7 +27,15 @@ export function chips(r: Reward): string {
   if (r.shards) c.push(`<span class="rchip"><i class="gem"></i>${fmt(r.shards)}</span>`);
   if (r.gems) c.push(`<span class="rchip"><i class="jewel"></i>${fmt(r.gems)}</span>`);
   if (r.embers) c.push(`<span class="rchip"><i class="ember"></i>${fmt(r.embers)}</span>`);
+  if (r.xp) c.push(`<span class="rchip"><i class="xp-ico">XP</i>${fmt(r.xp)}</span>`);
+  if (r.wood) c.push(`<span class="rchip"><i class="log"></i>${fmt(r.wood)}</span>`);
+  if (r.stone) c.push(`<span class="rchip"><i class="rock"></i>${fmt(r.stone)}</span>`);
   return c.join('');
+}
+
+/** Whole numbers with separators below 100K ("3,000"), compact above ("1.2M"). */
+function count(n: number): string {
+  return n < 1e5 ? Math.floor(n).toLocaleString('en-US') : fmt(n);
 }
 
 /**
@@ -122,7 +130,13 @@ export class MissionsUI {
       case 'task':
         if (m.claimTask(a as BoardKind, b, now)) { sfx.play('coin'); starBurst(el); this.toast('Mission complete!'); }
         break;
-      case 'chest': reward = m.claimChest(a as BoardKind, Number(b)); break;
+      case 'chest':
+        if (m.canClaimChest(a as BoardKind, Number(b))) reward = m.claimChest(a as BoardKind, Number(b));
+        else if (!m.board(a as BoardKind).chests.includes(Number(b))) {
+          sfx.play('tick');
+          this.toast(`🎁 at ${m.milestones(a as BoardKind)[Number(b)]} ★: ${describeReward(m.chestReward(a as BoardKind, Number(b)))}`);
+        }
+        break;
       case 'login': reward = m.claimAttendance(now); break;
       case 'codex': reward = m.claimCodex(Number(a), Number(b)); break;
       case 'buy': reward = m.buy(a); if (!reward) this.toast('Not enough gems'); break;
@@ -199,18 +213,22 @@ export class MissionsUI {
   private track(kind: BoardKind): string {
     const m = this.sim.missions, b = m.board(kind), ms = m.milestones(kind);
     const max = ms[ms.length - 1];
+    const next = ms.find((p) => p > b.points);
     return `
       <div class="ptrack">
-        <div class="ptrack-pts"><i class="star">★</i>${b.points}</div>
-        <div class="ptrack-bar"><div class="ptrack-fill" style="transform:scaleX(${Math.min(1, b.points / max)})"></div>
-          ${ms.map((p, i) => {
-            const open = b.chests.includes(i), ready = m.canClaimChest(kind, i);
-            // The sheet re-renders every second; a negative delay from a shared clock keeps the
-            // chest animations running smoothly instead of restarting on every re-render.
-            return `<button type="button" class="chest ${open ? 'open' : ''} ${ready ? 'ready' : ''}" style="left:${(p / max) * 100}%;--t:-${Math.round(performance.now())}ms"
-              data-act="chest:${kind}:${i}" ${ready ? '' : 'disabled'} title="${describeReward(m.chestReward(kind, i))}">
-              <span class="chest-ico">${open ? '✔' : '🎁'}</span><span class="chest-pts">${p}</span></button>`;
-          }).join('')}
+        <div class="ptrack-pts"><i class="star">★</i><b>${b.points}</b></div>
+        <div class="ptrack-col">
+          <div class="ptrack-bar"><div class="ptrack-fill" style="transform:scaleX(${Math.min(1, b.points / max)})"></div>
+            ${ms.map((p, i) => {
+              const open = b.chests.includes(i), ready = m.canClaimChest(kind, i);
+              // The sheet re-renders every second; a negative delay from a shared clock keeps the
+              // chest animations running smoothly instead of restarting on every re-render.
+              return `<button type="button" class="chest ${open ? 'open' : ''} ${ready ? 'ready' : ''}" style="left:${(p / max) * 100}%;--t:-${Math.round(performance.now())}ms"
+                data-act="chest:${kind}:${i}" aria-label="Gift at ${p} points">
+                <span class="chest-ico">${open ? '✔' : '🎁'}</span><span class="chest-pts">${p}</span></button>`;
+            }).join('')}
+          </div>
+          <div class="ptrack-hint">${next ? `Next gift at <b>${next} ★</b> · tap a gift to see inside` : 'All gifts reached!'}</div>
         </div>
       </div>`;
   }
@@ -220,16 +238,20 @@ export class MissionsUI {
     const p = Math.min(t.target, m.progress(kind, t));
     const claimed = b.claimed.includes(t.id), ready = m.canClaimTask(kind, t, now);
     const locked = !m.taskUnlocked(kind, t, now);
-    const show = (v: number) => (t.stat === 'play' ? `${Math.floor(v / 60)}m` : fmt(v));
+    const show = (v: number) => (t.stat === 'play' ? `${Math.floor(v / 60)}m` : count(v));
+    const pct = Math.floor((p / t.target) * 100);
+    const right = claimed ? '<div class="task-end done">✔</div>'
+      : ready ? `<button type="button" class="btn small green" data-act="task:${kind}:${t.id}">Claim</button>`
+      : locked ? '<div class="task-end">🔒</div>'
+      : `<div class="task-end pct">${pct}%</div>`;
     return `
-      <div class="task ${claimed ? 'claimed' : ''} ${ready ? 'ready' : ''}">
-        <div class="task-pts"><i class="star">★</i><span>${t.points}</span></div>
+      <div class="task ${claimed ? 'claimed' : ''} ${ready ? 'ready' : ''} ${locked ? 'locked' : ''}">
+        <div class="task-pts"><i class="star">★</i><b>${t.points}</b></div>
         <div class="task-main">
           <div class="task-text">${t.text}</div>
           <div class="bar"><div class="bar-fill" style="transform:scaleX(${p / t.target})"></div><span class="bar-text">${show(p)} / ${show(t.target)}</span></div>
         </div>
-        ${claimed ? '<div class="task-done">✔</div>'
-          : `<button type="button" class="btn small ${ready ? 'green' : 'grey'}" data-act="task:${kind}:${t.id}" ${ready ? '' : 'disabled'}>${locked ? '🔒' : 'Claim'}</button>`}
+        ${right}
       </div>`;
   }
 
@@ -247,58 +269,78 @@ export class MissionsUI {
   private renderJourney(now: Date): string {
     const m = this.sim.missions;
     const today = Math.min(JOURNEY_DAYS - 1, m.journeyDay(now));
-    if (this.journeyDaySel < 0 || this.journeyDaySel > today) this.journeyDaySel = today;
+    if (this.journeyDaySel < 0 || this.journeyDaySel >= JOURNEY_DAYS) this.journeyDaySel = today;
+    const sel = this.journeyDaySel;
+    // A row of day buttons; locked days can be previewed (tasks shown with a lock).
     const dayTabs = Array.from({ length: JOURNEY_DAYS }, (_, d) => {
       const locked = d > today;
-      const ready = JOURNEY_TASKS[d].some((t) => m.canClaimTask('journey', t, now));
-      return `<button type="button" class="jday ${d === this.journeyDaySel ? 'sel' : ''}" data-act="jday:${d}" ${locked ? 'disabled' : ''}>
-        ${locked ? '🔒' : `Day ${d + 1}`}${ready ? '<b class="dot">!</b>' : ''}</button>`;
+      const ready = !locked && JOURNEY_TASKS[d].some((t) => m.canClaimTask('journey', t, now));
+      const done = !locked && JOURNEY_TASKS[d].every((t) => m.board('journey').claimed.includes(t.id));
+      return `<button type="button" class="jday ${d === sel ? 'sel' : ''} ${locked ? 'locked' : ''} ${done ? 'done' : ''}" data-act="jday:${d}">
+        <small>Day</small>${d + 1}${locked ? '<i class="jlock">🔒</i>' : done ? '<i class="jlock">✔</i>' : ''}${ready ? '<b class="dot">!</b>' : ''}</button>`;
     }).join('');
     const left = Math.max(0, 14 - m.journeyDay(now));
+    const unlockIn = sel > today ? msUntilNextDay(now) + (sel - today - 1) * 86400000 : 0;
     return `
       <div class="timer">⏱ Event ends in ${left} day${left === 1 ? '' : 's'}</div>
       ${this.track('journey')}
-      <div class="journey">
-        <div class="jdays">${dayTabs}</div>
-        <div class="task-list">${JOURNEY_TASKS[this.journeyDaySel].map((t) => this.taskRow('journey', t, now)).join('')}</div>
-      </div>`;
+      <div class="jdays">${dayTabs}</div>
+      ${sel > today ? `<p class="sheet-note jnote">🔒 Day ${sel + 1} unlocks in ${formatCountdown(unlockIn)}</p>` : ''}
+      <div class="task-list">${JOURNEY_TASKS[sel].map((t) => this.taskRow('journey', t, now)).join('')}</div>`;
   }
 
   private renderCodex(): string {
     const m = this.sim.missions;
-    return `<p class="sheet-note">Defeat monsters to fill the codex. Every milestone pays gems.</p>` +
-      m.codexAreas().reverse().map((area) => {
+    const areas = m.codexAreas();
+    const nextArea = areas.length;
+    return `<p class="sheet-note">Defeat monsters to fill the codex. Every ★ milestone pays gems.</p>` +
+      areas.slice().reverse().map((area) => {
         const { def } = areaFor(area);
         const mons = [...def.monsters, def.boss];
-        return `<h3 class="codex-area">${areaName(area)}</h3><div class="codex-grid">${mons.map((mon, slot) => {
+        let stars = 0, total = 0;
+        for (let slot = 0; slot < 4; slot++) { stars += Math.min(m.codexClaimed(area, slot), codexTiers(slot).length); total += codexTiers(slot).length; }
+        return `<div class="codex-head"><h3 class="codex-area">${areaName(area)}</h3><span class="codex-stars">★ ${stars}/${total}</span></div>
+          <div class="codex-grid">${mons.map((mon, slot) => {
           const kills = m.codexKills(area, slot), tier = m.codexClaimed(area, slot), tiers = codexTiers(slot);
           const maxed = tier >= tiers.length, goal = maxed ? tiers[tiers.length - 1] : tiers[tier];
           const ready = m.canClaimCodex(area, slot), seen = kills > 0;
-          return `<div class="codex-card ${slot === 3 ? 'boss' : ''} ${ready ? 'ready' : ''}">
+          const reward = maxed ? null : codexReward(slot, tier);
+          return `<div class="codex-card ${slot === 3 ? 'boss' : ''} ${ready ? 'ready' : ''} ${maxed ? 'maxed' : ''}">
             ${slot === 3 ? '<span class="boss-tag">BOSS</span>' : ''}
-            <img alt="" src="${this.codexIcon(area, slot)}" class="${seen ? '' : 'unseen'}" />
+            <div class="codex-portrait"><img alt="" src="${this.codexIcon(area, slot)}" class="${seen ? '' : 'unseen'}" /></div>
             <div class="codex-name">${seen ? mon.name : '???'}</div>
             <div class="stars">${tiers.map((_, i) => `<i class="${i < tier ? 'on' : ''}">★</i>`).join('')}</div>
             <div class="bar thin"><div class="bar-fill" style="transform:scaleX(${Math.min(1, kills / goal)})"></div></div>
-            <div class="codex-count">${fmt(Math.min(kills, goal))}/${fmt(goal)}</div>
-            ${ready ? `<button type="button" class="btn tiny green" data-act="codex:${area}:${slot}">Claim</button>` : ''}
+            <div class="codex-count">${count(Math.min(kills, goal))}/${count(goal)}</div>
+            ${ready ? `<button type="button" class="btn tiny green" data-act="codex:${area}:${slot}">Claim</button>`
+              : maxed ? '<div class="codex-next done">Complete!</div>'
+              : `<div class="codex-next">Next ${chips(reward!)}</div>`}
           </div>`;
         }).join('')}</div>`;
-      }).join('');
+      }).join('') +
+      `<div class="codex-teaser">🔒 <b>Next area</b> · reach stage ${nextArea * 10 + 1} to discover new monsters</div>`;
   }
 
   private renderShop(): string {
     const g = this.sim.save.missions.gems;
+    const icon: Record<string, string> = {
+      gold: '<i class="coin big"></i>', shards: '<i class="gem big"></i>', warp: '⏳', xp: '📜', embers: '<i class="ember big"></i>',
+      mats: '<span class="mats-ico"><i class="log"></i><i class="rock"></i></span>',
+    };
     return `
       <div class="gem-balance"><i class="jewel"></i>${fmt(g)} <span>gems</span></div>
-      <p class="sheet-note">Earn gems from logins, mission chests and the codex.</p>
-      <div class="shop">${SHOP.map((o) => `
-        <div class="offer">
-          <div class="offer-ico">${o.id === 'shards' ? '<i class="gem big"></i>' : o.id === 'gold' ? '<i class="coin big"></i>' : '⏳'}</div>
-          <div class="offer-main"><div class="offer-name">${o.name}</div><div class="offer-desc">${o.desc}</div>
-            <div class="offer-gets">${chips(this.sim.missions.offerReward(o.id))}</div></div>
-          <button type="button" class="btn small blue" data-act="buy:${o.id}" ${g >= o.cost ? '' : 'disabled'}><i class="jewel"></i>${o.cost}</button>
-        </div>`).join('')}
+      <p class="sheet-note">Earn gems from logins, mission gifts and the codex.</p>
+      <div class="shop">${SHOP.map((o) => {
+        const can = g >= o.cost;
+        return `
+        <div class="offer ${can ? '' : 'cant'}">
+          <div class="offer-ico">${icon[o.id] ?? '🎁'}</div>
+          <div class="offer-name">${o.name}</div>
+          <div class="offer-desc">${o.desc}</div>
+          <div class="offer-gets">${chips(this.sim.missions.offerReward(o.id))}</div>
+          <button type="button" class="btn small blue offer-buy" data-act="buy:${o.id}" ${can ? '' : 'disabled'}><i class="jewel"></i>${o.cost}</button>
+        </div>`;
+      }).join('')}
       </div>`;
   }
 

@@ -614,7 +614,27 @@ function iconOf(m: SpriteMeta): string {
   const [x, y, w, h] = m.frames.idle[0];
   const c = document.createElement('canvas');
   c.width = w * res; c.height = h * res;
-  c.getContext('2d')!.drawImage(sheet.img, x * res, y * res, w * res, h * res, 0, 0, c.width, c.height);
+  const g = c.getContext('2d', { willReadFrequently: true })!;
+  g.drawImage(sheet.img, x * res, y * res, w * res, h * res, 0, 0, c.width, c.height);
+  // Trim transparent margins (render cells are roomy) so portraits fill their frame.
+  try {
+    const px = g.getImageData(0, 0, c.width, c.height).data;
+    let x0 = c.width, y0 = c.height, x1 = -1, y1 = -1;
+    for (let yy = 0; yy < c.height; yy++) {
+      for (let xx = 0; xx < c.width; xx++) {
+        if (px[(yy * c.width + xx) * 4 + 3] > 16) {
+          if (xx < x0) x0 = xx; if (xx > x1) x1 = xx; if (yy < y0) y0 = yy; if (yy > y1) y1 = yy;
+        }
+      }
+    }
+    if (x1 >= x0 && y1 >= y0) {
+      const pad = 2, cw = x1 - x0 + 1 + pad * 2, ch = y1 - y0 + 1 + pad * 2;
+      const out = document.createElement('canvas');
+      out.width = cw; out.height = ch;
+      out.getContext('2d')!.drawImage(c, x0 - pad, y0 - pad, cw, ch, 0, 0, cw, ch);
+      return out.toDataURL();
+    }
+  } catch { /* fall back to the untrimmed frame */ }
   return c.toDataURL();
 }
 

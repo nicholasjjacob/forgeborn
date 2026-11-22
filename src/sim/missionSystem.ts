@@ -1,4 +1,5 @@
 import { enemyGold } from './balance';
+import { xpForKill } from './level';
 import {
   DAILY_TASKS, JOURNEY_DAYS, JOURNEY_MILESTONES, JOURNEY_TASKS, MILESTONES, SHOP, WEEKLY_TASKS,
   attendanceReward, boardChestReward, codexReward, codexTiers, dayKey, daysBetween, freshBoard, weekKey,
@@ -166,6 +167,9 @@ export class MissionSystem {
     const s = this.sim.save;
     if (id === 'shards') return { shards: 60 };
     if (id === 'gold') return { gold: enemyGold(Math.max(1, s.stage)) * 250 };
+    if (id === 'mats') return { wood: 20, stone: 20 };
+    if (id === 'xp') return { xp: xpForKill(Math.max(1, s.bestEver), false) * 300 }; // ~300 kills' worth
+    if (id === 'embers') return { embers: 3 };
     const r = offlineReward(s, 2 * 3600, 24);
     return { gold: Math.max(r.gold, enemyGold(s.stage) * 100), shards: r.shards };
   }
@@ -187,6 +191,9 @@ export class MissionSystem {
     if (r.shards) s.shards += r.shards;
     if (r.gems) this.m.gems += r.gems;
     if (r.embers) { s.embers += r.embers; s.embersEarned += r.embers; this.sim.recalc(); }
+    if (r.wood) s.materials.wood += r.wood;
+    if (r.stone) s.materials.stone += r.stone;
+    if (r.xp) this.sim.gainXp(r.xp);
   }
 
   /** Count of claimable things per section (for red badges). */

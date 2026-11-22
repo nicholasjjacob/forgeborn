@@ -10,7 +10,7 @@ import type { StatKey } from './meta';
 
 export type MStat = StatKey | 'kills';
 
-export interface Reward { gold?: number; shards?: number; gems?: number; embers?: number }
+export interface Reward { gold?: number; shards?: number; gems?: number; embers?: number; xp?: number; wood?: number; stone?: number }
 
 export interface TaskDef { id: string; text: string; stat: MStat; target: number; points: number }
 
@@ -144,9 +144,12 @@ export const codexReward = (slot: number, tier: number): Reward => ({ gems: (slo
 
 export interface ShopOffer { id: string; name: string; desc: string; cost: number }
 export const SHOP: ShopOffer[] = [
-  { id: 'shards', name: 'Shard Pouch', desc: '+60 shards', cost: 40 },
   { id: 'gold', name: 'Gold Chest', desc: 'A big pile of gold for your stage', cost: 30 },
-  { id: 'warp', name: 'Time Warp', desc: '2 hours of offline earnings, now', cost: 120 },
+  { id: 'shards', name: 'Shard Pouch', desc: 'Shards for the forge', cost: 40 },
+  { id: 'mats', name: 'Builder\'s Crate', desc: 'Wood and stone for building', cost: 25 },
+  { id: 'xp', name: 'Battle Tome', desc: 'Hero XP, sized to your stage', cost: 60 },
+  { id: 'warp', name: 'Time Warp', desc: '2 hours of offline earnings', cost: 120 },
+  { id: 'embers', name: 'Ember Spark', desc: 'Embers for Reforge perks', cost: 150 },
 ];
 
 export function describeReward(r: Reward): string {
@@ -155,5 +158,8 @@ export function describeReward(r: Reward): string {
   if (r.shards) parts.push(`${fmt(r.shards)} shards`);
   if (r.gems) parts.push(`${fmt(r.gems)} gems`);
   if (r.embers) parts.push(`${fmt(r.embers)} embers`);
+  if (r.xp) parts.push(`${fmt(r.xp)} XP`);
+  if (r.wood) parts.push(`${fmt(r.wood)} wood`);
+  if (r.stone) parts.push(`${fmt(r.stone)} stone`);
   return parts.join(' · ');
 }
