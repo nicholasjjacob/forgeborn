@@ -1,4 +1,5 @@
 import { haptic, sfx } from '../audio/sfx';
+import { rewardSpill, starBurst } from './rewardFx';
 import { fmt } from '../core/format';
 import { areaFor, areaName } from '../sim/areas';
 import {
@@ -69,6 +70,12 @@ export class MissionsUI {
           <nav class="sheet-tabs" role="tablist"></nav>
         </div>`;
       wrap.addEventListener('click', (e) => this.onClick(e));
+      // The game keeps running behind the sheet and re-renders it as stats change. On iOS a tap
+      // spans ~100 ms+ between touch-down and click; if the button is rebuilt in between, the
+      // click is lost. So hold re-renders while a finger/mouse is down on the sheet.
+      wrap.addEventListener('pointerdown', () => { this.pressed = true; });
+      window.addEventListener('pointerup', this.release, true);
+      window.addEventListener('pointercancel', this.release, true);
       document.addEventListener('keydown', this.onKey);
       document.body.appendChild(wrap);
       this.wrap = wrap;
@@ -82,7 +89,14 @@ export class MissionsUI {
     this.wrap.remove();
     this.wrap = null;
     document.removeEventListener('keydown', this.onKey);
+    window.removeEventListener('pointerup', this.release, true);
+    window.removeEventListener('pointercancel', this.release, true);
+    this.pressed = false;
   }
+
+  private pressed = false;
+  // Released after the click has been dispatched (on iOS click can trail pointerup a little), then catch up.
+  private readonly release = () => { if (this.pressed) setTimeout(() => { this.pressed = false; this.refresh(); }, 400); };
 
   private readonly onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') this.close(); };
 
@@ -98,7 +112,7 @@ export class MissionsUI {
       case 'tab': this.tab = a as MissionTab; sfx.play('tick'); break;
       case 'jday': this.journeyDaySel = Number(a); sfx.play('tick'); break;
       case 'task':
-        if (m.claimTask(a as BoardKind, b, now)) { sfx.play('coin'); this.toast('Mission complete!'); }
+        if (m.claimTask(a as BoardKind, b, now)) { sfx.play('coin'); starBurst(el); this.toast('Mission complete!'); }
         break;
       case 'chest': reward = m.claimChest(a as BoardKind, Number(b)); break;
       case 'login': reward = m.claimAttendance(now); break;
@@ -108,6 +122,7 @@ export class MissionsUI {
     if (reward) {
       sfx.play('achieve');
       haptic(25);
+      rewardSpill(reward, el);
       this.toast(`+ ${describeReward(reward)}`);
     }
     this.sig = '';
@@ -116,7 +131,7 @@ export class MissionsUI {
 
   /** Re-render the open sheet if anything it shows changed. Called by the HUD ~10×/s. */
   refresh(): void {
-    if (!this.wrap) return;
+    if (!this.wrap || this.pressed) return;
     const now = new Date();
     const m = this.sim.missions;
     const s = this.sim.save;

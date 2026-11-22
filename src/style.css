@@ -577,3 +577,14 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
   #progress.boss, #challenge-btn, .slot.mergeable, .slot.new, .slot.pop, .dot, .track-card.ready, .chest.ready .chest-ico, .day-cell.today, #vignette.boss { animation: none; }
 }
+
+/* --- Reward spill (ui/rewardFx.ts) ------------------------------------------------------ */
+.fx-layer { position: fixed; inset: 0; z-index: 50; pointer-events: none; overflow: hidden; }
+.fx-p { position: absolute; left: 0; top: 0; will-change: transform, opacity; }
+.fx-p.coin { width: 20px; height: 20px; }
+.fx-p.gem { width: 13px; height: 13px; rotate: none; }
+.fx-p.jewel { width: 18px; height: 16px; }
+.fx-p.ember { width: 13px; height: 16px; }
+.fx-p.fx-star { font-size: 20px; line-height: 1; color: #ffd84a; text-shadow: 0 0 0 #7a4a00, 0 2px 0 #7a4a00, 0 0 8px #fff3a0; }
+.fx-bump { animation: fx-bump 0.22s ease-out; }
+@keyframes fx-bump { 40% { transform: scale(1.25); filter: brightness(1.35); } }

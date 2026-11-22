@@ -2,6 +2,7 @@ import { fmt } from '../core/format';
 import { sfx } from '../audio/sfx';
 import { ACHIEVEMENTS, ACH_BONUS_PER_TIER, ROMAN, achGoal, questText } from '../sim/meta';
 import type { Sim } from '../sim/sim';
+import { rewardSpill } from './rewardFx';
 
 /** Quests tab: three rolling quests with Claim buttons, then the achievement list. */
 export class QuestPanel {
@@ -29,7 +30,11 @@ export class QuestPanel {
         </div>
         <button type="button" class="btn small primary">Claim</button>`;
       const btn = li.querySelector<HTMLButtonElement>('button')!;
-      btn.addEventListener('click', () => { if (sim.claimQuest(i)) { sfx.play('coin'); sfx.play('shard'); this.refresh(); } });
+      btn.addEventListener('click', () => {
+        const q = sim.save.quests[i];
+        const reward = q ? { gold: q.gold, shards: q.shards } : null;
+        if (sim.claimQuest(i)) { sfx.play('coin'); sfx.play('shard'); if (reward) rewardSpill(reward, btn); this.refresh(); }
+      });
       ql.appendChild(li);
       this.questRows.push({
         root: li, text: li.querySelector('.q-text')!, fill: li.querySelector('.bar-fill')!,
