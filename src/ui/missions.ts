@@ -15,6 +15,12 @@ const TAB_LABEL: Record<MissionTab, string> = { login: 'Login', daily: 'Daily', 
 const TAB_TITLE: Record<MissionTab, string> = { login: 'Daily Login', daily: 'Daily Missions', weekly: 'Weekly Missions', journey: '7-Day Journey', codex: 'Monster Codex', shop: 'Gem Shop' };
 
 /** Small inline reward chips (icons are CSS shapes, text is the amount). */
+/** Large centred reward icons with amounts underneath (login calendar). */
+function bigRewards(r: Reward): string {
+  const it = (cls: string, n: number) => `<span class="ditem"><i class="${cls}"></i><b>${fmt(n)}</b></span>`;
+  return [r.gold ? it('coin', r.gold) : '', r.shards ? it('gem', r.shards) : '', r.gems ? it('jewel', r.gems) : '', r.embers ? it('ember', r.embers) : ''].join('');
+}
+
 export function chips(r: Reward): string {
   const c: string[] = [];
   if (r.gold) c.push(`<span class="rchip"><i class="coin"></i>${fmt(r.gold)}</span>`);
@@ -151,6 +157,8 @@ export class MissionsUI {
     ).join('');
 
     const body = this.wrap.querySelector<HTMLElement>('.sheet-body')!;
+    // The login calendar stretches to fill the (fixed-height) sheet instead of leaving a gap.
+    body.classList.toggle('fill', this.tab === 'login');
     const scroll = body.scrollTop;
     body.innerHTML =
       this.tab === 'login' ? this.renderLogin(now)
@@ -173,9 +181,10 @@ export class MissionsUI {
     const cell = (d: number) => {
       const claimed = cycleDone || d < a.day;
       const today = canClaim && d === a.day;
-      return `<div class="day-cell ${d === 6 ? 'grand' : ''} ${claimed ? 'claimed' : ''} ${today ? 'today' : ''}">
+      // --t keeps the "today" pulse smooth across the sheet's once-a-second re-render.
+      return `<div class="day-cell ${d === 6 ? 'grand' : ''} ${claimed ? 'claimed' : ''} ${today ? 'today' : ''}" style="--t:-${Math.round(performance.now())}ms">
         <div class="day-label">Day ${d + 1}</div>
-        <div class="day-reward">${chips(m.attendanceReward(d))}</div>
+        <div class="day-items">${bigRewards(m.attendanceReward(d))}</div>
         ${claimed ? '<div class="check">✔</div>' : ''}
       </div>`;
     };

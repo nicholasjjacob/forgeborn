@@ -611,15 +611,31 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 .task .btn { flex: 0 0 auto; min-width: 64px; }
 
 /* Login calendar */
-.login-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
-.day-cell { position: relative; padding: 6px 4px 8px; border-radius: 14px; text-align: center; background: linear-gradient(#fffaf0, var(--cream-2)); box-shadow: inset 0 0 0 2px var(--wood), 0 3px 0 var(--wood-dark); min-height: 78px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.login-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin-bottom: 14px; }
+/* Login tab fills the sheet: two rows of days, a taller Day 7, then the claim button. */
+.sheet-body.fill { display: flex; flex-direction: column; }
+.sheet-body.fill .sheet-note { flex: 0 0 auto; padding: 0 40px; }
+.sheet-body.fill .login-grid { flex: 1 1 auto; min-height: 0; grid-template-rows: 1fr 1fr 1.3fr; }
+.sheet-body.fill > .btn { flex: 0 0 auto; margin-bottom: 4px; }
+.day-cell { position: relative; padding: 7px 4px 8px; border-radius: 14px; text-align: center; background: linear-gradient(#fffaf0, var(--cream-2)); box-shadow: inset 0 0 0 2px var(--wood), 0 3px 0 var(--wood-dark); min-height: 92px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.day-items { flex: 1; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px 16px; width: 100%; }
+.ditem { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; font-size: 15px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.ditem i { font-style: normal; }
+.ditem .coin { width: 30px; height: 30px; }
+.ditem .gem { width: 20px; height: 20px; margin: 3px 0; }
+.ditem .jewel { width: 28px; height: 26px; }
+.ditem .ember { width: 22px; height: 28px; }
+.day-cell.grand .ditem { font-size: 18px; }
+.day-cell.grand .ditem .gem { width: 26px; height: 26px; margin: 4px 0; }
+.day-cell.grand .ditem .jewel { width: 34px; height: 32px; }
+.day-cell.grand .ditem .ember { width: 26px; height: 33px; }
+.day-cell.claimed .day-items { opacity: 0.35; }
 .day-cell.grand { grid-column: 1 / -1; background: linear-gradient(#fff3c0, #ffd36a); box-shadow: inset 0 0 0 3px #c47f0e, 0 3px 0 #7a4a00; }
-.day-cell.today { box-shadow: inset 0 0 0 3px var(--green-2), 0 0 0 3px #b8f08a, 0 3px 0 var(--green-edge); animation: pulse 0.9s ease-in-out infinite alternate; }
-.day-cell.claimed { opacity: 0.65; }
+.day-cell.today { box-shadow: inset 0 0 0 3px var(--green-2), 0 0 0 3px #b8f08a, 0 3px 0 var(--green-edge); animation: pulse 1.6s ease-in-out var(--t, 0s) infinite alternate; }
 .day-label { font-size: 12px; color: #fff; text-shadow: var(--outline); padding: 1px 10px; border-radius: 8px; background: linear-gradient(var(--blue-1), var(--blue-2)); }
 .day-cell.grand .day-label { background: linear-gradient(var(--red-1), var(--red-2)); font-size: 14px; }
 .day-reward { display: flex; flex-wrap: wrap; justify-content: center; }
-.check { position: absolute; inset: 0; display: grid; place-items: center; font-size: 34px; color: var(--green-2); text-shadow: 0 2px 0 #fff, 0 0 6px #fff; }
+.check { position: absolute; inset: 0; display: grid; place-items: center; padding-top: 14px; font-size: 44px; line-height: 1; color: var(--green-2); text-shadow: 0 2px 0 #fff, 0 0 8px #fff; pointer-events: none; }
 
 /* 7-day journey */
 .journey { display: grid; grid-template-columns: 62px 1fr; gap: 8px; }
