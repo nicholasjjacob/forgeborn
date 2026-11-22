@@ -126,3 +126,30 @@ describe('map', () => {
   });
 });
 
+
+describe('tap-to-move near props', () => {
+  it('a tap on a solid prop walks to its edge and stops, without jittering', () => {
+    const save = freshSave();
+    save.stage = 25; save.bestEver = 25; save.auto = false; // desert: cacti and rocks
+    const sim = new Sim(save, 1);
+    const s = sim as unknown as { map: GameMap; enemies: { alive: boolean }[]; moveHero(dt: number): void };
+    const h = sim.hero;
+    let checked = 0;
+    for (const p of s.map.props) {
+      if (p.r <= 0 || p.x < 60 || p.y < 60 || p.x > MAP_W - 60 || p.y > MAP_W - 60) continue;
+      for (let a = 0; a < 4; a++) {
+        for (const e of s.enemies) e.alive = false;
+        const ang = (a / 4) * Math.PI * 2;
+        h.x = p.x + Math.cos(ang) * (p.r + 25); h.y = p.y + Math.sin(ang) * (p.r + 25);
+        sim.moveTo(p.x + 1, p.y + 1);
+        for (let i = 0; i < 90; i++) s.moveHero(1 / 30);
+        const x0 = h.x, y0 = h.y;
+        for (let i = 0; i < 30; i++) s.moveHero(1 / 30);
+        expect(Math.hypot(h.x - x0, h.y - y0)).toBeLessThan(0.01);
+        expect(h.moving).toBe(false);
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(50);
+  });
+});

@@ -185,6 +185,9 @@ export class Sim {
   // Stuck recovery for the hero: if movement stalls, sidestep briefly and pick another target.
   private stuckT = 0;
   private detourT = 0;
+  /** Tap-to-move progress: closest distance to the target so far, and time since it improved. */
+  private targetBest = Infinity;
+  private targetStall = 0;
   private detourX = 0;
   private detourY = 0;
   private ignore: Enemy | null = null;
@@ -262,10 +265,16 @@ export class Sim {
 
   /** Click / tap-to-move destination in world coordinates. */
   moveTo(x: number, y: number): void {
-    this.input.targetX = x;
-    this.input.targetY = y;
+    // A tap on a tree, rock or cactus aims at a spot the hero can't stand on; walk to its edge
+    // instead (a few passes, so a spot between two touching props ends up outside both).
+    const t = { x, y };
+    for (let i = 0; i < 4; i++) this.map.resolve(t, HERO_RADIUS + 0.5);
+    this.input.targetX = t.x;
+    this.input.targetY = t.y;
     this.input.hasTarget = true;
     this.input.idleT = 0;
+    this.targetBest = Infinity;
+    this.targetStall = 0;
   }
 
   /** Leave farming and go straight to the boss of the next stage. */
@@ -676,7 +685,11 @@ export class Sim {
     } else if (inp.hasTarget) {
       const dx = inp.targetX - h.x, dy = inp.targetY - h.y;
       const d = Math.hypot(dx, dy);
-      if (d < 3) inp.hasTarget = false;
+      // Give up when the target stops getting closer (blocked by props), instead of shuffling
+      // back and forth against an obstacle forever.
+      if (d < this.targetBest - 0.5) { this.targetBest = d; this.targetStall = 0; }
+      else this.targetStall += dt;
+      if (d < 3 || this.targetStall > 0.6) inp.hasTarget = false;
       else { vx = dx / d; vy = dy / d; }
     } else {
       inp.idleT += dt;
