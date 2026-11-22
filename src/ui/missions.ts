@@ -44,7 +44,21 @@ export class MissionsUI {
     document.getElementById('side-missions')!.addEventListener('click', () => this.open(this.bestTab()));
     document.getElementById('side-journey')!.addEventListener('click', () => this.open('journey'));
     document.getElementById('side-codex')!.addEventListener('click', () => this.open('codex'));
-    document.getElementById('tracker')!.addEventListener('click', () => this.open('daily'));
+    // Tracker cards are buttons (so a tap never starts the joystick). A finished mission is
+    // claimed right there; any other card opens the daily board.
+    document.getElementById('tracker')!.addEventListener('click', (e) => {
+      const card = (e.target as HTMLElement).closest<HTMLElement>('.track-card');
+      if (!card) return;
+      const id = card.dataset.task;
+      if (card.classList.contains('ready') && id && this.sim.missions.claimTask('daily', id, new Date())) {
+        sfx.play('coin');
+        starBurst(card);
+        this.toast('Mission complete!');
+        this.refreshMain(new Date());
+        return;
+      }
+      this.open('daily');
+    });
   }
 
   get isOpen(): boolean { return this.wrap !== null; }
@@ -311,9 +325,9 @@ export class MissionsUI {
       .sort((a, z) => (z.p >= 1 ? 1 : 0) - (a.p >= 1 ? 1 : 0) || z.p - a.p)
       .slice(0, 2);
     this.set(document.getElementById('tracker')!, tasks.map(({ t, p }) => `
-      <div class="track-card ${p >= 1 ? 'ready' : ''}">
-        <div class="track-text">${p >= 1 ? '✔ ' : ''}${t.text}</div>
-        <div class="bar thin"><div class="bar-fill" style="transform:scaleX(${p.toFixed(2)})"></div></div>
-      </div>`).join(''));
+      <button type="button" class="track-card ${p >= 1 ? 'ready' : ''}" data-task="${t.id}" aria-label="${t.text}${p >= 1 ? ': tap to claim' : ''}">
+        <span class="track-text">${p >= 1 ? '✔ ' : ''}${t.text}</span>
+        ${p >= 1 ? '<span class="track-claim">Tap to claim</span>' : `<span class="bar thin"><span class="bar-fill" style="transform:scaleX(${p.toFixed(2)})"></span></span>`}
+      </button>`).join(''));
   }
 }
