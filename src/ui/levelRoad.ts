@@ -10,7 +10,7 @@ import { actionElement, bindSheetTaps } from './tap';
 
 /**
  * Hero level panel + Level Road: the current level, XP, permanent bonuses, and a reward
- * every 5 levels. Rewards are sized to the player's best stage when claimed.
+ * every 5 levels. Rewards are sized to the furthest zone reached when claimed.
  */
 export class LevelRoad {
   private wrap: HTMLElement | null = null;
@@ -99,7 +99,7 @@ export class LevelRoad {
 
     const full = s.weapons.indexOf(null) < 0;
     this.wrap.querySelector('.lv-road')!.innerHTML = `
-      <p class="sheet-note">Kill monsters to earn XP. Every 5 levels unlocks a reward. Rewards grow with your best stage.</p>
+      <p class="sheet-note">Kill monsters to earn XP. Every 5 levels unlocks a reward, and new levels open new zones on the 🗺 Map. Rewards grow as you explore.</p>
       ${MILESTONES.map((m) => this.row(m, this.sim.levelReward(m), full)).join('')}`;
   }
 

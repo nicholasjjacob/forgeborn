@@ -84,16 +84,17 @@ describe('levelling in the sim', () => {
     expect(reward!.rarity).toBeGreaterThanOrEqual(1);
   });
 
-  it('keeps the level through Reforge and migrates old saves to level 1', () => {
+  it('Reforge restarts the hero level but keeps claimed rewards; old saves migrate to level 1', () => {
     const save = freshSave();
     Object.assign(save, { stage: 60, highestStage: 60, bestEver: 60, level: 30, xp: 50, levelClaimed: [5, 10] });
     const sim = new Sim(save, 1);
     sim.reforge();
-    expect(save.level).toBe(30);
+    expect(save.level).toBe(1);
+    expect(save.zone).toBe(0);
     expect(save.levelClaimed).toEqual([5, 10]);
 
     const old = migrate({ ...freshSave(), v: 4, level: undefined, xp: undefined, levelClaimed: undefined });
-    expect(old.v).toBe(5);
+    expect(old.v).toBe(6);
     expect(old.level).toBe(1);
     expect(old.levelClaimed).toEqual([]);
   });

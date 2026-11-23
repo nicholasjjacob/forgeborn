@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { Sim, freshSave, type Enemy } from '../src/sim/sim';
 import { UPGRADES, UPGRADE_IDS, maxAffordable, upgradeCost } from '../src/sim/balance';
-import { GameMap, MAP_W, layoutFor, stageTint } from '../src/sim/map';
+import { GameMap, MAP_W, layoutFor, zoneTint } from '../src/sim/map';
+import { zoneLevel, zoneStage } from '../src/sim/zones';
 import { fmt } from '../src/core/format';
+import { migrate } from '../src/core/save';
 
 /** Greedy player: always buys the cheapest available upgrade. */
 function autoBuy(sim: Sim) {
@@ -26,7 +28,9 @@ function play(minutes: number, seed = 1) {
     sim.events.clear();
     if (i % 30 === 0) {
       autoBuy(sim);
-      if (sim.save.farming && i % (30 * 60) === 0) sim.challengeBoss();
+      // Player: try the zone boss once a minute until it falls, then move on when allowed.
+      if (i % (30 * 60) === 0 && !sim.zoneBossBeaten) sim.challengeBoss();
+      if (sim.maxZone > sim.save.zone && !sim.isBossStage) sim.travel(sim.maxZone);
     }
   }
   return sim;
@@ -70,11 +74,9 @@ describe('simulation', () => {
   it('progresses at a reasonable pace with greedy upgrades', () => {
     const at5 = play(5);
     const at20 = play(20);
-    // Pace targets: past the first boss within ~5 min, well beyond it by 20 min.
-    expect(at5.save.highestStage).toBeGreaterThanOrEqual(8);
-    expect(at20.save.highestStage).toBeGreaterThan(at5.save.highestStage);
-    console.log('stage @5m', at5.save.highestStage, '@20m', at20.save.highestStage,
-      'upgrades', JSON.stringify(at20.save.upgrades));
+    // Pace targets: into the second zone within ~5 min, a few zones further by 20 min.
+    expect(at5.maxZone).toBeGreaterThanOrEqual(1);
+    expect(at20.maxZone).toBeGreaterThan(at5.maxZone + 1);
   });
 
   it('a fresh hero with no upgrades eventually dies and recovers instead of soft-locking', () => {
@@ -89,18 +91,21 @@ describe('simulation', () => {
     expect(sim.hero.hp).toBeGreaterThan(0);
   });
 
-  it('beating an area boss moves the hero to the next area with a new map', () => {
+  it('travelling into a new terrain swaps the map and monster roster', () => {
     const save = freshSave();
-    save.stage = 10;
-    save.upgrades.atk = 60; // strong enough to win quickly
-    save.upgrades.hp = 40;
+    save.zoneBosses = 3; save.level = zoneLevel(3);
+    save.upgrades.atk = 60; save.upgrades.hp = 40;
     const sim = new Sim(save, 3);
-    expect(sim.bossActive).toBe(true);
     const firstMap = sim.map;
-    for (let i = 0; i < 30 * 60 && sim.stage === 10; i++) { sim.tick(); sim.events.clear(); }
-    expect(sim.stage).toBe(11);
+    expect(sim.travel(3)).toBe(true);
     expect(sim.area).toBe(1);
     expect(sim.map).not.toBe(firstMap);
+    // The zone boss can be fought and beaten in its arena.
+    sim.challengeBoss();
+    expect(sim.bossActive).toBe(true);
+    expect(sim.map.boss).toBe(true);
+    for (let i = 0; i < 30 * 60 && save.zoneBosses === 3; i++) { sim.tick(); sim.events.clear(); }
+    expect(save.zoneBosses).toBe(4);
   });
 
   it('auto-hunt never stalls for long (obstacle steering keeps kills flowing)', () => {
@@ -154,37 +159,95 @@ describe('tap-to-move near props', () => {
   });
 });
 
-describe('stage maps', () => {
-  it('every stage has its own layout, an open centre, and the boss stage is an arena', () => {
+describe('zone maps', () => {
+  it('every zone has its own layout and an open centre; boss fights use an arena', () => {
     const seen = new Set<string>();
-    for (let stage = 1; stage <= 60; stage++) {
-      const map = new GameMap(Math.floor((stage - 1) / 10), stage);
-      expect(map.blocked(MAP_W / 2, MAP_W / 2, 7)).toBe(false);
-      seen.add(map.props.slice(0, 12).map((p) => `${p.x.toFixed(0)},${p.y.toFixed(0)}`).join('|'));
-      if (stage % 10 === 0) expect(map.layout).toBe('arena');
+    for (let zone = 0; zone < 18; zone++) {
+      for (const boss of [false, true]) {
+        const map = new GameMap(Math.floor(zone / 3), zone, boss);
+        expect(map.blocked(MAP_W / 2, MAP_W / 2, 7)).toBe(false);
+        seen.add(map.props.slice(0, 12).map((p) => `${p.x.toFixed(0)},${p.y.toFixed(0)}`).join('|'));
+        expect(map.layout === 'arena').toBe(boss);
+      }
     }
-    expect(seen.size).toBe(60);
-    expect(layoutFor(1)).not.toBe(layoutFor(2));
-    expect(stageTint(1)).not.toBe(stageTint(9));
+    expect(seen.size).toBe(36);
+    expect(layoutFor(0)).not.toBe(layoutFor(1));
+    expect(zoneTint(0)).not.toBe(zoneTint(2));
+  });
+});
+
+describe('world map zones', () => {
+  const beatBoss = (sim: Sim) => {
+    sim.challengeBoss();
+    const boss = sim.enemies.find((e) => e.alive && e.boss)!;
+    boss.hp = 0;
+    (sim as unknown as { kill(e: Enemy): void }).kill(boss);
+  };
+
+  it('a zone opens with the hero level AND the previous zone boss', () => {
+    const save = freshSave();
+    const sim = new Sim(save, 2);
+    expect(sim.maxZone).toBe(0);
+    expect(sim.travel(1)).toBe(false);
+    save.level = zoneLevel(1);
+    expect(sim.zoneUnlocked(1)).toBe(false); // boss not beaten yet
+    beatBoss(sim);
+    expect(save.zoneBosses).toBe(1);
+    expect(sim.zoneUnlocked(1)).toBe(true);
+    expect(sim.travel(1)).toBe(true);
+    expect(save.zone).toBe(1);
+    expect(save.stage).toBe(zoneStage(1));
+    expect(sim.map.zone).toBe(1);
+    // Back to an easier zone any time.
+    expect(sim.travel(0)).toBe(true);
+    expect(sim.map.zone).toBe(0);
   });
 
-  it('clearing a stage moves the hero onto the next stage map', () => {
+  it('beating the boss pays a first-clear bonus once, then sends the hero back to the field', () => {
     const save = freshSave();
-    save.stage = 3;
-    const sim = new Sim(save, 2);
-    const before = sim.map;
-    const s = sim as unknown as { advanceStage(): void };
-    s.advanceStage();
-    expect(sim.map).not.toBe(before);
-    expect(sim.map.stage).toBe(4);
+    const sim = new Sim(save, 3);
+    const gems = save.missions.gems;
+    beatBoss(sim);
+    expect(save.missions.gems).toBe(gems + 10);
+    expect(sim.map.boss).toBe(true);
+    for (let i = 0; i < 90; i++) sim.tick();
+    expect(sim.map.boss).toBe(false);
+    beatBoss(sim); // rematch: no second bonus, no extra unlock
+    expect(save.missions.gems).toBe(gems + 10);
+    expect(save.zoneBosses).toBe(1);
+  });
+
+  it('higher zones give more XP per kill and tougher monsters', () => {
+    const lo = new Sim(freshSave(), 1), hiSave = freshSave();
+    hiSave.zone = 6; hiSave.zoneBosses = 6; hiSave.level = 100;
+    const hi = new Sim(hiSave, 1);
+    type Inner = { enemies: Enemy[]; setEnemy(e: Enemy, m: number, boss: boolean, x: number, y: number): void };
+    (lo as unknown as Inner).setEnemy(lo.enemies[0], 0, false, 100, 100);
+    (hi as unknown as Inner).setEnemy(hi.enemies[0], 0, false, 100, 100);
+    expect(hi.enemies[0].maxHp).toBeGreaterThan(lo.enemies[0].maxHp * 10);
+    const xp0 = lo.save.xp;
+    (lo as unknown as { kill(e: Enemy): void }).kill(lo.enemies[0]);
+    const loXp = lo.save.xp - xp0 + (lo.save.level - 1) * 0;
+    hiSave.level = 50; hiSave.xp = 0;
+    (hi as unknown as { kill(e: Enemy): void }).kill(hi.enemies[0]);
+    expect(hiSave.xp).toBeGreaterThan(loXp * 3);
+  });
+
+  it('old stage saves become zone progress', () => {
+    const old = { ...freshSave(), v: 5, stage: 28, highestStage: 28, bestEver: 28, level: 11 } as unknown as Record<string, unknown>;
+    delete old.zone; delete old.zoneBosses; delete old.zoneBest;
+    const save = migrate(old);
+    expect(save.zoneBosses).toBe(6); // zoneStage(6) = 25 was passed; zoneStage(7) = 29 was not
+    expect(save.zone).toBeGreaterThan(0);
+    expect(save.level).toBeGreaterThanOrEqual(zoneLevel(save.zone));
   });
 });
 
 describe('monster skills', () => {
   type Inner = { enemies: Enemy[]; setEnemy(e: Enemy, m: number, boss: boolean, x: number, y: number, elite?: boolean): void; updateEnemies(dt: number): void; updateShots(dt: number): void };
-  const setup = (stage: number) => {
+  const setup = (_stage: number, zone = 0) => {
     const save = freshSave();
-    save.stage = stage; save.farming = true;
+    save.zone = zone; save.zoneBosses = zone; save.level = 100;
     const sim = new Sim(save, 4);
     const s = sim as unknown as Inner;
     for (const e of s.enemies) e.alive = false;
@@ -207,7 +270,7 @@ describe('monster skills', () => {
   });
 
   it('spitters hit the hero from range with projectiles', () => {
-    const { sim, s } = setup(12); // mirewood: the spider spits
+    const { sim, s } = setup(0, 3); // mirewood: the spider spits
     const e = s.enemies[0];
     s.setEnemy(e, 1, false, sim.hero.x + 60, sim.hero.y);
     e.spawnT = 0; e.aggro = true; e.skillCd = 0;

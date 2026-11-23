@@ -1,6 +1,7 @@
 import { fmt } from '../core/format';
 import { sfx } from '../audio/sfx';
 import { GLOW_DMG, GLOW_HP, PERKS, PERK_IDS, REFORGE_MIN_STAGE, embersFor, type PerkId } from '../sim/meta';
+import { zoneName, zoneStage } from '../sim/zones';
 import type { Sim } from '../sim/sim';
 import { confirmDialog } from './dialog';
 
@@ -46,8 +47,8 @@ export class ReforgePanel {
     if (gain <= 0) return;
     const ok = await confirmDialog({
       title: 'Reforge?',
-      body: `<p>Start a new run from stage ${Math.max(1, Math.min(1 + this.sim.save.perks.headstart * 5, this.sim.save.bestEver))} and gain <b>${fmt(gain)} embers</b>.</p>
-             <p class="modal-note">Stage, gold, shards, upgrades, weapons and forge level reset. Embers, perks and achievements stay.</p>`,
+      body: `<p>Start a new run at hero level ${Math.min(100, 1 + this.sim.save.perks.headstart * 5)} and gain <b>${fmt(gain)} embers</b>.</p>
+             <p class="modal-note">Hero level, zone progress, gold, shards, upgrades, weapons and forge level reset. Embers, perks, achievements and Level Road rewards stay.</p>`,
       confirm: `Reforge (+${fmt(gain)})`,
       danger: true,
     });
@@ -70,12 +71,14 @@ export class ReforgePanel {
     this.set(this.el.glow, s.embersEarned > 0
       ? `Ember Glow: +${fmt(s.embersEarned * GLOW_DMG * 100)}% damage, +${fmt(s.embersEarned * GLOW_HP * 100)}% HP (from ${fmt(s.embersEarned)} embers earned)`
       : `Every ember you earn adds +${GLOW_DMG * 100}% damage and +${GLOW_HP * 100}% HP forever, even after spending it.`);
-    const best = s.highestStage;
+    const far = this.sim.maxZone;
     if (gain > 0) {
-      const next = embersFor(best + 1) - gain;
-      this.set(this.el.text, `Best stage this run: ${best}. Reforge now for +${fmt(gain)} embers (next stage adds about ${fmt(Math.max(1, next))} more).`);
+      const next = embersFor(zoneStage(far + 1)) - gain;
+      this.set(this.el.text, `Furthest zone this run: ${zoneName(far)}. Reforge now for +${fmt(gain)} embers (the next zone adds about ${fmt(Math.max(1, next))} more).`);
     } else {
-      this.set(this.el.text, `Reach stage ${REFORGE_MIN_STAGE} to unlock Reforge (best this run: ${best}).`);
+      let need = 0;
+      while (zoneStage(need) < REFORGE_MIN_STAGE) need++;
+      this.set(this.el.text, `Unlock ${zoneName(need)} (zone ${need + 1}) to unlock Reforge. Furthest this run: ${zoneName(far)}.`);
     }
     const btn = this.el.btn as HTMLButtonElement;
     if (btn.disabled === gain > 0) btn.disabled = gain <= 0;

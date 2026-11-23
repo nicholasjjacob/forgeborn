@@ -25,9 +25,12 @@ export function totalXpTo(level: number): number {
   return t;
 }
 
-/** XP for one kill: grows with the stage, so pushing further levels you faster. Bosses give 20×. */
+/**
+ * XP for one kill, by zone difficulty (stage units): about ×1.36 per zone, so the furthest zone
+ * you can handle is always the fastest place to level. Bosses give 20×.
+ */
 export function xpForKill(stage: number, boss: boolean): number {
-  const base = Math.ceil(1 + stage * 0.5);
+  const base = Math.ceil(6 * Math.pow(1.08, stage - 1));
   return boss ? base * 20 : base;
 }
 
@@ -53,7 +56,7 @@ export interface MilestoneReward extends Reward {
 
 /**
  * The reward for milestone `level` (5, 10, … 100), sized to the player's progress when claimed:
- * gold and shards scale with the best stage reached, so a reward is never trivial or absurd.
+ * gold and shards scale with the furthest zone reached (in stage units), so a reward is never trivial or absurd.
  *  - every milestone: gold (worth ~a few minutes of farming) + shards for the forge
  *  - every 10 levels: gems for the shop
  *  - every 20 levels: a bonus weapon (better rarity the higher you go)

@@ -1,3 +1,4 @@
+import { zoneLevel } from '../src/sim/zones';
 import { describe, expect, it } from 'vitest';
 import { migrate } from '../src/core/save';
 import { ACHIEVEMENTS, PERKS, QUEST_SLOTS, REFORGE_MIN_STAGE, embersFor } from '../src/sim/meta';
@@ -46,14 +47,17 @@ describe('reforge', () => {
     expect(sim.save.stats.reforges).toBe(0);
   });
 
-  it('head start and forgemaster perks shape the next run (head start capped by best ever)', () => {
+  it('head start and forgemaster perks shape the next run', () => {
     const save = freshSave();
-    Object.assign(save, { stage: 40, highestStage: 40, bestEver: 40 });
-    save.perks.headstart = 10; // would be stage 51, but best ever is 40
+    Object.assign(save, { stage: 40, highestStage: 40, bestEver: 40, zone: 9, zoneBosses: 12, level: 60 });
+    save.perks.headstart = 4; // start at hero level 21, with the zone bosses below it beaten
     save.perks.forgemaster = 3;
     const sim = new Sim(save, 3);
     sim.reforge();
-    expect(save.stage).toBe(40);
+    expect(save.level).toBe(21);
+    expect(sim.maxZone).toBeGreaterThan(0);
+    expect(zoneLevel(sim.maxZone)).toBeLessThanOrEqual(21);
+    expect(save.zone).toBe(sim.maxZone);
     expect(save.forgeLevel).toBe(4);
   });
 
@@ -121,7 +125,7 @@ describe('achievements', () => {
 
   it('v2 saves migrate to the current version with best-ever and empty meta', () => {
     const s = migrate({ v: 2, stage: 33, highestStage: 41, gold: 5 });
-    expect(s.v).toBe(5);
+    expect(s.v).toBe(6);
     expect(s.bestEver).toBe(41);
     expect(s.embers).toBe(0);
     expect(s.stats.bosses).toBe(0);

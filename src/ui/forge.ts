@@ -219,7 +219,7 @@ export class ForgePanel {
     this.disable(this.el.autoMerge, !hasPair(s.weapons));
 
     const maxed = s.forgeLevel >= MAX_FORGE_LEVEL;
-    const capped = s.forgeLevel >= forgeLevelCap(s.highestStage);
+    const capped = s.forgeLevel >= forgeLevelCap(sim.maxZone);
     const [lo, hi] = forgeTiers(s.forgeLevel);
     const [pr] = forgeOdds(s.forgeLevel);
     this.set(this.el.level, `Forge Lv ${s.forgeLevel}${maxed ? ' (max)' : ''}`);

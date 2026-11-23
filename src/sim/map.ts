@@ -17,24 +17,21 @@ export interface Prop { kind: PropKind; x: number; y: number; r: number; variant
 
 export interface Decal { x: number; y: number; variant: number }
 
-/** How a stage's props are arranged. */
+/** How a map's props are arranged. */
 export type Layout = 'scatter' | 'groves' | 'crossroads' | 'arena';
 
-/** Layout for a stage: the three field layouts take turns; every boss stage is an arena. */
-export function layoutFor(stage: number): Layout {
-  const s = ((stage - 1) % 10) + 1;
-  if (s === 10) return 'arena';
-  return (['scatter', 'groves', 'crossroads'] as const)[(s - 1) % 3];
+/** Field layout for a zone: each terrain's three zones are scatter, groves and crossroads. */
+export function layoutFor(zone: number): Layout {
+  return (['scatter', 'groves', 'crossroads'] as const)[zone % 3];
 }
 
 /**
- * Ground tint for a stage: daylight at the start of an area, dusk by its last field stage,
- * and a warm red glow in the boss arena.
+ * Ground tint for a zone: daylight in a terrain's first zone, afternoon in the second, dusk in
+ * the third, and a warm red glow in boss arenas.
  */
-export function stageTint(stage: number): number {
-  const s = ((stage - 1) % 10) + 1;
-  if (s === 10) return 0xffe2d8;
-  const k = (s - 1) / 8;
+export function zoneTint(zone: number, boss = false): number {
+  if (boss) return 0xffe2d8;
+  const k = (zone % 3) / 2;
   const rg = Math.round(255 * (1 - 0.17 * k)), b = Math.round(255 * (1 - 0.08 * k));
   return (rg << 16) | (rg << 8) | b;
 }
@@ -42,9 +39,9 @@ export function stageTint(stage: number): number {
 const ARENA_RADIUS = 150;
 
 /**
- * One stage's arena: props (some solid) arranged by the stage's layout, a solid border ring,
- * and a static uniform grid so collision queries only look at nearby props. Every stage gets
- * its own layout; the area decides the props and monsters.
+ * One zone's ground: props (some solid) arranged by the zone's layout, a solid border ring,
+ * and a static uniform grid so collision queries only look at nearby props. The terrain
+ * (area) decides the props; boss fights use a walled arena version of the zone.
  */
 export class GameMap {
   readonly props: Prop[] = [];
@@ -55,13 +52,12 @@ export class GameMap {
   private readonly rows = Math.ceil(MAP_H / CELL);
   private readonly grid: number[][];
 
-  constructor(readonly area: number, readonly stage = area * 10 + 1) {
-    const rng = new Rng(0xa5ea + area * 7919 + stage * 104729);
+  constructor(readonly area: number, readonly zone = area * 3, readonly boss = false) {
+    const rng = new Rng(0xa5ea + area * 7919 + zone * 104729 + (boss ? 31 : 0));
     const { def } = areaFor(area);
-    const depth = ((stage - 1) % 10) + 1; // 1..10 within the area
-    this.layout = layoutFor(stage);
-    this.tint = stageTint(stage);
-    // Deeper stages lean toward the area's rarer props.
+    const depth = 1 + (zone % 3) * 4; // 1, 5, 9: deeper zones lean toward the terrain's rarer props
+    this.layout = boss ? 'arena' : layoutFor(zone);
+    this.tint = zoneTint(zone, boss);
     const weights = def.props.map((p, i) => p.weight * (i === 0 ? 1.3 - 0.06 * depth : i === def.props.length - 1 ? 0.4 + 0.15 * depth : 1));
     const total = weights.reduce((s, w) => s + w, 0);
     const pick = (): PropKind => {

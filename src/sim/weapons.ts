@@ -66,7 +66,7 @@ export interface Weapon {
 /** Attack multiplier from tier and rarity (form damage is applied separately). */
 export function weaponMult(w: Pick<Weapon, 'tier' | 'rarity'>): number {
   const t = w.tier - 1;
-  return (1 + 0.15 * t) * Math.pow(1.15, t) * RARITY_MULT[w.rarity];
+  return (1 + 0.12 * t) * Math.pow(1.12, t) * RARITY_MULT[w.rarity];
 }
 
 /** Shards to forge one weapon at `level`: better forges make better weapons for more shards. */
@@ -75,11 +75,12 @@ export function forgeCost(level: number): number {
 }
 
 /**
- * Highest forge level reachable this run: one level per area reached (stage 1 → 1, stage 11 → 2, …).
- * Keeps the forge from outrunning the monsters it's meant to help with.
+ * Highest forge level reachable this run: one level per terrain reached on the world map
+ * (Meadow → 1, Mirewood → 2, …), given the furthest unlocked zone. Keeps the forge from
+ * outrunning the monsters it's meant to help with.
  */
-export function forgeLevelCap(highestStage: number): number {
-  return Math.min(MAX_FORGE_LEVEL, 1 + Math.floor((Math.max(1, highestStage) - 1) / 10));
+export function forgeLevelCap(maxZone: number): number {
+  return Math.min(MAX_FORGE_LEVEL, 1 + Math.floor(Math.max(0, maxZone) / 3));
 }
 
 export function weaponName(w: Weapon): string {
@@ -115,7 +116,7 @@ export function forgeTiers(level: number): [number, number] {
 }
 
 /** Forge mastery: every forge level past 1 adds this much weapon attack (to whatever you wield). */
-export const FORGE_ATK_PER_LEVEL = 0.04;
+export const FORGE_ATK_PER_LEVEL = 0.03;
 export const forgeAtkBonus = (level: number) => 1 + FORGE_ATK_PER_LEVEL * Math.max(0, level - 1);
 
 export function forgeUpgradeCost(level: number): number {

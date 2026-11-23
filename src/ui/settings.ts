@@ -83,7 +83,7 @@ export function openSettings(sim: Sim, act: SettingsActions): void {
   wrap.querySelector('#reset-progress')!.addEventListener('click', async () => {
     const ok = await confirmDialog({
       title: 'Reset all progress?',
-      body: '<p>This erases your stages, weapons, embers, perks and achievements. It cannot be undone.</p>',
+      body: '<p>This erases your zones, levels, weapons, embers, perks and achievements. It cannot be undone.</p>',
       confirm: 'Erase everything',
       danger: true,
     });

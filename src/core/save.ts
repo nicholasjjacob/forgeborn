@@ -1,3 +1,4 @@
+import { zoneLevel, zoneStage } from '../sim/zones';
 import { freshMaterials } from '../sim/gather';
 import { freshSave, type SaveData } from '../sim/sim';
 import { INVENTORY_SIZE, INVENTORY_STEP, MAX_INVENTORY } from '../sim/weapons';
@@ -110,17 +111,19 @@ export function migrate(input: unknown): SaveData {
   const base = freshSave();
   if (!input || typeof input !== 'object') return base;
   const data = { ...(input as Record<string, unknown>) } as Omit<Partial<SaveData>, 'v'> & { v?: number };
-  if (data.v !== 1 && data.v !== 2 && data.v !== 3 && data.v !== 4 && data.v !== 5) return base;
+  if (data.v !== 1 && data.v !== 2 && data.v !== 3 && data.v !== 4 && data.v !== 5 && data.v !== 6) return base;
+  const oldVersion = data.v;
 
   // v1 → v2: forge added (shards, forge level, inventory, starter weapon).
   // v2 → v3: reforge/perks, lifetime stats, quests, achievements.
   // v3 → v4: gems, login calendar, daily/weekly boards, 7-day journey, codex.
   // v4 → v5: hero level, XP and Level Road claims.
+  // v5 → v6: world map zones (see below).
   // All additions are filled from defaults by the merge below.
   const fm = freshMissions();
   const dm = (data.missions ?? {}) as Partial<typeof fm>;
   const save = {
-    ...base, ...data, v: 5,
+    ...base, ...data, v: 6,
     missions: {
       ...fm, ...dm,
       attendance: { ...fm.attendance, ...dm.attendance },
@@ -143,6 +146,25 @@ export function migrate(input: unknown): SaveData {
   save.level = Number.isFinite(save.level) ? Math.max(1, Math.min(100, Math.floor(save.level))) : 1;
   save.xp = Number.isFinite(save.xp) ? Math.max(0, save.xp) : 0;
   save.bestEver = Math.max(save.bestEver ?? 1, save.highestStage ?? 1, save.stage ?? 1);
+  if (oldVersion !== 6) {
+    // Stages → zones: every zone whose successor was within this run's reach counts as
+    // having its boss beaten; the hero lands in the furthest zone their level allows.
+    const reach = Math.max(1, save.highestStage ?? 1);
+    let beaten = 0;
+    while (zoneStage(beaten + 1) <= reach) beaten++;
+    save.zoneBosses = beaten;
+    let zone = 0;
+    while (zone + 1 <= beaten && save.level >= zoneLevel(zone + 1)) zone++;
+    save.zone = zone;
+    let best = 0;
+    while (zoneStage(best + 1) <= save.bestEver) best++;
+    save.zoneBest = Math.max(zone, best);
+    save.farming = false;
+    save.quests = save.quests.filter((q) => (q.kind as string) !== 'stages');
+  }
+  save.zone = Number.isFinite(save.zone) ? Math.max(0, Math.floor(save.zone)) : 0;
+  save.zoneBosses = Number.isFinite(save.zoneBosses) ? Math.max(0, Math.floor(save.zoneBosses)) : 0;
+  save.zoneBest = Math.max(save.zone, Number.isFinite(save.zoneBest) ? save.zoneBest : 0);
   // Normalise the inventory size: at least the starting size, whole rows, at most the maximum
   // (it grows when the player buys expansions).
   const raw = Array.isArray(save.weapons) ? save.weapons : [];

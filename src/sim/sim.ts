@@ -2,8 +2,8 @@ import { Rng } from '../core/rng';
 import { areaFor, type MonsterDef } from './areas';
 import {
   AUTO_IDLE_DELAY, BOSS, BOSS_TIME, CRIT_MULT, HERO_RADIUS, HERO_REGEN, HERO_SPEED,
-  STAGES_PER_AREA, TICK, UPGRADES, UPGRADE_IDS,
-  areaIndex, enemyDmg, enemyGold, enemyHp, isBossStage, killsForStage, maxAffordable, maxAlive, upgradeCost,
+  TICK, UPGRADES, UPGRADE_IDS,
+  enemyDmg, enemyGold, enemyHp, maxAffordable, maxAlive, upgradeCost,
   type UpgradeId,
 } from './balance';
 import { Ev, EventQueue } from './events';
@@ -17,6 +17,7 @@ import { MissionSystem } from './missionSystem';
 import { GameMap, MAP_H, MAP_W } from './map';
 import { Gatherer, freshMaterials, type Materials } from './gather';
 import { MAX_LEVEL, levelBonus, milestoneReward, xpForKill, xpToNext, MILESTONES, type MilestoneReward } from './level';
+import { zoneArea, zoneBossMonster, zoneLevel, zoneName, zoneStage } from './zones';
 import {
   forgeCost, forgeLevelCap, INVENTORY_SIZE, INVENTORY_STEP, MAX_FORGE_LEVEL, MAX_INVENTORY, inventoryExpandCost, MERGE_COUNT, bonusWeapon, compareWeapons, forgeAtkBonus, forgeUpgradeCost, forgeWeapon, matchingSlots, mergePartners, mergeWeapons,
   salvageValue, starterWeapon, weaponStats, type Weapon,
@@ -52,7 +53,7 @@ export type BuyMode = 1 | 10 | 'max';
 
 /** Everything that persists between sessions. Kept flat and JSON-friendly. */
 export interface SaveData {
-  v: 5;
+  v: 6;
   stage: number;
   highestStage: number;
   gold: number;
@@ -85,6 +86,10 @@ export interface SaveData {
   levelClaimed: number[];    // Level Road milestones already claimed (5, 10, …)
   // Building materials, gathered from the ground and by chopping trees/rocks. Kept through Reforge.
   materials: Materials;
+  // World map (v6). `stage` is now the current zone's difficulty in stage units (zoneStage).
+  zone: number;              // the zone the hero is in
+  zoneBosses: number;        // zone bosses beaten, in order: zone z's boss is down when z < zoneBosses
+  zoneBest: number;          // furthest zone ever unlocked (across runs)
   /** Recent earnings per second, used to pay out offline progress. */
   rates: { gold: number; shards: number };
   savedAt: number;
@@ -92,7 +97,7 @@ export interface SaveData {
 
 export function freshSave(): SaveData {
   return {
-    v: 5, stage: 1, highestStage: 1, gold: 0, kills: 0, farming: false,
+    v: 6, stage: 1, highestStage: 1, gold: 0, kills: 0, farming: false,
     upgrades: { atk: 0, hp: 0, aspd: 0, crit: 0, gold: 0 },
     buyMode: 1, fps: 60, auto: true, sound: true, quality: 'high',
     shards: 0, forgeLevel: 1, weapons: Array(INVENTORY_SIZE).fill(null), equipped: starterWeapon(), nextWeaponId: 2,
@@ -100,6 +105,7 @@ export function freshSave(): SaveData {
     embers: 0, embersEarned: 0, perks: freshPerks(), bestEver: 1, stats: freshStats(), quests: [], achievements: {},
     missions: freshMissions(),
     level: 1, xp: 0, levelClaimed: [], materials: freshMaterials(),
+    zone: 0, zoneBosses: 0, zoneBest: 0,
     savedAt: Date.now(),
   };
 }
@@ -169,7 +175,10 @@ export class Sim {
   phaseT = 0;
   bossT = 0;
   bossActive = false;
-  killsInStage = 0;
+  /** Seconds left in the arena after a boss falls, before heading back to the zone. */
+  private returnT = 0;
+  /** Furthest zone already announced as unlocked. */
+  private knownMaxZone = 0;
   time = 0;
   private spawnT = 0;
   readonly shots: Shot[] = Array.from({ length: MAX_SHOTS }, () => ({
@@ -240,12 +249,13 @@ export class Sim {
         wanderA: 0, wanderT: 0, spawnT: 0, chasing: false, stuckT: 0, detourT: 0, detourA: 0, hitT: 0, lungeT: 0, seed: 0,
       });
     }
-    this.map = new GameMap(areaIndex(save.stage), save.stage);
+    save.stage = zoneStage(save.zone);
+    this.map = new GameMap(zoneArea(save.zone), save.zone);
+    this.knownMaxZone = this.maxZone;
     this.gather.reset();
     this.fillQuests();
     this.recalc();
     this.hero.hp = this.hero.maxHp;
-    if (isBossStage(save.stage) && !save.farming) this.startBoss();
   }
 
   // --- Queries used by the UI ----------------------------------------------
@@ -253,12 +263,29 @@ export class Sim {
   get stage(): number { return this.save.stage; }
   get gold(): number { return this.save.gold; }
   get area(): number { return this.map.area; }
-  get isBossStage(): boolean { return isBossStage(this.save.stage) && !this.save.farming; }
-  get killsNeeded(): number { return killsForStage(this.save.stage); }
+  /** True during a boss fight. */
+  get isBossStage(): boolean { return this.bossActive; }
+  get zone(): number { return this.save.zone; }
+
+  /** Can the hero travel to `zone`? Needs its level, and every earlier zone's boss beaten. */
+  zoneUnlocked(zone: number): boolean {
+    if (zone <= 0) return zone === 0;
+    return zone <= this.save.zoneBosses && this.save.level >= zoneLevel(zone);
+  }
+
+  /** The furthest zone the hero can travel to. */
+  get maxZone(): number {
+    let z = 0;
+    while (this.zoneUnlocked(z + 1)) z++;
+    return z;
+  }
+
+  /** Has the current zone's boss been beaten (at least once)? */
+  get zoneBossBeaten(): boolean { return this.save.zone < this.save.zoneBosses; }
 
   monsterDef(e: Enemy): MonsterDef {
     const { def } = areaFor(this.map.area);
-    return e.boss ? def.boss : def.monsters[e.monster];
+    return e.monster === 3 ? def.boss : def.monsters[e.monster];
   }
 
   /** How many levels the current buy mode would purchase, and what it costs. */
@@ -311,15 +338,24 @@ export class Sim {
     this.targetStall = 0;
   }
 
-  /** Leave farming and go straight to the boss of the next stage. */
+  /** Step into the current zone's boss arena. Bosses can be fought (and re-fought) any time. */
   challengeBoss(): void {
-    if (!this.save.farming) return;
-    this.save.farming = false;
-    this.save.stage += 1;
-    this.killsInStage = 0;
-    this.hero.hp = this.hero.maxHp;
-    this.enterStageMap();
-    if (isBossStage(this.save.stage)) this.startBoss();
+    if (this.bossActive || this.phase !== 'playing' || this.returnT > 0) return;
+    const z = this.save.zone;
+    this.map = new GameMap(zoneArea(z), z, true);
+    this.resetField();
+    this.startBoss();
+  }
+
+  /** Travel to an unlocked zone (not during a boss fight). */
+  travel(zone: number): boolean {
+    if (!this.zoneUnlocked(zone) || this.bossActive || this.phase !== 'playing') return false;
+    const s = this.save;
+    s.zone = zone;
+    s.stage = zoneStage(zone);
+    this.returnT = 0;
+    this.enterZoneMap(true);
+    return true;
   }
 
   // --- Simulation ----------------------------------------------------------
@@ -507,7 +543,7 @@ export class Sim {
 
   upgradeForge(): boolean {
     const s = this.save;
-    if (s.forgeLevel >= forgeLevelCap(s.highestStage)) return false;
+    if (s.forgeLevel >= forgeLevelCap(this.maxZone)) return false;
     const cost = forgeUpgradeCost(s.forgeLevel);
     if (s.gold < cost) return false;
     s.gold -= cost;
@@ -553,6 +589,10 @@ export class Sim {
     this.gather.update(dt);
     this.spawn(dt);
 
+    if (this.returnT > 0) {
+      this.returnT -= dt;
+      if (this.returnT <= 0) this.enterZoneMap(false);
+    }
     if (this.bossActive) {
       this.bossT -= dt;
       if (this.bossT <= 0) return this.failBoss(false);
@@ -566,6 +606,7 @@ export class Sim {
     const s = this.save;
     if (k === 'kills') return s.kills;
     if (k === 'bestEver') return s.bestEver;
+    if (k === 'zones') return s.zoneBest + 1;
     return s.stats[k];
   }
 
@@ -659,9 +700,16 @@ export class Sim {
     s.embers += gain;
     s.embersEarned += gain;
     s.stats.reforges++;
-    const start = Math.max(1, Math.min(1 + s.perks.headstart * 5, s.bestEver));
-    s.stage = start;
-    s.highestStage = start;
+    // Back to the start of the map at hero level 1 (Head Start begins higher, with the zone
+    // bosses up to that level already beaten).
+    s.level = Math.min(MAX_LEVEL, 1 + s.perks.headstart * 5);
+    s.xp = 0;
+    let beaten = 0;
+    while (zoneLevel(beaten + 1) <= s.level) beaten++;
+    s.zoneBosses = beaten;
+    s.zone = this.maxZone;
+    s.stage = zoneStage(s.zone);
+    s.highestStage = s.stage;
     s.farming = false;
     s.gold = 0;
     s.shards = 0;
@@ -672,11 +720,12 @@ export class Sim {
     s.quests = [];
     this.notifiedQuests.clear();
     this.fillQuests();
-    this.killsInStage = 0;
     this.bossActive = false;
+    this.returnT = 0;
     this.phase = 'playing';
     this.recalc();
-    this.enterArea(areaIndex(s.stage));
+    this.knownMaxZone = this.maxZone;
+    this.enterZoneMap(true);
     this.checkMeta();
     this.invVersion++;
     return gain;
@@ -1053,7 +1102,7 @@ export class Sim {
   }
 
   private spawn(dt: number): void {
-    if (this.isBossStage) return; // boss fights are one-on-one
+    if (this.bossActive || this.returnT > 0) return; // boss fights are one-on-one
     this.spawnT -= dt;
     if (this.spawnT > 0) return;
     let alive = 0;
@@ -1066,8 +1115,8 @@ export class Sim {
     for (let i = 0; i < MAX_ENEMIES && !slot; i++) if (!this.enemies[i].alive) slot = this.enemies[i];
     if (!slot) return;
 
-    // Later stages within an area bring in more of the tougher monsters.
-    const s = ((this.save.stage - 1) % STAGES_PER_AREA) + 1;
+    // Deeper zones of a terrain bring in more of its tougher monsters.
+    const s = 1 + (this.save.zone % 3) * 4;
     const p0 = Math.max(0.25, 0.7 - s * 0.05);
     const p2 = Math.min(0.4, s * 0.045);
     const r = this.rng.next();
@@ -1075,8 +1124,8 @@ export class Sim {
 
     const pos = this.findSpawnPoint(130, 230);
     if (!pos) return;
-    // Elites show up from the third stage of each area, more often deeper in.
-    const elite = s >= 3 && this.rng.chance(0.02 + 0.008 * s);
+    // Elites: a few in every zone past the first, more in a terrain's deeper zones.
+    const elite = this.save.zone > 0 && this.rng.chance(0.03 + 0.004 * s);
     this.setEnemy(slot, monster, false, pos.x, pos.y, elite);
   }
 
@@ -1096,16 +1145,18 @@ export class Sim {
 
   private setEnemy(e: Enemy, monster: number, boss: boolean, x: number, y: number, elite = false): void {
     const { def } = areaFor(this.map.area);
-    const m = boss ? def.boss : def.monsters[monster];
+    const m = monster === 3 ? def.boss : def.monsters[monster];
     const stage = this.save.stage;
+    // Champions (zone bosses that are a big version of a regular monster) are a bit softer.
+    const champ = boss && monster !== 3 ? 0.65 : 1;
     e.alive = true;
-    e.monster = boss ? 3 : monster;
+    e.monster = monster;
     e.boss = boss;
     e.x = e.prevX = x; e.y = e.prevY = y;
     e.kx = e.ky = 0;
-    e.radius = boss ? BOSS.radius : m.radius;
-    e.maxHp = e.hp = enemyHp(stage) * m.hp * (boss ? BOSS.hp : 1);
-    e.dmg = enemyDmg(stage) * m.dmg * (boss ? BOSS.dmg : 1);
+    e.radius = boss ? (monster === 3 ? BOSS.radius : 10) : m.radius;
+    e.maxHp = e.hp = enemyHp(stage) * m.hp * (boss ? BOSS.hp * champ : 1);
+    e.dmg = enemyDmg(stage) * m.dmg * (boss ? BOSS.dmg * champ : 1);
     e.speed = boss ? BOSS.speed : m.speed * this.rng.range(0.9, 1.1);
     e.atkInterval = boss ? BOSS.atkInterval : m.atkInterval;
     e.atkCd = e.atkInterval * 0.6;
@@ -1137,7 +1188,8 @@ export class Sim {
     this.save.stats.gold += gold;
     this.save.kills++;
     this.events.push(Ev.Kill, e.x, e.y, gold, e.boss ? 1 : 0);
-    this.missions.recordKill(this.map.area, e.boss ? 3 : e.monster);
+    this.missions.recordKill(this.map.area, e.monster);
+    if (e.elite) this.save.stats.elites++;
     this.gainXp(xpForKill(this.save.stage, e.boss));
 
     // Shards for the forge: bosses always drop a bundle, regular monsters sometimes drop one.
@@ -1152,15 +1204,31 @@ export class Sim {
     }
 
     if (e.boss) {
+      const s = this.save;
       this.bossActive = false;
-      this.save.stats.bosses++;
-      this.advanceStage();
-      return;
+      s.stats.bosses++;
+      if (s.zone === s.zoneBosses) {
+        // First win here: a big bonus, and the way to the next zone opens (level permitting).
+        s.zoneBosses++;
+        const bonus = { gold: enemyGold(s.stage) * 150, shards: 15 * per, gems: 10 };
+        this.missions.apply(bonus);
+        this.events.push(Ev.ZoneClear, e.x, e.y, s.zone);
+        this.updateReach();
+      }
+      this.returnT = 2.2;
     }
-    this.killsInStage++;
-    if (this.killsInStage >= this.killsNeeded) {
-      this.killsInStage = 0;
-      if (!this.save.farming) this.advanceStage();
+  }
+
+  /** Track the furthest unlocked zone; announce a newly opened one. */
+  private updateReach(): void {
+    const s = this.save, z = this.maxZone;
+    if (z > s.zoneBest) s.zoneBest = z;
+    s.highestStage = Math.max(s.highestStage, zoneStage(z));
+    if (s.highestStage > s.bestEver) s.bestEver = s.highestStage;
+    if (z > this.knownMaxZone) {
+      this.knownMaxZone = z;
+      this.events.push(Ev.ZoneUnlock, 0, 0, z);
+      this.notices.push(`New zone unlocked: ${zoneName(z)}! Open the 🗺 Map`);
     }
   }
 
@@ -1186,6 +1254,7 @@ export class Sim {
     // Level-ups heal you fully: a small reward you feel immediately.
     this.hero.hp = Math.max(this.hero.hp + (this.hero.maxHp - before), this.hero.maxHp);
     this.events.push(Ev.LevelUp, this.hero.x, this.hero.y, s.level);
+    this.updateReach();
     if (MILESTONES.some((m) => m > s.level - ups && m <= s.level)) this.notices.push('Level reward ready! Tap your level');
   }
 
@@ -1220,39 +1289,8 @@ export class Sim {
     return r;
   }
 
-  private advanceStage(): void {
-    const s = this.save;
-    const prevArea = areaIndex(s.stage);
-    s.stage++;
-    s.stats.stages++;
-    if (s.stage > s.highestStage) s.highestStage = s.stage;
-    if (s.stage > s.bestEver) s.bestEver = s.stage;
-    this.killsInStage = 0;
-    if (areaIndex(s.stage) !== prevArea) {
-      this.enterArea(areaIndex(s.stage));
-    } else {
-      // Same area, fresh ground: every stage has its own layout.
-      this.enterStageMap();
-      this.events.push(Ev.StageClear);
-      if (isBossStage(s.stage)) this.startBoss();
-    }
-  }
-
-  /** Build the current stage's map and put the hero back in its open centre. */
-  private enterStageMap(): void {
-    if (this.map.stage === this.save.stage && this.map.area === areaIndex(this.save.stage)) return;
-    this.map = new GameMap(areaIndex(this.save.stage), this.save.stage);
-    this.clearEnemies();
-    const h = this.hero;
-    h.x = h.prevX = MAP_W / 2;
-    h.y = h.prevY = MAP_H / 2;
-    this.input.hasTarget = false;
-    this.spawnT = 0.8;
-    this.gather.reset();
-  }
-
-  private enterArea(area: number): void {
-    this.map = new GameMap(area, this.save.stage);
+  /** Clear the field and put the hero back in the map's open centre. */
+  private resetField(): void {
     this.clearEnemies();
     const h = this.hero;
     h.x = h.prevX = MAP_W / 2;
@@ -1261,7 +1299,14 @@ export class Sim {
     this.input.hasTarget = false;
     this.spawnT = 1;
     this.gather.reset();
-    this.events.push(Ev.AreaEnter, 0, 0, area);
+  }
+
+  /** Build the current zone's (field) map. `announce` shows the zone's name banner. */
+  private enterZoneMap(announce: boolean): void {
+    const z = this.save.zone;
+    this.map = new GameMap(zoneArea(z), z);
+    this.resetField();
+    if (announce) this.events.push(Ev.AreaEnter, 0, 0, z);
   }
 
   private startBoss(): void {
@@ -1273,7 +1318,7 @@ export class Sim {
     let x = h.x + 70, y = h.y;
     const p = this.findSpawnPoint(60, 90);
     if (p) { x = p.x; y = p.y; }
-    this.setEnemy(this.enemies[0], 0, true, x, y);
+    this.setEnemy(this.enemies[0], zoneBossMonster(this.save.zone), true, x, y);
     this.events.push(Ev.BossSpawn);
   }
 
@@ -1281,11 +1326,8 @@ export class Sim {
     this.events.push(Ev.BossFail);
     this.clearEnemies();
     this.bossActive = false;
-    this.save.farming = true;
-    this.save.stage = Math.max(1, this.save.stage - 1);
-    this.killsInStage = 0;
     if (died) { this.phase = 'dead'; this.phaseT = 1.5; }
-    else this.enterStageMap();
+    else this.enterZoneMap(false);
   }
 
   private heroDied(): void {
@@ -1298,17 +1340,9 @@ export class Sim {
   }
 
   private respawn(): void {
-    const h = this.hero;
-    this.enterStageMap();
-    this.clearEnemies();
-    h.x = h.prevX = MAP_W / 2;
-    h.y = h.prevY = MAP_H / 2;
-    h.hp = h.maxHp;
-    this.killsInStage = 0;
-    this.input.hasTarget = false;
     this.phase = 'playing';
-    this.spawnT = 0.8;
-    if (this.isBossStage) this.startBoss();
+    if (this.map.boss || this.map.zone !== this.save.zone) this.enterZoneMap(false);
+    else this.resetField();
   }
 
   private clearEnemies(): void {

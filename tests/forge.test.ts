@@ -143,11 +143,11 @@ describe('forge commands', () => {
   it('upgrading the forge raises the equipped weapon attack', () => {
     const save = freshSave();
     save.gold = 1e9;
-    save.highestStage = 11; // forge level 2 unlocks in the second area
+    save.zoneBosses = 3; save.level = 100; // forge level 2 unlocks in the second terrain
     const sim = new Sim(save, 8);
     const atk = sim.atk;
     expect(sim.upgradeForge()).toBe(true);
-    expect(sim.atk).toBeCloseTo(atk * 1.04);
+    expect(sim.atk).toBeCloseTo(atk * 1.03);
     expect(sim.attackWith(save.equipped)).toBeCloseTo(sim.atk);
   });
 
@@ -196,7 +196,7 @@ describe('save migration', () => {
     const v1 = { v: 1, stage: 23, highestStage: 25, gold: 1234, kills: 999, farming: false,
       upgrades: { atk: 10, hp: 5, aspd: 1, crit: 0, gold: 2 }, buyMode: 10, fps: 30, savedAt: 1 };
     const s = migrate(v1);
-    expect(s.v).toBe(5);
+    expect(s.v).toBe(6);
     expect(s.bestEver).toBe(25);
     expect(s.perks.might).toBe(0);
     expect(s.stage).toBe(23);
@@ -224,12 +224,12 @@ describe('forge balance', () => {
     const save = freshSave();
     save.gold = 1e12;
     const sim = new Sim(save, 3);
-    expect(sim.upgradeForge()).toBe(false); // area 1: level 1 only
-    save.highestStage = 25;
+    expect(sim.upgradeForge()).toBe(false); // first terrain: level 1 only
+    save.zoneBosses = 6; save.level = 100; // zone 6 = third terrain
     expect(sim.upgradeForge()).toBe(true);
     expect(sim.upgradeForge()).toBe(true);
-    expect(sim.upgradeForge()).toBe(false); // area 3: level 3
-    expect(forgeLevelCap(25)).toBe(3);
+    expect(sim.upgradeForge()).toBe(false); // third terrain: level 3
+    expect(forgeLevelCap(6)).toBe(3);
   });
 
   it('salvaging never returns as many shards as forging costs', () => {

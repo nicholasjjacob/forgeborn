@@ -1,3 +1,4 @@
+import { zoneName } from '../sim/zones';
 import { haptic, sfx } from '../audio/sfx';
 import { rewardSpill, starBurst } from './rewardFx';
 import { actionElement, bindSheetTaps } from './tap';
@@ -318,7 +319,7 @@ export class MissionsUI {
           </div>`;
         }).join('')}</div>`;
       }).join('') +
-      `<div class="codex-teaser">🔒 <b>Next area</b> · reach stage ${nextArea * 10 + 1} to discover new monsters</div>`;
+      `<div class="codex-teaser">🔒 <b>Next area</b> · unlock ${zoneName(nextArea * 3)} on the 🗺 Map to discover new monsters</div>`;
   }
 
   private renderShop(): string {

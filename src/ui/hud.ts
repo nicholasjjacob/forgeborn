@@ -1,5 +1,6 @@
 import { fmt } from '../core/format';
-import { areaName } from '../sim/areas';
+import { WorldMapUI } from './worldMap';
+import { zoneBossName, zoneLevel, zoneName, zoneTerrain } from '../sim/zones';
 import { BOSS_TIME, UPGRADES, UPGRADE_IDS, type UpgradeId } from '../sim/balance';
 import type { BuyMode, Sim } from '../sim/sim';
 import { ForgePanel } from './forge';
@@ -42,6 +43,8 @@ export class Hud {
   readonly missions: MissionsUI;
   readonly levelRoad: LevelRoad;
   readonly bag: BagUI;
+  readonly worldMap: WorldMapUI;
+  private readonly mapDot: HTMLElement;
   private readonly lv: { chip: HTMLElement; num: HTMLElement; fill: HTMLElement; dot: HTMLElement };
 
   constructor(root: HTMLElement, private readonly sim: Sim, weaponIcons: string[][], codexIcon: (area: number, slot: number) => string, onSettings: () => void) {
@@ -87,6 +90,9 @@ export class Hud {
     this.levelRoad = new LevelRoad(sim, (m, k) => this.toast(m, k));
     this.bag = new BagUI(sim, () => this.showTab('forge'));
     $('#side-bag').addEventListener('click', () => { sfx.play('tick'); this.bag.open(); });
+    this.worldMap = new WorldMapUI(sim, (m) => this.toast(m), codexIcon);
+    $('#side-map').addEventListener('click', () => { sfx.play('tick'); this.worldMap.open(); });
+    this.mapDot = $('#side-map .dot');
     this.lv = { chip: $('#level-chip'), num: $('#level-num'), fill: $('#xp-fill'), dot: $('#level-dot') };
     this.lv.chip.addEventListener('click', () => { sfx.play('tick'); this.levelRoad.open(); });
     this.badges = { forge: $('#forge-badge'), quests: $('#quests-badge'), reforge: $('#reforge-badge') };
@@ -196,14 +202,22 @@ export class Hud {
   refresh(): void {
     const sim = this.sim;
     const s = sim.save;
-    this.set(this.el.stage, `Stage ${s.stage}`);
-    this.set(this.el.area, areaName(sim.area));
+    this.set(this.el.stage, zoneName(s.zone));
+    this.set(this.el.area, `${zoneTerrain(s.zone)} · Zone ${s.zone + 1}`);
     const boss = sim.isBossStage;
+    const max = sim.maxZone;
     this.toggle(this.el.progress, 'boss', boss);
+    this.toggle(this.el.progress, 'ready', !boss && !sim.zoneBossBeaten);
     let frac: number, label: string;
     if (boss) { frac = sim.bossT / BOSS_TIME; label = `BOSS ${Math.ceil(sim.bossT)}s`; }
-    else if (s.farming) { frac = sim.killsInStage / sim.killsNeeded; label = 'Farming'; }
-    else { frac = sim.killsInStage / sim.killsNeeded; label = `${sim.killsInStage} / ${sim.killsNeeded}`; }
+    else if (!sim.zoneBossBeaten) { frac = 1; label = `☠ ${zoneBossName(s.zone)}`; }
+    else if (max > s.zone) { frac = 1; label = '🗺 New zone open!'; }
+    else {
+      // Boss beaten; only the hero level stands between here and the next zone.
+      const need = zoneLevel(s.zone + 1);
+      frac = s.level / need; label = `Next zone at Lv ${need}`;
+    }
+    this.mapDot.hidden = !(max > s.zone);
     this.set(this.el.progressText, label);
     const scale = `scaleX(${Math.max(0, Math.min(1, frac)).toFixed(3)})`;
     if (this.cache.get(this.el.progressFill) !== scale) {
@@ -240,7 +254,9 @@ export class Hud {
     this.missions.refreshMain(now);
     this.missions.refresh();
 
-    this.toggle(this.el.challenge, 'show', s.farming);
+    this.toggle(this.el.challenge, 'show', !sim.isBossStage && sim.phase === 'playing');
+    this.set(this.el.challenge, sim.zoneBossBeaten ? 'Rematch Boss' : 'Fight Boss');
+    this.worldMap.refresh();
 
     for (const b of document.querySelectorAll<HTMLElement>('[data-buy-mode]')) {
       this.toggle(b, 'active', b.dataset.buyMode === String(s.buyMode));

@@ -45,7 +45,7 @@ const ITEMS: { title: string; items: ItemDef[] }[] = [
         source: 'Daily login, mission gifts, the codex and Level Road rewards.' },
       { id: 'embers', name: 'Embers', icon: '<i class="ember"></i>', amount: (s) => s.save.embers,
         about: 'Buy permanent perks in the Reforge tab.',
-        source: 'Reforge after stage 30, Level Road rewards and the Gem Shop.' },
+        source: 'Reforge once you reach the Sunscar Dunes, Level Road rewards and the Gem Shop.' },
     ],
   },
 ];

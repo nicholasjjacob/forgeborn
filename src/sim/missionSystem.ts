@@ -6,10 +6,11 @@ import {
   type Board, type MStat, type Reward, type TaskDef,
 } from './missions';
 import { offlineReward } from './offline';
+import { zoneArea } from './zones';
 import type { Sim } from './sim';
 
 export type BoardKind = 'daily' | 'weekly' | 'journey';
-const ALL_STATS: MStat[] = ['kills', 'stages', 'bosses', 'forged', 'merges', 'gold', 'reforges', 'legendaries', 'quests', 'play', 'logins'];
+const ALL_STATS: MStat[] = ['kills', 'stages', 'elites', 'bosses', 'forged', 'merges', 'gold', 'reforges', 'legendaries', 'quests', 'play', 'logins'];
 /** The journey can still be finished for a week after its last day unlocks. */
 const JOURNEY_GRACE_DAYS = 14;
 
@@ -157,7 +158,7 @@ export class MissionSystem {
 
   /** Areas the player has reached (codex pages). */
   codexAreas(): number[] {
-    const last = Math.floor((this.sim.save.bestEver - 1) / 10);
+    const last = zoneArea(this.sim.save.zoneBest);
     return Array.from({ length: last + 1 }, (_, i) => i);
   }
 

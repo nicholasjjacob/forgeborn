@@ -7,7 +7,7 @@ import { TICK } from './sim/balance';
 import { Sim } from './sim/sim';
 import { Hud } from './ui/hud';
 import { Input } from './ui/input';
-import { areaName } from './sim/areas';
+import { zoneName } from './sim/zones';
 import { OFFLINE_CAP_HOURS, applyOfflineReward, hasReward, offlineReward } from './sim/offline';
 import { showWelcome } from './ui/welcome';
 import { openSettings } from './ui/settings';
@@ -56,10 +56,10 @@ async function boot() {
 
   let hud: Hud | null = null;
   const scene = new Scene(app, sim, art, {
-    onStageClear: () => hud?.toast(`Stage ${sim.stage}`),
     onBossSpawn: () => hud?.toast('BOSS!', 'boss'),
     onBossFail: () => hud?.toast('Boss escaped… farm and try again', 'bad'),
-    onAreaEnter: (area) => hud?.toast(areaName(area), 'boss'),
+    onAreaEnter: (zone) => hud?.toast(zoneName(zone), 'boss'),
+    onZoneClear: () => hud?.toast('Zone boss defeated! +10 gems', 'boss'),
     onLevelUp: (level) => hud?.toast(`Level ${level}!`, 'boss'),
     onPickup: (kind) => hud?.bumpMaterial(kind),
   });

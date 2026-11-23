@@ -8,7 +8,7 @@ export const Ev = {
   Swing: 7,      // x, y, value = angle
   BossSpawn: 8,
   Spawn: 9,      // x, y, value = 1 for boss
-  AreaEnter: 10, // value = area index
+  AreaEnter: 10, // value = zone index (travelled to a zone)
   Shard: 11,     // x, y, value = shard count
   Shock: 12,     // x, y = chained enemy; x2, y2 = where the arc came from
   LevelUp: 13,   // x, y = hero; value = new level
@@ -19,6 +19,8 @@ export const Ev = {
   Slam: 18,      // x, y; value = radius (a boss slam landed)
   Shoot: 19,     // x, y (a monster spat a projectile)
   ShotPop: 20,   // x, y (a projectile hit a prop or fizzled out)
+  ZoneUnlock: 21, // value = zone index (a new zone opened on the world map)
+  ZoneClear: 22,  // x, y; value = zone index (its boss was beaten for the first time)
 } as const;
 export type Ev = (typeof Ev)[keyof typeof Ev];
 

@@ -35,7 +35,8 @@ export interface SceneHooks {
   onStageClear?(): void;
   onBossFail?(): void;
   onBossSpawn?(): void;
-  onAreaEnter?(area: number): void;
+  onAreaEnter?(zone: number): void;
+  onZoneClear?(zone: number): void;
   onLevelUp?(level: number): void;
   onPickup?(kind: 'wood' | 'stone'): void;
 }
@@ -445,7 +446,9 @@ export class Scene {
     const shakeX = e.windT > 0 ? Math.round(Math.sin(this.t * 70 + e.seed)) : 0;
     v.root.position.set(Math.round(x + lx) + shakeX, Math.round(y + ly));
     v.root.zIndex = y;
-    const spawnK = (e.spawnT > 0 ? 1 - e.spawnT / 0.35 : 1) * (e.elite ? ELITE.scale : 1);
+    // Size: elites are a bit bigger; champion bosses (a regular monster as a zone boss) much bigger.
+    const sizeK = (e.elite ? ELITE.scale : 1) * (e.boss && e.monster !== 3 ? 2 : 1);
+    const spawnK = (e.spawnT > 0 ? 1 - e.spawnT / 0.35 : 1) * sizeK;
     let top: number;
     if (an) {
       // Rendered 3D sprite: attack while lunging, walk while moving, otherwise idle.
@@ -464,7 +467,7 @@ export class Scene {
       // Renders face right; flip toward the hero. Bosses are pre-rendered at full size.
       v.body.scale.set(spawnK * (hx >= x ? 1 : -1), spawnK);
       v.body.y = an.fly ? Math.round(-3 + Math.sin(this.t * 4 + e.seed) * 1.5) : 0;
-      top = v.body.y - an.top * (e.elite ? ELITE.scale : 1);
+      top = v.body.y - an.top * sizeK;
     } else {
       v.body.texture = tex;
       v.body.anchor.set(0.5, 1);
@@ -608,6 +611,16 @@ export class Scene {
           break;
         case Ev.ShotPop:
           fx.burst(x, y, 0xffffff, 4, 25);
+          break;
+        case Ev.ZoneClear:
+          fx.ring(x, y, 0xffd23f, 5);
+          fx.ring(x, y, 0xffffff, 3);
+          fx.burst(x, y - 10, 0xffd23f, 40, 90);
+          sfx.play('achieve');
+          this.hooks.onZoneClear?.(v);
+          break;
+        case Ev.ZoneUnlock:
+          sfx.play('area');
           break;
         case Ev.AreaEnter:
           this.camX = MAP_W / 2; this.camY = MAP_H / 2;
