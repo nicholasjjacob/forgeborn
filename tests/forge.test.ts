@@ -3,7 +3,7 @@ import { Rng } from '../src/core/rng';
 import { migrate } from '../src/core/save';
 import { Sim, freshSave } from '../src/sim/sim';
 import {
-  FORGE_COST, INVENTORY_SIZE, TRAITS, forgeWeapon, mergePreview, mergeWeapons, weaponMult, type Weapon,
+  FORGE_COST, INVENTORY_SIZE, forgeCost, forgeLevelCap, salvageValue, TRAITS, forgeWeapon, mergePreview, mergeWeapons, weaponMult, type Weapon,
 } from '../src/sim/weapons';
 
 const w = (tier: number, rarity: 0 | 1 | 2 | 3, form: 0 | 1 | 2 | 3 = 0, traits: Weapon['traits'] = []): Weapon =>
@@ -143,6 +143,7 @@ describe('forge commands', () => {
   it('upgrading the forge raises the equipped weapon attack', () => {
     const save = freshSave();
     save.gold = 1e9;
+    save.highestStage = 11; // forge level 2 unlocks in the second area
     const sim = new Sim(save, 8);
     const atk = sim.atk;
     expect(sim.upgradeForge()).toBe(true);
@@ -215,5 +216,30 @@ describe('save migration', () => {
     const s = migrate({ ...freshSave(), weapons: [w(2, 0)], nextWeaponId: 0, equipped: { ...w(1, 0), id: 50 } });
     expect(s.weapons.length).toBe(INVENTORY_SIZE);
     expect(s.nextWeaponId).toBeGreaterThan(50);
+  });
+});
+
+describe('forge balance', () => {
+  it('forge level is capped by the furthest area reached this run', () => {
+    const save = freshSave();
+    save.gold = 1e12;
+    const sim = new Sim(save, 3);
+    expect(sim.upgradeForge()).toBe(false); // area 1: level 1 only
+    save.highestStage = 25;
+    expect(sim.upgradeForge()).toBe(true);
+    expect(sim.upgradeForge()).toBe(true);
+    expect(sim.upgradeForge()).toBe(false); // area 3: level 3
+    expect(forgeLevelCap(25)).toBe(3);
+  });
+
+  it('salvaging never returns as many shards as forging costs', () => {
+    for (let level = 1; level <= 25; level++) {
+      for (const tier of [level - 1, level]) {
+        if (tier < 1) continue;
+        for (const rarity of [0, 1, 2, 3] as const) {
+          expect(salvageValue({ id: 1, tier, rarity, form: 0, traits: [] })).toBeLessThan(forgeCost(level));
+        }
+      }
+    }
   });
 });

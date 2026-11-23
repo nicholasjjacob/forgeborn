@@ -17,24 +17,56 @@ export interface Prop { kind: PropKind; x: number; y: number; r: number; variant
 
 export interface Decal { x: number; y: number; variant: number }
 
+/** How a stage's props are arranged. */
+export type Layout = 'scatter' | 'groves' | 'crossroads' | 'arena';
+
+/** Layout for a stage: the three field layouts take turns; every boss stage is an arena. */
+export function layoutFor(stage: number): Layout {
+  const s = ((stage - 1) % 10) + 1;
+  if (s === 10) return 'arena';
+  return (['scatter', 'groves', 'crossroads'] as const)[(s - 1) % 3];
+}
+
 /**
- * One area's arena: scattered props (some solid) plus a solid border ring, and a static
- * uniform grid so collision queries only look at nearby props.
+ * Ground tint for a stage: daylight at the start of an area, dusk by its last field stage,
+ * and a warm red glow in the boss arena.
+ */
+export function stageTint(stage: number): number {
+  const s = ((stage - 1) % 10) + 1;
+  if (s === 10) return 0xffe2d8;
+  const k = (s - 1) / 8;
+  const rg = Math.round(255 * (1 - 0.17 * k)), b = Math.round(255 * (1 - 0.08 * k));
+  return (rg << 16) | (rg << 8) | b;
+}
+
+const ARENA_RADIUS = 150;
+
+/**
+ * One stage's arena: props (some solid) arranged by the stage's layout, a solid border ring,
+ * and a static uniform grid so collision queries only look at nearby props. Every stage gets
+ * its own layout; the area decides the props and monsters.
  */
 export class GameMap {
   readonly props: Prop[] = [];
   readonly decals: Decal[] = [];
+  readonly layout: Layout;
+  readonly tint: number;
   private readonly cols = Math.ceil(MAP_W / CELL);
   private readonly rows = Math.ceil(MAP_H / CELL);
   private readonly grid: number[][];
 
-  constructor(readonly area: number) {
-    const rng = new Rng(0xa5ea + area * 7919);
+  constructor(readonly area: number, readonly stage = area * 10 + 1) {
+    const rng = new Rng(0xa5ea + area * 7919 + stage * 104729);
     const { def } = areaFor(area);
-    const total = def.props.reduce((s, p) => s + p.weight, 0);
+    const depth = ((stage - 1) % 10) + 1; // 1..10 within the area
+    this.layout = layoutFor(stage);
+    this.tint = stageTint(stage);
+    // Deeper stages lean toward the area's rarer props.
+    const weights = def.props.map((p, i) => p.weight * (i === 0 ? 1.3 - 0.06 * depth : i === def.props.length - 1 ? 0.4 + 0.15 * depth : 1));
+    const total = weights.reduce((s, w) => s + w, 0);
     const pick = (): PropKind => {
       let r = rng.next() * total;
-      for (const p of def.props) { if ((r -= p.weight) < 0) return p.kind; }
+      for (let i = 0; i < def.props.length; i++) { if ((r -= weights[i]) < 0) return def.props[i].kind; }
       return def.props[0].kind;
     };
 
@@ -52,10 +84,45 @@ export class GameMap {
     let placed = 0;
     // Gaps between solid props are either sealed (clusters) or at least MIN_GAP wide, so no
     // mover can wedge itself into a crack it doesn't fit through.
-    const inside = (x: number, y: number) =>
-      x > 44 && x < MAP_W - 44 && y > 44 && y < MAP_H - 44 && Math.hypot(x - cx, y - cy) > CLEAR_RADIUS;
-    for (let tries = 0; placed < 150 && tries < 2000; tries++) {
-      const x = rng.range(44, MAP_W - 44), y = rng.range(44, MAP_H - 44);
+    const layout = this.layout;
+    const inside = (x: number, y: number) => {
+      if (x <= 44 || x >= MAP_W - 44 || y <= 44 || y >= MAP_H - 44) return false;
+      const d = Math.hypot(x - cx, y - cy);
+      if (d <= CLEAR_RADIUS) return false;
+      // Crossroads: two open roads through the middle.
+      if (layout === 'crossroads' && (Math.abs(x - cx) < 30 || Math.abs(y - cy) < 30)) return false;
+      // Arena: an open ring of ground inside the wall, and a clear lane outside it.
+      if (layout === 'arena' && d < ARENA_RADIUS + 26) return false;
+      return true;
+    };
+
+    if (layout === 'arena') {
+      // Boss arena: a wall of touching solids (sealed) with four wide gates.
+      const kind = solid.includes('rock') ? 'rock' : solid[0] ?? 'rock';
+      const r = PROP_RADIUS[kind];
+      const step = (2 * r - 1) / ARENA_RADIUS;
+      const gate0 = rng.range(0, Math.PI / 2);
+      for (let a = 0; a < Math.PI * 2; a += step) {
+        const g = ((a - gate0) % (Math.PI / 2) + Math.PI / 2) % (Math.PI / 2);
+        if (g < 0.24) continue; // ~36 units: a gate
+        this.add(kind, cx + Math.cos(a) * ARENA_RADIUS, cy + Math.sin(a) * ARENA_RADIUS, rng.int(4), r);
+      }
+    }
+
+    // Groves: props bunch up around a handful of centres, leaving open meadows between.
+    const groves: { x: number; y: number }[] = [];
+    if (layout === 'groves') {
+      for (let i = 0; i < 18; i++) groves.push({ x: rng.range(70, MAP_W - 70), y: rng.range(70, MAP_H - 70) });
+    }
+    const target = layout === 'arena' ? 110 : layout === 'groves' ? 150 : 120 + depth * 7;
+
+    for (let tries = 0; placed < target && tries < 3000; tries++) {
+      let x = rng.range(44, MAP_W - 44), y = rng.range(44, MAP_H - 44);
+      if (groves.length) {
+        const g = groves[rng.int(groves.length)];
+        const a = rng.range(0, Math.PI * 2), d = Math.sqrt(rng.next()) * 46;
+        x = g.x + Math.cos(a) * d; y = g.y + Math.sin(a) * d;
+      }
       if (!inside(x, y)) continue;
       const kind = pick();
       const r = PROP_RADIUS[kind];

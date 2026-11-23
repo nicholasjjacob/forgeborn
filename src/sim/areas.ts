@@ -11,8 +11,15 @@ export type PropKind = 'tree' | 'pine' | 'rock' | 'cactus' | 'crystal' | 'shroom
 
 export interface MonsterPalette { m: string; l: string; d: string; e?: string }
 
+/**
+ * How a monster fights. melee: walks up and bites. dasher: winds up, then charges in a straight
+ * line. spitter: keeps its distance and lobs projectiles (and still bites up close).
+ */
+export type MonsterStyle = 'melee' | 'dasher' | 'spitter';
+
 export interface MonsterDef {
   name: string;
+  style: MonsterStyle;
   shape: MonsterShape;
   pal: MonsterPalette;
   hp: number;        // multipliers on the stage baseline
@@ -34,7 +41,7 @@ export interface AreaDef {
 }
 
 // Per-shape baselines; areas override palette (and occasionally tune numbers).
-const SHAPE: Record<MonsterShape, Omit<MonsterDef, 'name' | 'pal'>> = {
+const SHAPE: Record<MonsterShape, Omit<MonsterDef, 'name' | 'pal' | 'style'>> = {
   blob:   { shape: 'blob',   hp: 1.0, dmg: 1.0, gold: 1.0, speed: 34, atkInterval: 1.1, radius: 5 },
   bat:    { shape: 'bat',    hp: 0.6, dmg: 0.8, gold: 0.9, speed: 54, atkInterval: 0.8, radius: 5 },
   husk:   { shape: 'husk',   hp: 1.9, dmg: 1.4, gold: 1.6, speed: 24, atkInterval: 1.5, radius: 5 },
@@ -44,7 +51,11 @@ const SHAPE: Record<MonsterShape, Omit<MonsterDef, 'name' | 'pal'>> = {
   spider: { shape: 'spider', hp: 0.9, dmg: 1.1, gold: 1.1, speed: 50, atkInterval: 1.0, radius: 6 },
 };
 
-const mon = (name: string, shape: MonsterShape, pal: MonsterPalette): MonsterDef => ({ ...SHAPE[shape], name, pal });
+const STYLE: Record<MonsterShape, MonsterStyle> = {
+  blob: 'melee', bat: 'dasher', husk: 'melee', beetle: 'melee', golem: 'melee', imp: 'dasher', spider: 'spitter',
+};
+const mon = (name: string, shape: MonsterShape, pal: MonsterPalette, style: MonsterStyle = STYLE[shape]): MonsterDef =>
+  ({ ...SHAPE[shape], name, pal, style });
 
 export const AREAS: AreaDef[] = [
   {
@@ -80,7 +91,7 @@ export const AREAS: AreaDef[] = [
     props: [{ kind: 'cactus', weight: 3 }, { kind: 'rock', weight: 3 }, { kind: 'deadtree', weight: 1 }],
     propPal: { a: '#4f8f45', b: '#7cc06a', c: '#b0886a', trunk: '#7a5a3a' },
     monsters: [
-      mon('Cactling', 'beetle', { m: '#c08a1a', l: '#ffd86a', d: '#6a4a0a' }),
+      mon('Cactling', 'beetle', { m: '#c08a1a', l: '#ffd86a', d: '#6a4a0a' }, 'spitter'),
       mon('Dune Dino', 'husk', { m: '#d8c09a', l: '#fff0d0', d: '#8a6a44', e: '#ffb020' }),
       mon('Sand Alpaca', 'bat', { m: '#e4572e', l: '#ffb08a', d: '#8a2a12' }),
     ],
@@ -108,7 +119,7 @@ export const AREAS: AreaDef[] = [
     monsters: [
       mon('Frost Yeti', 'imp', { m: '#5ab4e8', l: '#c8ecff', d: '#1a5a8a', e: '#ffffff' }),
       mon('Ice Squid', 'golem', { m: '#a8c8e0', l: '#ffffff', d: '#5a7a9a', e: '#3a8aff' }),
-      mon('Snow Sprite', 'bat', { m: '#c8d8ff', l: '#ffffff', d: '#6a7ab0' }),
+      mon('Snow Sprite', 'bat', { m: '#c8d8ff', l: '#ffffff', d: '#6a7ab0' }, 'spitter'),
     ],
     boss: mon('Yeti Lord', 'imp', { m: '#2a6ab0', l: '#a8d8ff', d: '#0a2a5a', e: '#ffffff' }),
   },
@@ -121,7 +132,7 @@ export const AREAS: AreaDef[] = [
     monsters: [
       mon('Cinder Orc', 'imp', { m: '#e4572e', l: '#ffb08a', d: '#7a1a0a', e: '#ffec5a' }),
       mon('Bone Brute', 'golem', { m: '#5a3a3a', l: '#ff8a3a', d: '#2a1414', e: '#ffec5a' }),
-      mon('Ember Demon', 'husk', { m: '#7a7070', l: '#b8b0b0', d: '#3a3434', e: '#ff5a1a' }),
+      mon('Ember Demon', 'husk', { m: '#7a7070', l: '#b8b0b0', d: '#3a3434', e: '#ff5a1a' }, 'spitter'),
     ],
     boss: mon('Forge Dragon', 'golem', { m: '#3a2020', l: '#ffcf4a', d: '#1a0a0a', e: '#ff3a1a' }),
   },

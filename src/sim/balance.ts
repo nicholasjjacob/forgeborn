@@ -78,9 +78,9 @@ export function maxAffordable(def: UpgradeDef, level: number, gold: number): num
 
 // --- Enemy scaling (per stage; the area roster sets the per-monster multipliers) ---
 
-export const enemyHp = (stage: number) => 6 * Math.pow(1.19, stage - 1);
+export const enemyHp = (stage: number) => 15 * Math.pow(1.19, stage - 1);
 export const enemyDmg = (stage: number) => 3 * Math.pow(1.165, stage - 1);
-export const enemyGold = (stage: number) => 1.6 * Math.pow(1.17, stage - 1);
+export const enemyGold = (stage: number) => 2.6 * Math.pow(1.17, stage - 1);
 
 export const BOSS = { hp: 16, dmg: 3, gold: 15, radius: 13, speed: 30, atkInterval: 1.5 };
 

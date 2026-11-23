@@ -4,7 +4,7 @@ import type { Sim } from '../sim/sim';
 import { ForgeLevelUI } from './forgeLevel';
 import { InventoryUI } from './inventoryUI';
 import {
-  FORGE_COST, FORMS, MAX_FORGE_LEVEL, MAX_TIER, MERGE_COUNT, RARITY_COLORS, RARITY_NAMES, TRAITS, forgeOdds, forgeTiers,
+  forgeCost, forgeLevelCap, FORMS, MAX_FORGE_LEVEL, MAX_TIER, MERGE_COUNT, RARITY_COLORS, RARITY_NAMES, TRAITS, forgeOdds, forgeTiers,
   forgeUpgradeCost, inventoryExpandCost, MAX_INVENTORY, matchingSlots, mergePartners, mergePreview, salvageValue, weaponName, weaponPower, weaponSummary, type Weapon,
 } from '../sim/weapons';
 
@@ -48,7 +48,7 @@ export class ForgePanel {
         </div>
       </div>
       <div class="forge-actions">
-        <button type="button" class="btn primary" id="forge-1">Forge <span class="cost"><i class="gem"></i>${FORGE_COST}</span></button>
+        <button type="button" class="btn primary" id="forge-1">Forge <span class="cost"><i class="gem"></i><b id="forge-cost">10</b></span></button>
         <button type="button" class="btn" id="forge-10">x10</button>
         <button type="button" class="btn" id="auto-merge">Auto-merge</button>
       </div>
@@ -72,7 +72,7 @@ export class ForgePanel {
       summary: $('.wc-summary'), atk: $('.wc-atk'), mergeInfo: $('.wc-merge'), traits: $('.wc-traits'), hint: $('.wc-hint'),
       equip: $('#equip-btn'), salvage: $('#salvage-btn'), merge: $('#merge-btn'),
       forge1: $('#forge-1'), forge10: $('#forge-10'), autoMerge: $('#auto-merge'),
-      level: $('#fl-level'), odds: $('#fl-odds'), levelBtn: $('#forge-level-btn'), levelDot: $('#fl-dot'),
+      level: $('#fl-level'), odds: $('#fl-odds'), levelBtn: $('#forge-level-btn'), levelDot: $('#fl-dot'), forgeCost: $('#forge-cost'),
       invBtn: $('#inv-btn'), invCount: $('#inv-count'), invSub: $('#inv-sub'), invDot: $('#inv-dot'),
       grid: $('#inv-grid'),
     };
@@ -160,7 +160,7 @@ export class ForgePanel {
     const filled = this.sim.forge(n);
     if (filled.length) { this.flash(this.resort(filled), 'new'); this.selected = -1; sfx.play('forge'); }
     else if (this.sim.freeSlots() === 0) this.toast('Weapon slots full: merge, salvage, or buy more slots');
-    else this.toast(`Need ${FORGE_COST} shards`);
+    else this.toast(`Need ${forgeCost(this.sim.save.forgeLevel)} shards`);
   }
 
   /** One grid button per inventory slot; adds buttons when the inventory grows. */
@@ -212,17 +212,20 @@ export class ForgePanel {
   refresh(): void {
     const sim = this.sim, s = sim.save;
     const free = sim.freeSlots();
-    this.disable(this.el.forge1, s.shards < FORGE_COST || free === 0);
-    this.disable(this.el.forge10, s.shards < FORGE_COST * 2 || free < 2);
+    const cost = forgeCost(s.forgeLevel);
+    this.set(this.el.forgeCost, String(cost));
+    this.disable(this.el.forge1, s.shards < cost || free === 0);
+    this.disable(this.el.forge10, s.shards < cost * 2 || free < 2);
     this.disable(this.el.autoMerge, !hasPair(s.weapons));
 
     const maxed = s.forgeLevel >= MAX_FORGE_LEVEL;
+    const capped = s.forgeLevel >= forgeLevelCap(s.highestStage);
     const [lo, hi] = forgeTiers(s.forgeLevel);
     const [pr] = forgeOdds(s.forgeLevel);
     this.set(this.el.level, `Forge Lv ${s.forgeLevel}${maxed ? ' (max)' : ''}`);
     this.set(this.el.odds, `Forges T${lo === hi ? hi : `${lo}–${hi}`} · Rare ${pct(pr)}`);
     // "!" when the next forge level is affordable.
-    this.el.levelDot.hidden = maxed || s.gold < forgeUpgradeCost(s.forgeLevel);
+    this.el.levelDot.hidden = capped || s.gold < forgeUpgradeCost(s.forgeLevel);
     this.levelUI.refresh();
     // Inventory: used / size; "!" when it's (nearly) full and another row is affordable.
     const size = s.weapons.length, used = size - free;
@@ -354,7 +357,7 @@ export class ForgePanel {
   /** Something worth doing in the forge (for the tab badge). */
   badge(): string {
     const s = this.sim.save;
-    const forges = Math.min(Math.floor(s.shards / FORGE_COST), this.sim.freeSlots());
+    const forges = Math.min(Math.floor(s.shards / forgeCost(s.forgeLevel)), this.sim.freeSlots());
     if (forges > 0) return String(forges);
     return hasPair(s.weapons) || matchingSlots(s.weapons, s.equipped).length >= MERGE_COUNT - 1 ? '!' : '';
   }

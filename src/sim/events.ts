@@ -15,6 +15,10 @@ export const Ev = {
   Chop: 14,      // x, y = prop; value = prop index (a swing clipped a tree/rock)
   Drop: 15,      // x, y; value = 0 wood / 1 stone (a material piece appeared)
   Pickup: 16,    // x, y; value = 0 wood / 1 stone (the hero collected it)
+  Telegraph: 17, // x, y; value = radius; flag = 1 boss slam wind-up / 0 dash wind-up
+  Slam: 18,      // x, y; value = radius (a boss slam landed)
+  Shoot: 19,     // x, y (a monster spat a projectile)
+  ShotPop: 20,   // x, y (a projectile hit a prop or fizzled out)
 } as const;
 export type Ev = (typeof Ev)[keyof typeof Ev];
 

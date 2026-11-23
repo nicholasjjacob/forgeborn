@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { Sim, freshSave } from '../src/sim/sim';
+import { Sim, freshSave, type Enemy } from '../src/sim/sim';
 import { UPGRADES, UPGRADE_IDS, maxAffordable, upgradeCost } from '../src/sim/balance';
-import { GameMap, MAP_W } from '../src/sim/map';
+import { GameMap, MAP_W, layoutFor, stageTint } from '../src/sim/map';
 import { fmt } from '../src/core/format';
 
 /** Greedy player: always buys the cheapest available upgrade. */
@@ -151,5 +151,80 @@ describe('tap-to-move near props', () => {
       }
     }
     expect(checked).toBeGreaterThan(50);
+  });
+});
+
+describe('stage maps', () => {
+  it('every stage has its own layout, an open centre, and the boss stage is an arena', () => {
+    const seen = new Set<string>();
+    for (let stage = 1; stage <= 60; stage++) {
+      const map = new GameMap(Math.floor((stage - 1) / 10), stage);
+      expect(map.blocked(MAP_W / 2, MAP_W / 2, 7)).toBe(false);
+      seen.add(map.props.slice(0, 12).map((p) => `${p.x.toFixed(0)},${p.y.toFixed(0)}`).join('|'));
+      if (stage % 10 === 0) expect(map.layout).toBe('arena');
+    }
+    expect(seen.size).toBe(60);
+    expect(layoutFor(1)).not.toBe(layoutFor(2));
+    expect(stageTint(1)).not.toBe(stageTint(9));
+  });
+
+  it('clearing a stage moves the hero onto the next stage map', () => {
+    const save = freshSave();
+    save.stage = 3;
+    const sim = new Sim(save, 2);
+    const before = sim.map;
+    const s = sim as unknown as { advanceStage(): void };
+    s.advanceStage();
+    expect(sim.map).not.toBe(before);
+    expect(sim.map.stage).toBe(4);
+  });
+});
+
+describe('monster skills', () => {
+  type Inner = { enemies: Enemy[]; setEnemy(e: Enemy, m: number, boss: boolean, x: number, y: number, elite?: boolean): void; updateEnemies(dt: number): void; updateShots(dt: number): void };
+  const setup = (stage: number) => {
+    const save = freshSave();
+    save.stage = stage; save.farming = true;
+    const sim = new Sim(save, 4);
+    const s = sim as unknown as Inner;
+    for (const e of s.enemies) e.alive = false;
+    sim.hero.hp = sim.hero.maxHp = 1e9;
+    return { sim, s };
+  };
+  const run = (_sim: Sim, s: Inner, secs: number) => {
+    for (let i = 0; i < secs * 30; i++) { s.updateEnemies(1 / 30); s.updateShots(1 / 30); }
+  };
+
+  it('dashers wind up, then charge and hit', () => {
+    const { sim, s } = setup(2); // meadow: the pigeon dashes
+    const e = s.enemies[0];
+    s.setEnemy(e, 1, false, sim.hero.x + 50, sim.hero.y);
+    e.spawnT = 0; e.aggro = true; e.skillCd = 0;
+    s.updateEnemies(1 / 30);
+    expect(e.windT).toBeGreaterThan(0);
+    run(sim, s, 1);
+    expect(sim.hero.hp).toBeLessThan(1e9);
+  });
+
+  it('spitters hit the hero from range with projectiles', () => {
+    const { sim, s } = setup(12); // mirewood: the spider spits
+    const e = s.enemies[0];
+    s.setEnemy(e, 1, false, sim.hero.x + 60, sim.hero.y);
+    e.spawnT = 0; e.aggro = true; e.skillCd = 0;
+    let shot = false;
+    for (let i = 0; i < 60 && !shot; i++) { s.updateEnemies(1 / 30); s.updateShots(1 / 30); shot = sim.shots.some((p) => p.alive); }
+    expect(shot).toBe(true);
+    run(sim, s, 1.5);
+    expect(sim.hero.hp).toBeLessThan(1e9);
+    expect(Math.hypot(e.x - sim.hero.x, e.y - sim.hero.y)).toBeGreaterThan(30); // kept its distance
+  });
+
+  it('elites are tougher and richer', () => {
+    const { sim, s } = setup(5);
+    s.setEnemy(s.enemies[0], 0, false, 100, 100);
+    s.setEnemy(s.enemies[1], 0, false, 100, 140, true);
+    expect(s.enemies[1].maxHp).toBeCloseTo(s.enemies[0].maxHp * 3);
+    expect(s.enemies[1].gold).toBeCloseTo(s.enemies[0].gold * 4);
+    expect(sim).toBeTruthy();
   });
 });

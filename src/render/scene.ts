@@ -1,9 +1,9 @@
-import { BitmapText, Container, Sprite, TilingSprite, type Application } from 'pixi.js';
+import { BitmapText, Container, Graphics, Sprite, TilingSprite, type Application } from 'pixi.js';
 import { levelTier } from '../sim/level';
 import { areaFor } from '../sim/areas';
 import { Ev } from '../sim/events';
 import { MAP_H, MAP_W, type GameMap } from '../sim/map';
-import { MAX_ENEMIES, type Enemy, type Sim } from '../sim/sim';
+import { ELITE, MAX_ENEMIES, MAX_SHOTS, SLAM_RADIUS, SLAM_WIND, STYLE_DASHER, type Enemy, type Sim } from '../sim/sim';
 import { MAX_PICKUPS } from '../sim/gather';
 import { FONT, FONT_PX, Fx } from './fx';
 import { areaArt, artVersion, ensureAreaSprites, heroAnim, spriteAnchor, type AnimSet, type Art } from './sprites';
@@ -17,11 +17,17 @@ const CULL_PAD = 24;
 interface EnemyView {
   root: Container;
   shadow: Sprite;
+  aura: Sprite;      // golden glow under elites
   body: Sprite;
   crown: Sprite;
+  warn: BitmapText;  // "!" over a monster winding up a skill
   barBg: Sprite;
+  barTrail: Sprite;  // pale chunk that drains after the real bar: shows the last hit
   barFg: Sprite;
+  trail: number;     // trailing health fraction
 }
+
+const DASH_LANE = 56; // world units a dash covers (for the warning lane)
 
 interface PropView { sprite: Sprite; x: number; y: number; halfW: number; h: number }
 
@@ -67,9 +73,16 @@ export class Scene {
   private readonly heroBarBg: Sprite;
   private readonly heroBarFg: Sprite;
   private readonly enemyViews: EnemyView[] = [];
+  private readonly shotViews: Sprite[] = [];
+  /** Danger zones (boss slam circles, dash lanes) drawn on the ground under everything. */
+  private readonly warnLayer = new Graphics();
+  /** Black overlay that fades out when the stage's map changes. */
+  private readonly fade: Sprite;
+  private fadeT = 0;
   private readonly fx: Fx;
 
   private t = 0;
+  private frameDt = 1 / 60;
   private shake = 0;
   private scale = 2;
   private screenW = 0;
@@ -93,7 +106,7 @@ export class Scene {
     };
 
     this.entities.sortableChildren = true;
-    this.world.addChild(this.groundLayer, this.decalLayer, this.entities);
+    this.world.addChild(this.groundLayer, this.decalLayer, this.warnLayer, this.entities);
 
     // Enemies: fixed slots mirror the sim's fixed enemy array (no lookups or allocation).
     for (let i = 0; i < MAX_ENEMIES; i++) {
@@ -103,12 +116,32 @@ export class Scene {
       body.anchor.set(0.5, 1);
       const crown = new Sprite(art.crown);
       crown.anchor.set(0.5, 1);
-      const barBg = bar(12, 2, 0x1b1626);
+      const aura = new Sprite(art.ring);
+      aura.anchor.set(0.5);
+      aura.tint = 0xffc83a;
+      aura.visible = false;
+      const warn = new BitmapText({ text: '!', style: { fontFamily: FONT, fontSize: FONT_PX } });
+      warn.anchor.set(0.5, 1);
+      warn.scale.set(7 / FONT_PX);
+      warn.tint = 0xff4a3a;
+      warn.visible = false;
+      const barBg = bar(14, 4, 0x1b1626);
+      const barTrail = bar(12, 2, 0xfff0d0);
       const barFg = bar(12, 2, 0xe4572e);
-      root.addChild(sh, body, crown, barBg, barFg);
+      root.addChild(aura, sh, body, crown, warn, barBg, barTrail, barFg);
       root.visible = false;
       this.entities.addChild(root);
-      this.enemyViews.push({ root, shadow: sh, body, crown, barBg, barFg });
+      this.enemyViews.push({ root, shadow: sh, aura, body, crown, warn, barBg, barTrail, barFg, trail: 1 });
+    }
+
+    // Monster projectiles: a glowing ball (pooled to match the sim's shot slots).
+    for (let i = 0; i < MAX_SHOTS; i++) {
+      const s = new Sprite(art.dot);
+      s.anchor.set(0.5);
+      s.scale.set(1.5);
+      s.visible = false;
+      this.entities.addChild(s);
+      this.shotViews.push(s);
     }
 
     // Hero
@@ -145,11 +178,16 @@ export class Scene {
 
     this.fx = new Fx(art.coin, art.dot, art.gem, art.ring);
     this.world.addChild(this.fx.world);
-    app.stage.addChild(this.world, this.fx.screen);
+    this.fade = new Sprite(art.pixel);
+    this.fade.tint = 0x000000;
+    this.fade.alpha = 0;
+    app.stage.addChild(this.world, this.fade, this.fx.screen);
   }
 
   /** Rebuild the static map layers (ground, decals, props) for a new area. */
   private buildMap(map: GameMap): void {
+    // A new stage's ground: fade in from black (not on the very first build).
+    if (this.map && this.map !== map) this.fadeT = 0.45;
     this.map = map;
     const art = areaArt(map.area);
     this.groundLayer.removeChildren().forEach((c) => c.destroy());
@@ -163,6 +201,7 @@ export class Scene {
     edge.position.set(-200, -200);
     edge.tint = parseInt(def.void.slice(1), 16);
     const ground = new TilingSprite({ texture: art.ground, width: MAP_W, height: MAP_H });
+    ground.tint = map.tint; // daylight → dusk through the area; red glow in the boss arena
     this.groundLayer.addChild(edge, ground);
 
     for (const d of map.decals) {
@@ -204,6 +243,7 @@ export class Scene {
   /** Render one frame. `alpha` is the interpolation factor between the last two sim ticks. */
   update(alpha: number, dt: number): void {
     this.t += dt;
+    this.frameDt = dt;
     const sim = this.sim;
     ensureAreaSprites(sim.area);
     if (sim.map !== this.map || artVersion() !== this.artVer) { this.artVer = artVersion(); this.buildMap(sim.map); }
@@ -338,6 +378,38 @@ export class Scene {
       this.shaking.set(idx, nl);
     }
 
+    // Danger zones under the monsters: boss slam circles and dash lanes.
+    const g = this.warnLayer;
+    g.clear();
+    for (let i = 0; i < MAX_ENEMIES; i++) {
+      const e = sim.enemies[i];
+      if (!e.alive || e.windT <= 0) continue;
+      if (e.boss) {
+        const p = 1 - e.windT / SLAM_WIND;
+        g.circle(e.x, e.y, SLAM_RADIUS).fill({ color: 0xff3a2a, alpha: 0.14 + 0.12 * p })
+          .stroke({ color: 0xff5a3a, width: 1, alpha: 0.8 });
+        g.circle(e.x, e.y, SLAM_RADIUS * p).fill({ color: 0xff3a2a, alpha: 0.22 });
+      } else if (e.style === STYLE_DASHER) {
+        const w = e.radius * 1.6, len = DASH_LANE;
+        const nx = -e.dirY * w, ny = e.dirX * w;
+        const ex = e.x + e.dirX * len, ey = e.y + e.dirY * len;
+        g.poly([e.x + nx, e.y + ny, ex + nx, ey + ny, ex - nx, ey - ny, e.x - nx, e.y - ny])
+          .fill({ color: 0xff3a2a, alpha: 0.12 + 0.2 * (1 - e.windT / 0.45) });
+      }
+    }
+
+    // Monster projectiles
+    for (let i = 0; i < MAX_SHOTS; i++) {
+      const s = sim.shots[i], v = this.shotViews[i];
+      if (!s.alive) { v.visible = false; continue; }
+      v.visible = true;
+      const x = s.prevX + (s.x - s.prevX) * alpha, y = s.prevY + (s.y - s.prevY) * alpha;
+      v.position.set(x, y);
+      v.zIndex = y + 4;
+      v.tint = SHOT_COLORS[s.monster % SHOT_COLORS.length];
+      v.scale.set(1.5 + Math.sin(this.t * 30 + i) * 0.25);
+    }
+
     // Enemies
     for (let i = 0; i < MAX_ENEMIES; i++) {
       const e = sim.enemies[i];
@@ -350,6 +422,14 @@ export class Scene {
       this.drawEnemy(e, v, x, y, hx, hy, art.monsters[e.monster], art.anims?.[e.monster] ?? null);
     }
 
+    if (this.fadeT > 0) {
+      this.fadeT = Math.max(0, this.fadeT - dt);
+      this.fade.width = this.screenW;
+      this.fade.height = this.screenH;
+    }
+    this.fade.alpha = this.fadeT / 0.45;
+    this.fade.visible = this.fadeT > 0;
+
     this.fx.update(dt);
   }
 
@@ -361,9 +441,11 @@ export class Scene {
       const amt = Math.sin((e.lungeT / 0.18) * Math.PI) * 4;
       lx = ((hx - x) / d) * amt; ly = ((hy - y) / d) * amt;
     }
-    v.root.position.set(Math.round(x + lx), Math.round(y + ly));
+    // Winding up a skill: tremble in place.
+    const shakeX = e.windT > 0 ? Math.round(Math.sin(this.t * 70 + e.seed)) : 0;
+    v.root.position.set(Math.round(x + lx) + shakeX, Math.round(y + ly));
     v.root.zIndex = y;
-    const spawnK = e.spawnT > 0 ? 1 - e.spawnT / 0.35 : 1;
+    const spawnK = (e.spawnT > 0 ? 1 - e.spawnT / 0.35 : 1) * (e.elite ? ELITE.scale : 1);
     let top: number;
     if (an) {
       // Rendered 3D sprite: attack while lunging, walk while moving, otherwise idle.
@@ -382,7 +464,7 @@ export class Scene {
       // Renders face right; flip toward the hero. Bosses are pre-rendered at full size.
       v.body.scale.set(spawnK * (hx >= x ? 1 : -1), spawnK);
       v.body.y = an.fly ? Math.round(-3 + Math.sin(this.t * 4 + e.seed) * 1.5) : 0;
-      top = v.body.y - an.top;
+      top = v.body.y - an.top * (e.elite ? ELITE.scale : 1);
     } else {
       v.body.texture = tex;
       v.body.anchor.set(0.5, 1);
@@ -393,22 +475,39 @@ export class Scene {
       v.body.y = flying ? Math.round(-6 + Math.sin(this.t * 6 + e.seed) * 2) : 0;
       top = v.body.y - v.body.height;
     }
-    v.body.alpha = spawnK;
-    v.body.tint = e.hitT > 0 ? 0xff8080 : 0xffffff;
+    v.body.alpha = Math.min(1, spawnK);
+    const flash = e.windT > 0 && Math.sin(this.t * 40) > 0;
+    v.body.tint = e.hitT > 0 ? 0xff8080 : flash ? 0xff6050 : e.dashT > 0 ? 0xffc0b0 : 0xffffff;
+    v.aura.visible = e.elite;
+    if (e.elite) {
+      const pulse = 0.5 + 0.5 * Math.sin(this.t * 4 + e.seed);
+      v.aura.width = e.radius * 2.8;
+      v.aura.height = e.radius * 1.2;
+      v.aura.alpha = 0.45 + 0.35 * pulse;
+    }
+    v.warn.visible = e.windT > 0 && !e.boss;
+    if (v.warn.visible) v.warn.position.set(0, Math.round(top - 3));
     v.shadow.width = e.radius * 2.4;
     v.shadow.height = e.radius;
     v.crown.visible = e.boss;
     if (e.boss) v.crown.position.set(0, Math.round(top + 3));
-    const frac = e.hp / e.maxHp;
-    const showBar = frac < 1;
-    v.barBg.visible = v.barFg.visible = showBar;
+    // Health bar: appears once a monster has been hit (elites always show theirs), with a pale
+    // trailing chunk that drains a moment later so each hit's size is easy to read.
+    const frac = Math.max(0, e.hp / e.maxHp);
+    if (e.spawnT > 0 || frac >= 1) v.trail = 1;
+    v.trail = Math.max(frac, v.trail - (v.trail > frac ? 0.9 * this.frameDt : 0));
+    const showBar = frac < 1 || e.elite;
+    v.barBg.visible = v.barFg.visible = v.barTrail.visible = showBar;
     if (showBar) {
-      const w = e.boss ? 30 : 12;
-      const barY = Math.round(top - (e.boss ? 10 : 4));
-      v.barBg.width = w;
-      v.barBg.position.set(-w / 2, barY);
+      const w = e.boss ? 30 : e.elite ? 18 : 14;
+      const barY = Math.round(top - (e.boss ? 10 : 5) - (v.warn.visible ? 7 : 0));
+      v.barBg.width = w + 2; v.barBg.height = 4;
+      v.barBg.position.set(-w / 2 - 1, barY - 1);
+      v.barTrail.position.set(-w / 2, barY);
+      v.barTrail.width = w * v.trail;
       v.barFg.position.set(-w / 2, barY);
-      v.barFg.width = w * Math.max(0, frac);
+      v.barFg.width = w * frac;
+      v.barFg.tint = e.boss ? 0xc040ff : e.elite ? 0xffb52e : frac > 0.5 ? 0xe4572e : 0xff3030;
     }
   }
 
@@ -450,6 +549,7 @@ export class Scene {
           fx.burst(x, y - 4, 0xd8c8ff, v ? 20 : 5, v ? 60 : 25);
           break;
         case Ev.StageClear:
+          this.camX = this.sim.hero.x; this.camY = this.sim.hero.y;
           sfx.play('stage');
           fx.ring(this.sim.hero.x, this.sim.hero.y, 0x7de86f, 3);
           this.hooks.onStageClear?.();
@@ -493,6 +593,22 @@ export class Scene {
           fx.text(x, y - 8, 1, v ? 0xd8e0ea : 0xf0b070, false, '+');
           this.hooks.onPickup?.(v ? 'stone' : 'wood');
           break;
+        case Ev.Telegraph:
+          if (f === 1) sfx.play('boss', 0.5);
+          break;
+        case Ev.Slam:
+          this.shake = Math.max(this.shake, 0.8);
+          fx.ring(x, y, 0xff6a3a, (v / 16) * 1.0);
+          fx.burst(x, y - 2, 0xd8b890, 22, 70);
+          sfx.play('crit');
+          haptic(30);
+          break;
+        case Ev.Shoot:
+          sfx.play('swing', 0.5);
+          break;
+        case Ev.ShotPop:
+          fx.burst(x, y, 0xffffff, 4, 25);
+          break;
         case Ev.AreaEnter:
           this.camX = MAP_W / 2; this.camY = MAP_H / 2;
           sfx.play('area');
@@ -506,6 +622,8 @@ export class Scene {
 }
 
 const LEVEL_TEXT_H = 4.6; // world units
+/** Projectile tint by the shooter's roster slot. */
+const SHOT_COLORS = [0x9cff5a, 0xffb03a, 0xff6ad5, 0x7ad6ff];
 
 function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;

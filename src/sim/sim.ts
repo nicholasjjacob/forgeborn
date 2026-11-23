@@ -18,11 +18,33 @@ import { GameMap, MAP_H, MAP_W } from './map';
 import { Gatherer, freshMaterials, type Materials } from './gather';
 import { MAX_LEVEL, levelBonus, milestoneReward, xpForKill, xpToNext, MILESTONES, type MilestoneReward } from './level';
 import {
-  FORGE_COST, INVENTORY_SIZE, INVENTORY_STEP, MAX_FORGE_LEVEL, MAX_INVENTORY, inventoryExpandCost, MERGE_COUNT, bonusWeapon, compareWeapons, forgeAtkBonus, forgeUpgradeCost, forgeWeapon, matchingSlots, mergePartners, mergeWeapons,
+  forgeCost, forgeLevelCap, INVENTORY_SIZE, INVENTORY_STEP, MAX_FORGE_LEVEL, MAX_INVENTORY, inventoryExpandCost, MERGE_COUNT, bonusWeapon, compareWeapons, forgeAtkBonus, forgeUpgradeCost, forgeWeapon, matchingSlots, mergePartners, mergeWeapons,
   salvageValue, starterWeapon, weaponStats, type Weapon,
 } from './weapons';
 
 export const MAX_ENEMIES = 40;
+export const MAX_SHOTS = 32;
+
+/** Fighting style codes stored on each enemy (see MonsterStyle in areas.ts). */
+export const STYLE_MELEE = 0, STYLE_DASHER = 1, STYLE_SPITTER = 2;
+const STYLE_CODE = { melee: STYLE_MELEE, dasher: STYLE_DASHER, spitter: STYLE_SPITTER } as const;
+
+// Monster skills. Wind-ups are telegraphed by the renderer so the player can react.
+const DASH_WIND = 0.45, DASH_TIME = 0.32, DASH_SPEED = 3.4, DASH_RANGE = 75;
+const SPIT_WIND = 0.35, SPIT_RANGE = 95, SPIT_SPEED = 95, SPIT_KEEP = 45;
+export const SLAM_WIND = 0.9, SLAM_RADIUS = 34;
+/** Elites: rarer, tougher variants with a golden aura. */
+export const ELITE = { hp: 3, dmg: 1.4, gold: 4, radius: 2, scale: 1.3 };
+
+/** A monster projectile in flight. */
+export interface Shot {
+  alive: boolean;
+  x: number; y: number; prevX: number; prevY: number;
+  vx: number; vy: number;
+  dmg: number;
+  life: number;
+  monster: number; // who fired it (for its colour)
+}
 const RATE_BUCKETS = 60;
 const RATE_BUCKET_SECONDS = 5;
 
@@ -86,6 +108,15 @@ export interface Enemy {
   alive: boolean;
   monster: number;   // index into the area roster (0..2), or 3 for the boss
   boss: boolean;
+  elite: boolean;
+  style: number;     // STYLE_* code
+  /** >0 while winding up a skill (dash, spit or boss slam); it fires when this reaches 0. */
+  windT: number;
+  /** >0 while charging in a straight line (dashers). */
+  dashT: number;
+  dirX: number; dirY: number;  // locked direction for a dash
+  dashHit: boolean;            // this dash already landed
+  skillCd: number;
   x: number; y: number;
   prevX: number; prevY: number;
   kx: number; ky: number;      // knockback velocity
@@ -141,6 +172,9 @@ export class Sim {
   killsInStage = 0;
   time = 0;
   private spawnT = 0;
+  readonly shots: Shot[] = Array.from({ length: MAX_SHOTS }, () => ({
+    alive: false, x: 0, y: 0, prevX: 0, prevY: 0, vx: 0, vy: 0, dmg: 0, life: 0, monster: 0,
+  }));
 
   readonly hero: Hero = {
     x: MAP_W / 2, y: MAP_H / 2, prevX: MAP_W / 2, prevY: MAP_H / 2,
@@ -201,12 +235,12 @@ export class Sim {
     this.rng = new Rng(seed ?? (Date.now() & 0xffffffff));
     for (let i = 0; i < MAX_ENEMIES; i++) {
       this.enemies.push({
-        alive: false, monster: 0, boss: false, x: 0, y: 0, prevX: 0, prevY: 0, kx: 0, ky: 0, radius: 5,
+        alive: false, monster: 0, boss: false, elite: false, style: 0, windT: 0, dashT: 0, dirX: 0, dirY: 0, dashHit: false, skillCd: 0, x: 0, y: 0, prevX: 0, prevY: 0, kx: 0, ky: 0, radius: 5,
         hp: 0, maxHp: 0, dmg: 0, speed: 0, atkInterval: 1, atkCd: 0, gold: 0, aggro: false,
         wanderA: 0, wanderT: 0, spawnT: 0, chasing: false, stuckT: 0, detourT: 0, detourA: 0, hitT: 0, lungeT: 0, seed: 0,
       });
     }
-    this.map = new GameMap(areaIndex(save.stage));
+    this.map = new GameMap(areaIndex(save.stage), save.stage);
     this.gather.reset();
     this.fillQuests();
     this.recalc();
@@ -284,6 +318,7 @@ export class Sim {
     this.save.stage += 1;
     this.killsInStage = 0;
     this.hero.hp = this.hero.maxHp;
+    this.enterStageMap();
     if (isBossStage(this.save.stage)) this.startBoss();
   }
 
@@ -336,10 +371,11 @@ export class Sim {
   forge(count = 1): number[] {
     const s = this.save;
     const filled: number[] = [];
-    for (let n = 0; n < count && s.shards >= FORGE_COST; n++) {
+    const cost = forgeCost(s.forgeLevel);
+    for (let n = 0; n < count && s.shards >= cost; n++) {
       const slot = s.weapons.indexOf(null);
       if (slot < 0) break;
-      s.shards -= FORGE_COST;
+      s.shards -= cost;
       const w = forgeWeapon(this.rng, s.nextWeaponId++, s.forgeLevel);
       s.weapons[slot] = w;
       s.stats.forged++;
@@ -471,7 +507,7 @@ export class Sim {
 
   upgradeForge(): boolean {
     const s = this.save;
-    if (s.forgeLevel >= MAX_FORGE_LEVEL) return false;
+    if (s.forgeLevel >= forgeLevelCap(s.highestStage)) return false;
     const cost = forgeUpgradeCost(s.forgeLevel);
     if (s.gold < cost) return false;
     s.gold -= cost;
@@ -512,6 +548,7 @@ export class Sim {
     h.hp = Math.min(h.maxHp, h.hp + h.maxHp * HERO_REGEN * dt);
     this.moveHero(dt);
     this.updateEnemies(dt);
+    this.updateShots(dt);
     this.heroAttack();
     this.gather.update(dt);
     this.spawn(dt);
@@ -840,11 +877,36 @@ export class Sim {
       if (!e.aggro && (d < 120 || e.boss)) e.aggro = true;
 
       const reach = HERO_RADIUS + e.radius + 2;
-      if (e.aggro) {
-        if (e.detourT > 0) {
+      if (e.aggro && e.windT > 0) {
+        // Winding up: stand still (the renderer shows the tell), then let it rip.
+        e.windT -= dt;
+        if (e.windT <= 0) this.releaseSkill(e, d);
+      } else if (e.aggro && e.dashT > 0) {
+        e.dashT -= dt;
+        e.x += e.dirX * e.speed * DASH_SPEED * dt;
+        e.y += e.dirY * e.speed * DASH_SPEED * dt;
+        if (!e.dashHit && d <= reach + 2) {
+          e.dashHit = true;
+          this.hurtHero(e.dmg * 1.3);
+        }
+      } else if (e.aggro) {
+        e.skillCd -= dt;
+        if (this.startSkill(e, d, reach)) {
+          // wind-up started
+        } else if (e.detourT > 0) {
           e.detourT -= dt;
           e.x += Math.cos(e.detourA) * e.speed * dt;
           e.y += Math.sin(e.detourA) * e.speed * dt;
+        } else if (e.style === STYLE_SPITTER && d < SPIT_KEEP && d > reach) {
+          // Spitters back off to their preferred range.
+          this.map.steer(e.x, e.y, e.radius, -dx / d, -dy / d, this.steerOut);
+          e.x += this.steerOut.x * e.speed * 0.8 * dt;
+          e.y += this.steerOut.y * e.speed * 0.8 * dt;
+        } else if (e.style === STYLE_SPITTER && d < SPIT_RANGE * 0.8 && d > reach) {
+          // In range: circle the hero slowly while the next shot loads.
+          const side = e.seed > Math.PI ? 1 : -1;
+          e.x += (-dy / d) * side * e.speed * 0.35 * dt;
+          e.y += (dx / d) * side * e.speed * 0.35 * dt;
         } else if (d > reach) {
           e.chasing = true;
           this.map.steer(e.x, e.y, e.radius, dx / d, dy / d, this.steerOut);
@@ -855,9 +917,7 @@ export class Sim {
           if (e.atkCd <= 0) {
             e.atkCd = e.atkInterval;
             e.lungeT = 0.18;
-            h.hp -= e.dmg;
-            h.hitT = 0.15;
-            this.events.push(Ev.HeroHit, h.x, h.y - 18, e.dmg);
+            this.hurtHero(e.dmg);
           }
         }
       } else {
@@ -907,6 +967,85 @@ export class Sim {
     }
   }
 
+  private hurtHero(dmg: number): void {
+    const h = this.hero;
+    h.hp -= dmg;
+    h.hitT = 0.15;
+    this.events.push(Ev.HeroHit, h.x, h.y - 18, dmg);
+  }
+
+  /** Maybe begin a skill wind-up. Returns true if one started. */
+  private startSkill(e: Enemy, d: number, reach: number): boolean {
+    if (e.skillCd > 0) return false;
+    const h = this.hero;
+    if (e.boss) {
+      if (d > SLAM_RADIUS + 10) return false;
+      e.windT = SLAM_WIND;
+      e.skillCd = this.rng.range(4.5, 6.5);
+      this.events.push(Ev.Telegraph, e.x, e.y, SLAM_RADIUS, 1);
+      return true;
+    }
+    if (e.style === STYLE_DASHER) {
+      if (d > DASH_RANGE || d < reach + 6) return false;
+      e.windT = DASH_WIND;
+      e.dirX = (h.x - e.x) / d; e.dirY = (h.y - e.y) / d;
+      e.skillCd = this.rng.range(2.6, 3.8);
+      this.events.push(Ev.Telegraph, e.x, e.y, 0, 0);
+      return true;
+    }
+    if (e.style === STYLE_SPITTER) {
+      if (d > SPIT_RANGE || d < reach) return false;
+      e.windT = SPIT_WIND;
+      e.skillCd = this.rng.range(1.9, 2.8);
+      return true;
+    }
+    return false;
+  }
+
+  /** The wind-up finished: dash, spit or slam. */
+  private releaseSkill(e: Enemy, d: number): void {
+    const h = this.hero;
+    if (e.boss) {
+      this.events.push(Ev.Slam, e.x, e.y, SLAM_RADIUS);
+      if (d <= SLAM_RADIUS + HERO_RADIUS) this.hurtHero(e.dmg * 1.2);
+    } else if (e.style === STYLE_DASHER) {
+      e.dashT = DASH_TIME;
+      e.dashHit = false;
+    } else if (e.style === STYLE_SPITTER) {
+      const shot = this.shots.find((s) => !s.alive);
+      if (!shot) return;
+      // Aim where the hero is now; moving players can sidestep.
+      const ax = h.x - e.x, ay = h.y - 4 - e.y, len = Math.hypot(ax, ay) || 1;
+      shot.alive = true;
+      shot.x = shot.prevX = e.x; shot.y = shot.prevY = e.y - 4;
+      shot.vx = (ax / len) * SPIT_SPEED; shot.vy = (ay / len) * SPIT_SPEED;
+      shot.dmg = e.dmg * 0.9;
+      shot.life = SPIT_RANGE * 1.4 / SPIT_SPEED;
+      shot.monster = e.monster;
+      e.lungeT = 0.18;
+      this.events.push(Ev.Shoot, e.x, e.y);
+    }
+  }
+
+  private updateShots(dt: number): void {
+    const h = this.hero;
+    for (const s of this.shots) {
+      if (!s.alive) continue;
+      s.prevX = s.x; s.prevY = s.y;
+      s.x += s.vx * dt; s.y += s.vy * dt;
+      s.life -= dt;
+      if (Math.hypot(s.x - h.x, s.y - (h.y - 4)) < HERO_RADIUS + 2.5) {
+        s.alive = false;
+        if (this.phase === 'playing') this.hurtHero(s.dmg);
+        continue;
+      }
+      if (s.life <= 0 || this.map.blocked(s.x, s.y + 4, 1)) {
+        s.alive = false;
+        this.events.push(Ev.ShotPop, s.x, s.y);
+      }
+    }
+  }
+
   private sepCell(x: number, y: number): number {
     const c = Math.max(0, Math.min(SEP_COLS - 1, Math.floor(x / SEP_CELL)));
     const r = Math.max(0, Math.min(SEP_ROWS - 1, Math.floor(y / SEP_CELL)));
@@ -936,7 +1075,9 @@ export class Sim {
 
     const pos = this.findSpawnPoint(130, 230);
     if (!pos) return;
-    this.setEnemy(slot, monster, false, pos.x, pos.y);
+    // Elites show up from the third stage of each area, more often deeper in.
+    const elite = s >= 3 && this.rng.chance(0.02 + 0.008 * s);
+    this.setEnemy(slot, monster, false, pos.x, pos.y, elite);
   }
 
   private readonly tmpPoint = { x: 0, y: 0 };
@@ -953,7 +1094,7 @@ export class Sim {
     return null;
   }
 
-  private setEnemy(e: Enemy, monster: number, boss: boolean, x: number, y: number): void {
+  private setEnemy(e: Enemy, monster: number, boss: boolean, x: number, y: number, elite = false): void {
     const { def } = areaFor(this.map.area);
     const m = boss ? def.boss : def.monsters[monster];
     const stage = this.save.stage;
@@ -969,6 +1110,16 @@ export class Sim {
     e.atkInterval = boss ? BOSS.atkInterval : m.atkInterval;
     e.atkCd = e.atkInterval * 0.6;
     e.gold = enemyGold(stage) * m.gold * (boss ? BOSS.gold : 1);
+    e.elite = elite;
+    e.style = boss ? STYLE_MELEE : STYLE_CODE[m.style];
+    if (elite) {
+      e.maxHp = e.hp = e.maxHp * ELITE.hp;
+      e.dmg *= ELITE.dmg;
+      e.gold *= ELITE.gold;
+      e.radius += ELITE.radius;
+    }
+    e.windT = 0; e.dashT = 0; e.dashHit = false;
+    e.skillCd = this.rng.range(1, 2.5);
     e.aggro = boss;
     e.wanderT = 0;
     e.spawnT = 0.35;
@@ -991,7 +1142,7 @@ export class Sim {
 
     // Shards for the forge: bosses always drop a bundle, regular monsters sometimes drop one.
     const per = 1 + Math.floor(this.save.stage / 12);
-    const raw = (e.boss ? 10 * per : this.rng.chance(0.2) ? per : 0) * this.shardMult;
+    const raw = (e.boss ? 10 * per : e.elite ? 3 * per : this.rng.chance(0.2) ? per : 0) * this.shardMult;
     // Random rounding keeps fractional bonuses fair over time.
     const shards = Math.floor(raw) + (this.rng.chance(raw % 1) ? 1 : 0);
     if (shards > 0) {
@@ -1080,13 +1231,28 @@ export class Sim {
     if (areaIndex(s.stage) !== prevArea) {
       this.enterArea(areaIndex(s.stage));
     } else {
+      // Same area, fresh ground: every stage has its own layout.
+      this.enterStageMap();
       this.events.push(Ev.StageClear);
       if (isBossStage(s.stage)) this.startBoss();
     }
   }
 
+  /** Build the current stage's map and put the hero back in its open centre. */
+  private enterStageMap(): void {
+    if (this.map.stage === this.save.stage && this.map.area === areaIndex(this.save.stage)) return;
+    this.map = new GameMap(areaIndex(this.save.stage), this.save.stage);
+    this.clearEnemies();
+    const h = this.hero;
+    h.x = h.prevX = MAP_W / 2;
+    h.y = h.prevY = MAP_H / 2;
+    this.input.hasTarget = false;
+    this.spawnT = 0.8;
+    this.gather.reset();
+  }
+
   private enterArea(area: number): void {
-    this.map = new GameMap(area);
+    this.map = new GameMap(area, this.save.stage);
     this.clearEnemies();
     const h = this.hero;
     h.x = h.prevX = MAP_W / 2;
@@ -1119,6 +1285,7 @@ export class Sim {
     this.save.stage = Math.max(1, this.save.stage - 1);
     this.killsInStage = 0;
     if (died) { this.phase = 'dead'; this.phaseT = 1.5; }
+    else this.enterStageMap();
   }
 
   private heroDied(): void {
@@ -1132,6 +1299,7 @@ export class Sim {
 
   private respawn(): void {
     const h = this.hero;
+    this.enterStageMap();
     this.clearEnemies();
     h.x = h.prevX = MAP_W / 2;
     h.y = h.prevY = MAP_H / 2;
@@ -1145,6 +1313,7 @@ export class Sim {
 
   private clearEnemies(): void {
     for (const e of this.enemies) e.alive = false;
+    for (const s of this.shots) s.alive = false;
   }
 }
 

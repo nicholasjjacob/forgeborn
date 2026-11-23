@@ -15,7 +15,8 @@ export function inventoryExpandCost(size: number): number {
   return Math.round(1500 * Math.pow(3, Math.max(0, size - INVENTORY_SIZE) / INVENTORY_STEP));
 }
 export const MAX_TIER = 30;
-export const FORGE_COST = 10;          // shards per forge
+/** Shards per forge at the base forge level (see forgeCost: it grows as the forge levels up). */
+export const FORGE_COST = 10;
 export const MAX_FORGE_LEVEL = 25;
 export const RARITY_UP_CHANCE = 0.1;   // chance a merge bumps rarity
 /** Weapons consumed per merge: this many of the same type, tier and rarity make one of the next tier. */
@@ -65,7 +66,20 @@ export interface Weapon {
 /** Attack multiplier from tier and rarity (form damage is applied separately). */
 export function weaponMult(w: Pick<Weapon, 'tier' | 'rarity'>): number {
   const t = w.tier - 1;
-  return (1 + 0.2 * t) * Math.pow(1.22, t) * RARITY_MULT[w.rarity];
+  return (1 + 0.15 * t) * Math.pow(1.15, t) * RARITY_MULT[w.rarity];
+}
+
+/** Shards to forge one weapon at `level`: better forges make better weapons for more shards. */
+export function forgeCost(level: number): number {
+  return Math.round(FORGE_COST * Math.pow(1.6, Math.max(0, level - 1)));
+}
+
+/**
+ * Highest forge level reachable this run: one level per area reached (stage 1 → 1, stage 11 → 2, …).
+ * Keeps the forge from outrunning the monsters it's meant to help with.
+ */
+export function forgeLevelCap(highestStage: number): number {
+  return Math.min(MAX_FORGE_LEVEL, 1 + Math.floor((Math.max(1, highestStage) - 1) / 10));
 }
 
 export function weaponName(w: Weapon): string {
@@ -182,8 +196,12 @@ export function mergeWeapons(rng: Rng, id: number, keep: Weapon, others: readonl
   return w;
 }
 
+/**
+ * Shards back from melting a weapon: a quarter of what forging one of its tier costs (more for
+ * rarer ones). Always less than the forge price, so forging just to salvage never pays.
+ */
 export function salvageValue(w: Weapon): number {
-  return Math.round(3 * Math.pow(2, w.tier - 1) * (1 + w.rarity));
+  return Math.max(1, Math.round(0.25 * forgeCost(w.tier) * (1 + 0.5 * w.rarity)));
 }
 
 export function starterWeapon(): Weapon {

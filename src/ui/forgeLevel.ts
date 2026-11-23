@@ -1,7 +1,7 @@
 import { haptic, sfx } from '../audio/sfx';
 import { fmt } from '../core/format';
 import type { Sim } from '../sim/sim';
-import { FORGE_ATK_PER_LEVEL, MAX_FORGE_LEVEL, forgeOdds, forgeTiers, forgeUpgradeCost } from '../sim/weapons';
+import { FORGE_ATK_PER_LEVEL, MAX_FORGE_LEVEL, forgeCost, forgeLevelCap, forgeOdds, forgeTiers, forgeUpgradeCost } from '../sim/weapons';
 
 /**
  * The forge's own window: what the forge does at this level, what the next level adds, and the
@@ -71,8 +71,9 @@ export class ForgeLevelUI {
     if (!this.wrap) return;
     const s = this.sim.save;
     const lv = s.forgeLevel, maxed = lv >= MAX_FORGE_LEVEL;
+    const locked = !maxed && lv >= forgeLevelCap(s.highestStage);
     const cost = forgeUpgradeCost(lv);
-    const sig = `${lv}|${s.gold >= cost}|${maxed ? '' : fmt(Math.max(0, cost - s.gold))}`;
+    const sig = `${lv}|${locked}|${s.gold >= cost}|${maxed ? '' : fmt(Math.max(0, cost - s.gold))}`;
     if (sig === this.sig) return;
     this.sig = sig;
 
@@ -90,12 +91,14 @@ export class ForgeLevelUI {
         ${row('Epic chance', odds(lv, 1), odds(lv + 1, 1))}
         ${row('Legendary chance', odds(lv, 2), odds(lv + 1, 2))}
         ${row('Weapon attack', bonus(lv), bonus(lv + 1))}
+        ${row('Shards per forge', String(forgeCost(lv)), String(forgeCost(lv + 1)))}
       </div>`;
     const btn = this.wrap.querySelector<HTMLButtonElement>('#flc-upgrade')!;
-    btn.disabled = maxed || s.gold < cost;
-    btn.innerHTML = maxed ? 'Max level' : `Upgrade <span class="coin-dot"></span>${fmt(cost)}`;
+    btn.disabled = maxed || locked || s.gold < cost;
+    btn.innerHTML = maxed ? 'Max level' : locked ? `🔒 Stage ${lv * 10 + 1}` : `Upgrade <span class="coin-dot"></span>${fmt(cost)}`;
     const p = this.wrap.querySelector<HTMLElement>('.flc-body p')!;
-    if (!maxed && s.gold < cost) p.textContent = `Need ${fmt(cost - s.gold)} more gold to reach level ${lv + 1}.`;
+    if (locked) p.textContent = `The forge grows with your journey: reach stage ${lv * 10 + 1} this run to unlock level ${lv + 1}.`;
+    else if (!maxed && s.gold < cost) p.textContent = `Need ${fmt(cost - s.gold)} more gold to reach level ${lv + 1}.`;
   }
 }
 
