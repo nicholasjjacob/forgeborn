@@ -1238,3 +1238,17 @@ html.icons3d .chest.ready .chest-ico { width: 38px; height: 38px; filter: drop-s
   .ach-list { gap: 7px; }
   .ach { padding: 8px 9px 9px; row-gap: 4px; }
 }
+
+/* Bottom icons float over the battlefield as small boxes (no bar), so the battlefield runs to
+   the bottom of the screen. --dock-h is the room they take, for pages and buttons above them. */
+:root { --dock-h: 86px; }
+#dock {
+  position: absolute; left: 0; right: 0; bottom: 0; height: auto;
+  display: flex; justify-content: center; gap: 16px;
+  padding: 0 0 calc(var(--safe-bottom) + 10px);
+  background: none; border: 0; box-shadow: none; pointer-events: none;
+}
+#dock button { pointer-events: auto; width: 70px; height: 70px; padding: 2px 0 4px; border-radius: 16px; }
+#dock .dock-ico { width: 40px; height: 40px; }
+#dock .dock-lbl { font-size: 12px; }
+#challenge-btn { bottom: calc(var(--dock-h) + var(--safe-bottom) + 4px); }
