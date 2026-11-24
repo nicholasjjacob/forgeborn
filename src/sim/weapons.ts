@@ -17,7 +17,7 @@ export function inventoryExpandCost(size: number): number {
   return Math.round(1500 * Math.pow(3, Math.max(0, size - INVENTORY_SIZE) / INVENTORY_STEP));
 }
 /** Shards per forge at the base forge level (see forgeCost: it grows as the forge levels up). */
-export const FORGE_COST = 120;
+export const FORGE_COST = 100;
 export const MAX_FORGE_LEVEL = 25;
 /**
  * Weapons consumed per merge, by the rarity being merged: this many of the same type and rarity
@@ -135,7 +135,7 @@ function fillTraits(rng: Rng, w: Weapon): void {
 /**
  * Chance a forge comes out Uncommon, Rare, Epic or Legendary (the rest are Common); better
  * with forge level. Kept low on purpose: good weapons are mostly merged up, a long grind
- * (an active player's first Rare ~15 min, Epic ~1 h, Legendary ~5 h). Mythic and Divine only
+ * (an active player's first Rare ~15 min, Epic ~1 h, Legendary ~3.5-4 h). Mythic and Divine only
  * come from merging.
  */
 export function forgeOdds(level: number): [number, number, number, number] {
