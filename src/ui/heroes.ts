@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { sfx } from '../audio/sfx';
 import { cloneActor, findClip, loadModel, measure } from '../render/models';
-import { SKINS, skinDef } from '../sim/skins';
+import { SKINS, lookOf, skinDef } from '../sim/skins';
+import { applyLook } from '../render/heroLook';
 import { FORMS } from '../sim/weapons';
 import type { Sim } from '../sim/sim';
 import { gi } from './icons';
@@ -52,6 +53,7 @@ export class HeroesUI {
         <div class="sheet-body">
           <div class="hero-stage"><canvas></canvas><div class="hero-gems"><i class="jewel"></i><b></b></div></div>
           <div class="hero-info"><b class="hero-name"></b><span class="hero-role"></span><span class="hero-perk"></span><span class="hero-weapons"></span></div>
+          <div class="hero-looks" role="radiogroup" aria-label="Style"></div>
           <div class="hero-action"></div>
           <div class="hero-grid"></div>
         </div>
@@ -88,6 +90,13 @@ export class HeroesUI {
       this.pick = id;
     } else if (act === 'equip') {
       if (sim.selectSkin(id)) { sfx.play('stage'); this.toast(`${skinDef(id).name} ready for battle!`); }
+    } else if (act === 'look') {
+      if (sim.setLook(this.pick, id)) {
+        sfx.play('tick');
+        this.shown = ''; // rebuild the preview in the new style
+        portraits.delete(this.pick);
+        void this.makePortraits();
+      }
     } else if (act === 'buy') {
       if (sim.buySkin(id)) { sfx.play('achieve'); this.toast(`New hero: ${skinDef(id).name}!`); }
       else { sfx.play('tick'); this.toast('Not enough gems yet'); }
@@ -113,6 +122,13 @@ export class HeroesUI {
       : owned
         ? `<button type="button" class="btn big green" data-act="equip:${def.id}">Equip</button>`
         : `<button type="button" class="btn big blue" data-act="buy:${def.id}" ${gems >= def.cost ? '' : 'disabled'}>Unlock <i class="jewel"></i>${def.cost}</button>`;
+    // Styles (e.g. the Knight's visor): shown for owned heroes that have any.
+    const looksEl = this.wrap.querySelector<HTMLElement>('.hero-looks')!;
+    const cur = lookOf(def.id, s.looks);
+    looksEl.hidden = !owned || !def.looks;
+    looksEl.innerHTML = owned && def.looks
+      ? def.looks.map((l) => `<button type="button" role="radio" aria-checked="${l.id === cur}" class="${l.id === cur ? 'on' : ''}" data-act="look:${l.id}">${l.name}</button>`).join('')
+      : '';
     this.wrap.querySelector('.hero-grid')!.innerHTML = SKINS.map((k) => {
       const have = this.sim.ownsSkin(k.id);
       const tag = s.skin === k.id ? `${gi('check-mark', 'green')} Equipped` : have ? 'Owned' : `<i class="jewel"></i>${k.cost}`;
@@ -211,6 +227,7 @@ export class HeroesUI {
     inner.rotation.set(0, 0, 0);
     inner.traverse((o) => o.layers.set(0));
     inner.getObjectByName('weapon-hand')?.removeFromParent(); // the battlefield's weapon, if cloned along
+    applyLook(inner, id, lookOf(id, this.sim.save.looks));
     // The clone copies whatever pose the battlefield hero was in (mid-run, mid-swing): measure it at rest.
     inner.traverse((o) => { if ((o as THREE.SkinnedMesh).isSkinnedMesh) (o as THREE.SkinnedMesh).skeleton.pose(); });
     const dims = measure(inner);

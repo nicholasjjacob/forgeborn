@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 /**
- * Hand-built low-poly weapons (one per form: Sword, Axe, Greataxe, Hammer, Dagger, Crossbow,
+ * Hand-built low-poly weapons (one per form: Sword, Axe, Greataxe, Greatsword, Dagger, Crossbow,
  * Bow, Longbow, Staff, Wand), in world units with the grip at the origin and
  * the business end along +y. Bevelled extrusions give blades a proper edge; rarity changes the
  * metal (steel, blue, violet, gold), adds a glowing gem from Rare up and a glow from Epic up.
@@ -97,19 +97,21 @@ export function buildWeapon(form: number, rarity: number): WeaponView {
     for (const y of [-1.2, 0.2, 1.6]) add(new THREE.CylinderGeometry(0.56, 0.56, 0.35, 8), y < 0 ? leather : dark, 0, y, 0);
     base.position.set(2, 10, 0); tip.position.set(4.6, 13.6, 0);
   } else if (form === 3) {
-    // Hammer: bevelled rounded head with banded faces and a top spike.
-    add(new THREE.CylinderGeometry(0.42, 0.5, 11, 7), wood, 0, 3.5, 0);
-    const r = new THREE.Shape();
-    const w = 2.6, hh = 1.6, c = 0.5;
-    r.moveTo(-w + c, -hh); r.lineTo(w - c, -hh); r.quadraticCurveTo(w, -hh, w, -hh + c); r.lineTo(w, hh - c);
-    r.quadraticCurveTo(w, hh, w - c, hh); r.lineTo(-w + c, hh); r.quadraticCurveTo(-w, hh, -w, hh - c);
-    r.lineTo(-w, -hh + c); r.quadraticCurveTo(-w, -hh, -w + c, -hh);
-    add(extrude(r, 2.4, 0.3), metal, 0, 9, 0);
-    for (const x of [-1.6, 1.6]) add(new THREE.BoxGeometry(0.35, 3.5, 3.3), dark, x, 9, 0);
-    add(new THREE.ConeGeometry(0.55, 1.6, 6), metal, 0, 11.4, 0);
-    add(new THREE.OctahedronGeometry(0.5, 0), gem, 0, 9, 1.55);
-    grip(2.4, leather);
-    base.position.set(0, 7.5, 0); tip.position.set(0, 11, 0);
+    // Greatsword: long two-handed blade with a fuller, winged golden crossguard, long grip, gem pommel.
+    const s = new THREE.Shape();
+    s.moveTo(-0.95, 0); s.lineTo(-0.9, 10.6); s.lineTo(-0.45, 12.2); s.lineTo(0, 13.4);
+    s.lineTo(0.45, 12.2); s.lineTo(0.9, 10.6); s.lineTo(0.95, 0); s.lineTo(-0.95, 0);
+    add(extrude(s, 0.14, 0.18), metal, 0, 3.2, 0);
+    add(new THREE.BoxGeometry(0.26, 9.4, 0.56), dark, 0, 8.2, 0);           // fuller
+    const guard = new THREE.Shape();
+    guard.moveTo(-3.4, 1.3); guard.quadraticCurveTo(-2.2, -0.2, 0, 0); guard.quadraticCurveTo(2.2, -0.2, 3.4, 1.3);
+    guard.lineTo(3, 1.5); guard.quadraticCurveTo(1.8, 0.7, 0, 0.9); guard.quadraticCurveTo(-1.8, 0.7, -3, 1.5); guard.lineTo(-3.4, 1.3);
+    add(extrude(guard, 0.7, 0.14), trim, 0, 2.3, 0);
+    add(new THREE.OctahedronGeometry(0.55, 0), gem, 0, 2.9, 0.48);
+    add(new THREE.CylinderGeometry(0.44, 0.44, 4, 8), leather, 0, 0.3, 0);
+    for (const y of [-1, 0.3, 1.6]) add(new THREE.TorusGeometry(0.46, 0.08, 4, 10).rotateX(Math.PI / 2), dark, 0, y, 0);
+    add(new THREE.IcosahedronGeometry(0.7, 0), trim, 0, -2.1, 0);
+    base.position.set(0, 5, 0); tip.position.set(0, 16.4, 0);
   } else if (form === 4) {
     // Dagger: short leaf blade, swept guard, wrapped grip.
     const s = new THREE.Shape();

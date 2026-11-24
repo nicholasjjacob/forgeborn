@@ -41,7 +41,7 @@ export const FORMS: readonly FormDef[] = [
   /* 0 */ { name: 'Sword',    range: 22, arc: 1.25, speed: 1.0,  dmg: 1.0,  knockback: 1.0, blurb: 'Balanced' },
   /* 1 */ { name: 'Axe',      range: 21, arc: 1.65, speed: 0.9,  dmg: 1.1,  knockback: 1.1, blurb: 'Wide sweeps' },
   /* 2 */ { name: 'Greataxe', range: 25, arc: 1.95, speed: 0.7,  dmg: 1.45, knockback: 1.6, blurb: 'Huge, slow sweeps' },
-  /* 3 */ { name: 'Hammer',   range: 20, arc: 1.25, speed: 0.75, dmg: 1.5,  knockback: 2.2, blurb: 'Slow, heavy hits' },
+  /* 3 */ { name: 'Greatsword', range: 28, arc: 1.45, speed: 0.78, dmg: 1.35, knockback: 1.5, blurb: 'Long reach, heavy sweeps' },
   /* 4 */ { name: 'Dagger',   range: 17, arc: 0.9,  speed: 1.45, dmg: 0.72, knockback: 0.5, blurb: 'Very fast, close in' },
   /* 5 */ { name: 'Crossbow', range: 80, arc: 0.3,  speed: 0.7,  dmg: 1.15, knockback: 0.9, blurb: 'Ranged, heavy bolts',
             ranged: { speed: 330, pierce: 0, splash: 0, kind: 'bolt' } },

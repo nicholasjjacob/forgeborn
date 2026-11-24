@@ -189,6 +189,9 @@ export function migrate(input: unknown): SaveData {
   // Skins: always own the default; the selected skin must be owned.
   save.skins = Array.isArray(save.skins) ? [...new Set([DEFAULT_SKIN, ...save.skins.filter((x) => typeof x === 'string')])] : [DEFAULT_SKIN];
   if (typeof save.skin !== 'string' || !save.skins.includes(save.skin)) save.skin = DEFAULT_SKIN;
+  const looks: Record<string, string> = {};
+  for (const [k, v] of Object.entries(save.looks && typeof save.looks === 'object' ? save.looks : {})) if (typeof v === 'string') looks[k] = v;
+  save.looks = looks;
   // Normalise the inventory size: at least the starting size, whole rows, at most the maximum
   // (it grows when the player buys expansions).
   const raw = Array.isArray(save.weapons) ? save.weapons : [];

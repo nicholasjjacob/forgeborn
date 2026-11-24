@@ -8,6 +8,8 @@ import { MAX_PICKUPS } from '../sim/gather';
 import { cloneActor, findClip, loadModel, measure, model } from './models';
 import { Fx3D } from './fx3d';
 import { buildWeapon, weaponTrailColor, type WeaponView } from './weapons3d';
+import { applyLook } from './heroLook';
+import { lookOf } from '../sim/skins';
 
 /**
  * The 3D battlefield (Three.js). Game coordinates map straight onto the ground plane:
@@ -168,6 +170,8 @@ export class World3D {
   private readonly pools = new Map<string, Actor[]>();
   private readonly corpses: Corpse[] = [];
   private readonly shotMeshes: THREE.Mesh[] = [];
+  /** Which model + style the hero's look was last applied to. */
+  private heroLookOn = '';
   /** Hero projectiles: an arrow, a crossbow bolt and a magic orb per slot (one shown at a time). */
   private readonly heroShotViews: { root: THREE.Group; arrow: THREE.Group; bolt: THREE.Group; magic: THREE.Mesh; core: THREE.Mesh }[] = [];
   private readonly pickupMeshes: { wood: THREE.Mesh; stone: THREE.Mesh }[] = [];
@@ -706,6 +710,11 @@ export class World3D {
 
     // Hero
     if (sim.save.skin !== this.heroSkin) this.loadHero(sim.save.skin);
+    const look = lookOf(sim.save.skin, sim.save.looks);
+    if (this.heroModel && this.heroLookOn !== this.heroModel.uuid + look) {
+      applyLook(this.heroModel, this.heroSkin, look);
+      this.heroLookOn = this.heroModel.uuid + look;
+    }
     this.heroRoot.position.set(hx, 0, hy);
     const mvx = h.x - h.prevX, mvy = h.y - h.prevY;
     let want = this.heroYaw;

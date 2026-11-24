@@ -112,6 +112,8 @@ export interface SaveData {
   /** The hero (class) being played and every hero owned. Kept through Reforge. */
   skin: string;
   skins: string[];
+  /** Chosen style per hero (e.g. the Knight's visor), by skin id. Cosmetic. */
+  looks: Record<string, string>;
   /** Zone → wall-clock time (ms) when its beaten boss can be rematched again. */
   bossReady: Record<string, number>;
   /** Recent earnings per second, used to pay out offline progress. */
@@ -130,7 +132,7 @@ export function freshSave(): SaveData {
     missions: freshMissions(),
     level: 1, xp: 0, levelClaimed: [], materials: freshMaterials(),
     zone: 0, zoneBosses: 0, zoneBest: 0,
-    skin: DEFAULT_SKIN, skins: [DEFAULT_SKIN], bossReady: {},
+    skin: DEFAULT_SKIN, skins: [DEFAULT_SKIN], looks: {}, bossReady: {},
     savedAt: Date.now(),
   };
 }
@@ -764,6 +766,13 @@ export class Sim {
     this.save.skins.push(id);
     this.save.gear[id] = starterWeapon(def.forms[0], this.save.nextWeaponId++);
     this.selectSkin(id);
+    return true;
+  }
+
+  /** Choose a style for an owned hero (cosmetic). */
+  setLook(skin: string, look: string): boolean {
+    if (!this.ownsSkin(skin) || !skinDef(skin).looks?.some((l) => l.id === look)) return false;
+    this.save.looks[skin] = look;
     return true;
   }
 

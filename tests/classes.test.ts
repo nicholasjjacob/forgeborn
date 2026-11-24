@@ -40,7 +40,7 @@ describe('hero classes', () => {
 
   it('each hero keeps their own weapon when switching', () => {
     const save = heroSave('knight');
-    save.equipped = { id: 77, rarity: 3, form: 3, traits: [] }; // Epic Hammer
+    save.equipped = { id: 77, rarity: 3, form: 3, traits: [] }; // Epic Greatsword
     const sim = new Sim(save, 1);
     expect(sim.selectSkin('ranger')).toBe(true);
     expect(save.equipped?.form).toBe(6); // a starter Bow

@@ -36,11 +36,14 @@ export interface SkinDef {
   /** The class perk, in words. */
   perk: string;
   mods: ClassMods;
+  /** Optional styles (cosmetic); the first is the default. */
+  looks?: readonly { id: string; name: string }[];
 }
 
 export const SKINS: readonly SkinDef[] = [
   { id: 'knight', name: 'Knight', role: 'Guardian', blurb: 'Plate armour, a crested helm and a red cape.', cost: 0,
-    forms: [0, 3], perk: '+40% HP and takes 20% less damage', mods: { hp: 1.4, dmgTaken: 0.8 } },
+    forms: [0, 3], perk: '+40% HP and takes 20% less damage', mods: { hp: 1.4, dmgTaken: 0.8 },
+    looks: [{ id: 'open', name: 'Visor up' }, { id: 'visor', name: 'Visor down' }, { id: 'bare', name: 'No helmet' }] },
   { id: 'barbarian', name: 'Barbarian', role: 'Berserker', blurb: 'Bear-skin hat, bare arms, big attitude.', cost: 150,
     forms: [1, 2], perk: 'Rage: up to +60% damage as HP drops · wider swings', mods: { rage: 0.6, arc: 1.2, hp: 1.1 } },
   { id: 'rogue', name: 'Rogue', role: 'Duelist', blurb: 'Light leathers for quick work.', cost: 150,
@@ -57,6 +60,14 @@ export const DEFAULT_SKIN = 'knight';
 
 export function skinDef(id: string): SkinDef {
   return SKINS.find((s) => s.id === id) ?? SKINS[0];
+}
+
+/** The style hero `skin` wears, given the saved choices (falls back to its default). */
+export function lookOf(skin: string, looks: Record<string, string>): string {
+  const all = skinDef(skin).looks;
+  if (!all) return '';
+  const want = looks[skin];
+  return all.some((l) => l.id === want) ? want : all[0].id;
 }
 
 /** Can hero `skin` wield weapon type `form`? */

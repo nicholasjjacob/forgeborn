@@ -232,11 +232,14 @@ function drawWeapon(c: Ctx, form: number, p: (typeof WEAPON_PALS)[number]): void
     }
     shadedRect(c, 3.6, 2.6, 1.8, 3.8, 0.5, p.d);
     ball(c, 4.5, 4.4, 0.8, 0.8, p.a);
-  } else if (form === 3) { // hammer
-    grip(5);
-    shadedRect(c, 0.6, 0.6, 7.8, 4.8, 1.3, p.m);
-    c.fillStyle = 'rgba(255,255,255,0.45)'; rrect(c, 1.4, 1.2, 6.2, 1, 0.5); c.fill();
-    ball(c, 4.5, 3, 0.9, 0.9, p.a);
+  } else if (form === 3) { // greatsword: long blade, winged gold guard
+    c.beginPath(); c.moveTo(4.5, 0.1); c.lineTo(6.1, 1.6); c.lineTo(6.1, 11); c.lineTo(2.9, 11); c.lineTo(2.9, 1.6); c.closePath();
+    c.fillStyle = metal(2.9, 6.1); c.fill(); c.stroke();
+    c.fillStyle = 'rgba(255,255,255,0.55)'; c.fillRect(3.8, 1.8, 0.5, 8.6);
+    c.beginPath(); c.moveTo(0.2, 10.2); c.quadraticCurveTo(2.4, 11.6, 4.5, 11.2); c.quadraticCurveTo(6.6, 11.6, 8.8, 10.2);
+    c.lineTo(8.6, 11.9); c.quadraticCurveTo(4.5, 12.9, 0.4, 11.9); c.closePath();
+    c.fillStyle = '#e8b33c'; c.fill(); c.stroke();
+    grip(12.4);
   } else if (form === 4) { // dagger: short leaf blade
     c.beginPath(); c.moveTo(4.5, 3); c.quadraticCurveTo(6.3, 6.5, 5.6, 10.6); c.lineTo(3.4, 10.6); c.quadraticCurveTo(2.7, 6.5, 4.5, 3);
     c.fillStyle = metal(3, 6); c.fill(); c.stroke();

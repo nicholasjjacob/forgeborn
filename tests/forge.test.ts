@@ -111,7 +111,7 @@ describe('forge commands', () => {
 
   it('sorts the inventory by type and rarity with empty slots last', () => {
     const save = freshSave();
-    save.weapons[4] = w(0, 3); // common hammer
+    save.weapons[4] = w(0, 3); // common greatsword
     save.weapons[0] = w(1, 1); // uncommon axe
     save.weapons[7] = w(2, 1); // rare axe
     save.weapons[2] = w(0, 0); // common sword
