@@ -1,3 +1,4 @@
+import { paintMonsterPortraits } from './monsterPreview';
 import { gi, terrainIcon } from './icons';
 import { zoneName } from '../sim/zones';
 import { haptic, sfx } from '../audio/sfx';
@@ -187,6 +188,7 @@ export class MissionsUI {
       : this.tab === 'codex' ? this.renderCodex()
       : this.renderShop();
     body.scrollTop = scroll;
+    paintMonsterPortraits();
   }
 
   // --- Sections ---------------------------------------------------------------------
@@ -350,7 +352,7 @@ export class MissionsUI {
         const reward = maxed ? null : codexReward(slot, tier);
         return `<div class="codex-card ${slot === 3 ? 'boss' : ''} ${ready ? 'ready' : ''} ${maxed ? 'maxed' : ''}">
           ${slot === 3 ? '<span class="boss-tag">BOSS</span>' : ''}
-          <div class="codex-portrait"><img alt="" src="${this.codexIcon(area, slot)}" class="${seen ? '' : 'unseen'}" /></div>
+          <div class="codex-portrait"><img alt="" src="${this.codexIcon(area, slot)}" class="${seen ? '' : 'unseen'}" /><canvas class="mon3d ${seen ? '' : 'unseen'}" data-model="m${area % 6}_${slot}" data-fly="${slot < 3 && mon.shape === 'bat' ? 1 : 0}"></canvas></div>
           <div class="codex-name">${seen ? mon.name : '???'}</div>
           <div class="stars">${tiers.map((_, i) => `<i class="${i < tier ? 'on' : ''}">★</i>`).join('')}</div>
           <div class="bar thin"><div class="bar-fill" style="transform:scaleX(${Math.min(1, kills / goal)})"></div></div>

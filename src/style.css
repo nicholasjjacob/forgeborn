@@ -1152,3 +1152,9 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 .forge-level-btn.mini b { font-size: 13px; }
 .inv-wrap { grid-template-columns: 30px 1fr 30px; }
 .inv-grid { gap: 6px; }
+
+/* Codex: live 3D monster over its sprite (the sprite shows until the model has drawn) */
+.codex-portrait { position: relative; }
+.codex-portrait canvas.mon3d { position: absolute; inset: 0; width: 100%; height: 100%; }
+.codex-portrait.has3d img { visibility: hidden; }
+.codex-card canvas.mon3d.unseen { filter: brightness(0) opacity(0.35); }
