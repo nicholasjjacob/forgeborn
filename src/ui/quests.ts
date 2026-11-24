@@ -55,7 +55,7 @@ export class QuestPanel {
       al.appendChild(li);
       this.achRows.push({ name: li.querySelector('.ach-name')!, goal: li.querySelector('.ach-goal')!, fill: li.querySelector('.bar-fill')!, tier: li.querySelector('.ach-tier')! });
     }
-    this.pager = new Pager(al, 6);
+    this.pager = new Pager(al, 8);
     root.querySelector('.page-foot')!.append(this.pager.el);
     this.pager.update();
   }

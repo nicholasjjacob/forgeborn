@@ -76,7 +76,7 @@ export class ForgePanel {
       invBtn: $('#inv-btn'), invCount: $('#inv-count'), invSub: $('#inv-sub'), invDot: $('#inv-dot'),
       grid: $('#inv-grid'),
     };
-    this.pager = new Pager(this.el.grid, 12);
+    this.pager = new Pager(this.el.grid, 18);
     $('.inv-wrap').append(this.pager.el);
 
     this.ensureSlots();

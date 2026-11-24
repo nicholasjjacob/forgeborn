@@ -250,7 +250,7 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 @keyframes ping { from { opacity: 1; scale: 0.4; } to { opacity: 0; scale: 1.3; } }
 
 .hint {
-  position: fixed; left: 50%; bottom: calc(40dvh + 12px); translate: -50% 0; margin: 0; z-index: 2;
+  position: fixed; left: 50%; bottom: calc(clamp(380px, 56dvh, 540px) + var(--safe-bottom) + 12px); translate: -50% 0; margin: 0; z-index: 2;
   padding: 7px 14px; border-radius: 999px; background: #1a1f3add; color: #fff; font-size: 12px;
   pointer-events: none; white-space: nowrap; transition: opacity 0.6s;
 }
@@ -260,7 +260,7 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 
 #panel {
   flex: 0 0 auto;
-  height: calc(clamp(270px, 37dvh, 360px) + var(--safe-bottom));
+  height: calc(clamp(380px, 56dvh, 540px) + var(--safe-bottom));
   touch-action: none; overscroll-behavior: none;
   transition: height 0.22s ease;
   display: flex; flex-direction: column;
@@ -1102,3 +1102,51 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 .inv-grid { grid-column: 2; grid-row: 1; grid-template-columns: repeat(6, 1fr); gap: 5px; }
 .slot { min-height: 0; }
 .wc-tag:empty { display: none; }
+
+/* --- Taller menu (it covers more of the battlefield; drop it down to see the fight): bigger,
+   easier-to-tap controls ------------------------------------------------------------------- */
+.pg-btn { width: 40px; height: 34px; font-size: 24px; }
+.pg-label { font-size: 13px; }
+.page-foot { margin-top: 10px; font-size: 13px; }
+.seg { margin-bottom: 9px; }
+.seg button { padding: 9px 4px; font-size: 15px; }
+
+.page-head { padding: 2px 10px 8px; }
+.page-head .buy-modes button { padding: 6px 14px; font-size: 14px; }
+#upgrade-list { gap: 7px; }
+#upgrade-list .upgrade, .perk-list .upgrade { padding: 6px 9px; gap: 10px; }
+#upgrade-list .icon, .perk-list .icon { width: 44px; height: 44px; }
+#upgrade-list .icon .gi, .perk-list .icon .gi { width: 30px; height: 30px; }
+#upgrade-list .buy, .perk-list .buy { padding: 8px 12px; min-width: 92px; font-size: 15px; }
+.perk-list { gap: 8px; }
+
+.quest-list { gap: 10px; }
+.quest { padding: 10px 12px; }
+.q-main { gap: 5px; }
+.q-text { font-size: 15px; }
+.quest .btn.small { padding: 12px 16px; font-size: 15px; }
+.ach-list { gap: 8px; }
+.ach { padding: 9px 9px; }
+.ach-tier { flex-basis: 34px; height: 34px; font-size: 13px; }
+.ach-name { font-size: 14px; }
+.ach-goal { font-size: 11px; }
+
+.reforge-card { padding: 16px 14px; }
+.rf-embers { font-size: 28px; }
+.rf-glow { font-size: 13px; margin: 4px 0 10px; }
+.rf-text { font-size: 14px; margin-bottom: 14px; }
+.rf-keep { font-size: 12px; margin-top: 10px; }
+.reforge-card .btn { padding: 13px; font-size: 18px; }
+
+#forge-root { gap: 10px; }
+.weapon-card { height: 100px; padding: 8px 10px; }
+.wc-icon { width: 56px; height: 56px; }
+.wc-name { font-size: 15px; }
+.wc-actions .btn.small { padding: 9px 12px; font-size: 14px; }
+.forge-actions { height: 58px; gap: 6px; }
+.forge-actions .btn { font-size: 17px; }
+#auto-merge { font-size: 13px; }
+.forge-level-btn.mini .flb-ico .gi { width: 22px; height: 22px; }
+.forge-level-btn.mini b { font-size: 13px; }
+.inv-wrap { grid-template-columns: 30px 1fr 30px; }
+.inv-grid { gap: 6px; }
