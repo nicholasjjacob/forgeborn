@@ -185,7 +185,8 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 .icon-chip { font-size: 17px; padding: 3px 9px; color: #fff; }
 
 /* Pinned under Auto/settings so the top row stays narrow on phones. */
-.tracker { position: absolute; top: calc(100% + 8px); right: 0; display: flex; flex-direction: column; gap: 5px; width: 118px; cursor: pointer; }
+/* Starts below the zone capsule (which is taller than the Auto/settings column) so they never overlap. */
+.tracker { position: absolute; top: calc(100% + 34px); right: 0; display: flex; flex-direction: column; gap: 5px; width: 118px; cursor: pointer; }
 .tracker:empty { display: none; }
 .track-card {
   display: block; width: 100%; border: 0; font: inherit; text-align: left; cursor: pointer;
