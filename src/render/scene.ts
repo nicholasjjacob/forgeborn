@@ -163,6 +163,7 @@ export class Scene {
     const sy = this.shake > 0 ? (Math.random() - 0.5) * this.shake * 3 : 0;
     w3.setCamera(cx + sx, cy + sy);
     w3.update(sim, alpha, dt, this.t);
+    w3.updateFx(dt);
 
     // Hero overlay: health bar and level over the head.
     const dead = sim.phase === 'dead';
@@ -235,6 +236,7 @@ export class Scene {
   private drainEvents(): void {
     const q = this.sim.events;
     const fx = this.fx;
+    const fx3 = this.world3d.fx;
     for (let i = 0; i < q.count; i++) {
       const x = q.x[i], y = q.y[i], v = q.value[i], f = q.flag[i];
       switch (q.type[i]) {
@@ -244,21 +246,22 @@ export class Scene {
         case Ev.Hit:
           if (f !== 2) sfx.play(f === 1 ? 'crit' : 'hit');
           fx.text(x, y, v, f === 1 ? 0xffd23f : f === 2 ? 0x9fe8ff : 0xffffff, f === 1);
-          fx.burst(x, y + 2, 0xffffff, f ? 4 : 2, 30);
+          fx3.hit(x, y, 7, f === 1, f === 2 ? 0x9fe8ff : 0xfff4d0);
           if (f) this.shake = Math.max(this.shake, 0.35);
           break;
         case Ev.Kill: {
           const boss = f === 1;
-          fx.burst(x, y, boss ? 0xffd23f : 0xe8e0ff, boss ? 34 : 9, boss ? 80 : 45);
+          // The 3D burst comes from world3d when the monster's model falls.
           fx.coin(x, y, boss ? 14 : 1 + ((Math.random() * 2) | 0));
           sfx.play(boss ? 'bossKill' : 'kill');
           sfx.play('coin');
-          if (boss) { this.shake = 1; fx.ring(x, y, 0xffd23f, 4); haptic(60); }
+          if (boss) { this.shake = 1; haptic(60); }
           break;
         }
         case Ev.HeroHit:
           sfx.play('hurt');
           fx.text(x, y, v, 0xff6b6b, false, '-');
+          fx3.hurt(x, y);
           break;
         case Ev.HeroDie:
           fx.burst(x, y, 0xb8343e, 18, 50);
@@ -267,7 +270,7 @@ export class Scene {
           haptic(120);
           break;
         case Ev.Spawn:
-          fx.burst(x, y, 0xd8c8ff, v ? 20 : 5, v ? 60 : 25);
+          fx3.spawn(x, y, v !== 0);
           break;
         case Ev.StageClear:
           this.camX = this.sim.hero.x; this.camY = this.sim.hero.y;
@@ -290,20 +293,18 @@ export class Scene {
           break;
         case Ev.Shock:
           sfx.play('zap');
-          fx.zap(q.x2[i], q.y2[i], x, y);
+          fx3.zap(q.x2[i], q.y2[i], x, y);
           break;
         case Ev.LevelUp:
           sfx.play('achieve');
-          fx.ring(x, y, 0xffd23f, 4);
-          fx.ring(x, y, 0xffffff, 2.5);
-          fx.burst(x, y, 0xffd23f, 26, 70);
+          fx3.levelUp(x, y);
           this.levelPop = 0.6;
           haptic(40);
           this.hooks.onLevelUp?.(v);
           break;
         case Ev.Chop:
           this.world3d.chop(v);
-          fx.burst(x, y, 0xd8c8a0, 4, 30);
+          fx3.hit(x, y, 9, false, 0xd8c8a0);
           break;
         case Ev.Drop:
           fx.burst(x, y, v ? 0xc8d0dc : 0xd8a868, 5, 25);
@@ -319,8 +320,7 @@ export class Scene {
           break;
         case Ev.Slam:
           this.shake = Math.max(this.shake, 0.8);
-          fx.ring(x, y, 0xff6a3a, (v / 16) * 1.0);
-          fx.burst(x, y, 0xd8b890, 22, 70);
+          fx3.dust(x, y, v);
           sfx.play('crit');
           haptic(30);
           break;
@@ -331,9 +331,8 @@ export class Scene {
           fx.burst(x, y, 0xffffff, 4, 25);
           break;
         case Ev.ZoneClear:
-          fx.ring(x, y, 0xffd23f, 5);
-          fx.ring(x, y, 0xffffff, 3);
-          fx.burst(x, y, 0xffd23f, 40, 90);
+          fx3.levelUp(x, y);
+          fx3.ring(x, y, 0xffffff, 50, 0.8);
           sfx.play('achieve');
           this.hooks.onZoneClear?.(v);
           break;

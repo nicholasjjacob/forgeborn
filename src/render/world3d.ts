@@ -5,8 +5,9 @@ import { areaFor, type PropKind } from '../sim/areas';
 import { MAP_H, MAP_W, type GameMap } from '../sim/map';
 import { ELITE, MAX_ENEMIES, MAX_SHOTS, SLAM_RADIUS, SLAM_WIND, STYLE_DASHER, type Enemy, type Sim } from '../sim/sim';
 import { MAX_PICKUPS } from '../sim/gather';
-import { FORMS } from '../sim/weapons';
 import { cloneActor, findClip, loadModel, measure, model } from './models';
+import { Fx3D } from './fx3d';
+import { buildWeapon, weaponTrailColor, type WeaponView } from './weapons3d';
 
 /**
  * The 3D battlefield (Three.js). Game coordinates map straight onto the ground plane:
@@ -21,7 +22,6 @@ const VIEW_W = 108;                    // keep about this many units across the 
 const VIEW_H = 90;                     // …and at least this many vertically
 const CHUNK = 160;                     // props are instanced per chunk so off-screen chunks are culled
 const HERO_H = 17;
-const SWING_TIME = 0.22;
 const HERO_LAYER = 1;
 
 /** Monster heights (world units) by body shape; bosses use their own big models. */
@@ -70,7 +70,6 @@ export function preloadArea(area: number): Promise<unknown> {
   return Promise.all([...names].map((n) => loadModel(n).catch(() => null)));
 }
 
-const RARITY_METAL = [0xc8ccd8, 0x5aa8ff, 0xb87cff, 0xffc040];
 
 interface Part { geo: THREE.BufferGeometry; mat: THREE.Material; m: THREE.Matrix4 }
 
@@ -152,7 +151,11 @@ export class World3D {
   private heroDead = false;
   private readonly hand = new THREE.Group();  // weapon holder, in world units
   private weaponKey = '';
-  private readonly slash: THREE.Mesh;
+  private weapon: WeaponView | null = null;
+  private readonly wTip = new THREE.Vector3();
+  private readonly wBase = new THREE.Vector3();
+  /** Sparks, bursts, shockwaves, the swing trail. */
+  readonly fx: Fx3D;
 
   // Monsters
   private readonly slots: Slot[] = [];
@@ -184,13 +187,7 @@ export class World3D {
     this.hemi.layers.enable(HERO_LAYER);
     this.sun.shadow.camera.layers.enable(HERO_LAYER);
 
-    // Hero slash arc: a flat crescent on the ground that sweeps with the swing.
-    const sg = new THREE.RingGeometry(7, 22, 20, 1, -1, 2);
-    sg.rotateX(-Math.PI / 2);
-    this.slash = new THREE.Mesh(sg, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
-    this.slash.visible = false;
-    this.slash.renderOrder = 2;
-    this.scene.add(this.slash);
+    this.fx = new Fx3D(this.scene);
 
     void loadModel('hero').then((g) => this.setupHero(g)).catch(() => {});
 
@@ -245,6 +242,7 @@ export class World3D {
 
   setLow(low: boolean): void {
     this.low = low;
+    this.fx.low = low;
     this.sun.castShadow = !low;
     this.renderer.setPixelRatio(low ? 1 : Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.setSize(this.w, this.h, false);
@@ -560,11 +558,13 @@ export class World3D {
     const key = `${form}|${rarity}`;
     if (key === this.weaponKey) return;
     this.weaponKey = key;
-    for (const c of this.hand.children) (c as THREE.Mesh).geometry?.dispose();
+    this.hand.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) m.geometry.dispose(); });
     this.hand.clear();
-    const w = weaponModel(form, rarity);
-    w.traverse((o) => o.layers.set(HERO_LAYER));
-    this.hand.add(w);
+    const w = buildWeapon(form, rarity);
+    w.group.rotation.y = Math.PI / 2; // flat of the blade toward the camera
+    w.group.traverse((o) => o.layers.set(HERO_LAYER));
+    this.hand.add(w.group);
+    this.weapon = w;
   }
 
   private acquire(key: string, flying: boolean): Actor | null {
@@ -591,6 +591,8 @@ export class World3D {
       const m = o as THREE.Mesh;
       if (m.isMesh) for (const x of Array.isArray(m.material) ? m.material : [m.material]) mats.push(x as THREE.MeshLambertMaterial);
     });
+    // The packs' palettes are quite dark under a top-down sun; lift them so monsters read.
+    for (const m of mats) m.color.multiplyScalar(1.35);
     const actor: Actor = {
       key, obj: inner, mixer, mats, flash: -1, cur: null,
       idle: act(flying ? ['Flying_Idle', 'Idle'] : ['Idle', 'Flying_Idle']),
@@ -683,18 +685,15 @@ export class World3D {
     const heroFlash = h.hitT > 0 ? 0x902020 : 0;
     for (const m of this.heroMats) m.emissive.setHex(heroFlash);
 
-    // Slash arc
-    if (h.swingT > 0 && !dead) {
-      const p = 1 - h.swingT / SWING_TIME;
-      const form = FORMS[eq?.form ?? 0];
-      this.slash.visible = true;
-      this.slash.position.set(hx, 5, hy);
-      this.slash.rotation.y = -h.swingAngle;
-      const s = form.range / 22;
-      this.slash.scale.set(s * (0.9 + p * 0.2), 1, s * (0.9 + p * 0.2) * (form.arc / 1.25));
-      (this.slash.material as THREE.MeshBasicMaterial).opacity = 0.55 * (1 - p);
-      (this.slash.material as THREE.MeshBasicMaterial).color.setHex(RARITY_METAL[eq?.rarity ?? 0]);
-    } else this.slash.visible = false;
+    // Swing trail from the blade, and a slow pulse on glowing (Epic+) weapons.
+    if (this.weapon) {
+      this.heroRoot.updateMatrixWorld(true);
+      this.weapon.tip.getWorldPosition(this.wTip);
+      this.weapon.base.getWorldPosition(this.wBase);
+      this.fx.trailSample(h.swingT > 0 && !dead, this.wBase, this.wTip, weaponTrailColor(eq?.rarity ?? 0));
+      const pulse = 0.75 + 0.25 * Math.sin(t * 4);
+      for (const m of this.weapon.glow) m.emissiveIntensity = pulse;
+    }
 
     // Monsters
     const def = areaFor(this.area).def;
@@ -702,7 +701,12 @@ export class World3D {
       const e = sim.enemies[i], s = this.slots[i];
       if (!e.alive) {
         if (s.actor) {
-          if (s.alive) this.corpses.push({ actor: s.actor, t: 0, scale: s.actor.obj.scale.x });
+          if (s.alive) {
+            this.corpses.push({ actor: s.actor, t: 0, scale: s.actor.obj.scale.x });
+            const pal = (e.monster === 3 ? def.boss : def.monsters[e.monster])?.pal;
+            const p = s.actor.obj.position;
+            this.fx.kill(p.x, p.z, e.boss, pal ? parseInt(pal.m.slice(1), 16) : 0xe8e0ff);
+          }
           else this.release(s.actor);
           s.actor = null;
         }
@@ -744,6 +748,7 @@ export class World3D {
       const sizeK = (e.elite ? ELITE.scale : 1) * (e.boss && e.monster !== 3 ? 2 : 1);
       const spawnK = e.spawnT > 0 ? 1 - e.spawnT / 0.35 : 1;
       a.obj.scale.setScalar(a.base * a.h * sizeK * Math.max(0.05, spawnK));
+      if (e.hitT > 0) { a.obj.scale.y *= 0.82; a.obj.scale.x *= 1.1; a.obj.scale.z *= 1.1; } // squash on impact
       // Face the hero when close or attacking; otherwise face where it's going.
       const mx = e.x - e.prevX, my = e.y - e.prevY;
       const moving = Math.abs(mx) + Math.abs(my) > 0.05;
@@ -809,6 +814,11 @@ export class World3D {
       m.rotation.y = t * 1.5 + i;
       m.scale.setScalar(1.2 * (0.6 + 0.4 * pop) * (p.age > 110 ? Math.max(0, (120 - p.age) / 10) : 1));
     }
+  }
+
+  /** Effects step (after setCamera, so particles face the camera). */
+  updateFx(dt: number): void {
+    this.fx.update(dt, this.camera);
   }
 
   /** Ground markers under one monster: elite aura, boss slam circle, dash lane. */
@@ -972,51 +982,6 @@ function crystalModel(color: number): THREE.Object3D {
   shard(4, 1.5, 0.5, -3, 0.1, -0.45);
   const g = new THREE.Group();
   g.add(new THREE.Mesh(mergeGeometries(parts), mat));
-  return g;
-}
-
-/** Low-poly weapon in world units, grip at the origin, pointing along +y. Metal colour shows rarity. */
-function weaponModel(form: number, rarity: number): THREE.Object3D {
-  const metal = new THREE.MeshLambertMaterial({ color: RARITY_METAL[rarity], emissive: new THREE.Color(RARITY_METAL[rarity]).multiplyScalar(rarity ? 0.35 : 0.05), flatShading: true });
-  const wood = new THREE.MeshLambertMaterial({ color: 0x6a4024, flatShading: true });
-  const dark = new THREE.MeshLambertMaterial({ color: 0x3a3040, flatShading: true });
-  const g = new THREE.Group();
-  g.rotation.y = Math.PI / 2; // flat of the blade toward the camera
-  const box = (w: number, h: number, d: number, y: number, mat: THREE.Material, x = 0) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-    m.position.set(x, y, 0);
-    m.castShadow = true;
-    g.add(m);
-    return m;
-  };
-  if (form === 0) {         // sword
-    box(0.7, 3, 0.7, 0, dark);
-    box(3.6, 0.6, 1, 1.7, metal);
-    const blade = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 1.25, 10, 4), metal);
-    blade.scale.set(1, 1, 0.3);
-    blade.rotation.y = Math.PI / 4;
-    blade.position.y = 7;
-    blade.castShadow = true;
-    g.add(blade);
-  } else if (form === 1) {  // axe
-    box(0.6, 11, 0.6, 3.5, wood);
-    const head = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.2, 0.6, 8, 1, false, 0, Math.PI), metal);
-    head.rotation.set(Math.PI / 2, 0, Math.PI / 2);
-    head.position.set(0.3, 7.5, 0);
-    head.castShadow = true;
-    g.add(head);
-  } else if (form === 2) {  // spear
-    box(0.5, 17, 0.5, 5.5, wood);
-    const tip = new THREE.Mesh(new THREE.ConeGeometry(1, 3.6, 4), metal);
-    tip.position.y = 15.8;
-    tip.castShadow = true;
-    g.add(tip);
-    box(1.6, 0.5, 0.6, 13.8, metal);
-  } else {                  // hammer
-    box(0.7, 10, 0.7, 3, wood);
-    box(5, 3, 3, 8.5, metal);
-    box(5.4, 0.6, 3.4, 8.5, dark);
-  }
   return g;
 }
 
