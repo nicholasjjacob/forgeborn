@@ -1139,10 +1139,12 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 .reforge-card .btn { padding: 13px; font-size: 18px; }
 
 #forge-root { gap: 10px; }
-.weapon-card { height: 100px; padding: 8px 10px; }
+.weapon-card { height: 128px; padding: 8px 10px; }
+.wc-body { max-height: 112px; }
+.wc-actions { gap: 5px; justify-content: center; }
 .wc-icon { width: 56px; height: 56px; }
 .wc-name { font-size: 15px; }
-.wc-actions .btn.small { padding: 9px 12px; font-size: 14px; }
+.wc-actions .btn.small { padding: 7px 12px; font-size: 14px; }
 .forge-actions { height: 58px; gap: 6px; }
 .forge-actions .btn { font-size: 17px; }
 #auto-merge { font-size: 13px; }
