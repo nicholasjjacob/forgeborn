@@ -47,7 +47,29 @@ export function registerPwa(): { canInstall(): boolean; install(): Promise<boole
  * "New version ready" banner instead of interrupting play. The game saves on pagehide, so a
  * reload loses nothing.
  */
+const UPDATED_FLAG = 'fb-just-updated';
+
+/** Reload into the new build, and say so once it's running. */
+function reloadIntoUpdate(): void {
+  try { sessionStorage.setItem(UPDATED_FLAG, '1'); } catch { /* storage blocked: reload anyway */ }
+  location.reload();
+}
+
+/** After an update reload: a short "Updated" note at the top of the screen. */
+function announceUpdate(): void {
+  let was = false;
+  try { was = sessionStorage.getItem(UPDATED_FLAG) === '1'; sessionStorage.removeItem(UPDATED_FLAG); } catch { /* ignore */ }
+  if (!was) return;
+  const note = document.createElement('div');
+  note.className = 'update-banner done';
+  note.textContent = `✨ Updated to the latest version (${__BUILD__})`;
+  document.body.appendChild(note);
+  setTimeout(() => note.classList.add('gone'), 3500);
+  setTimeout(() => note.remove(), 4200);
+}
+
 function watchForUpdates(): void {
+  announceUpdate();
   const current = document.querySelector<HTMLScriptElement>('script[type="module"][src*="assets/index-"]')?.src;
   if (!current) return;
   const name = (src: string) => src.slice(src.lastIndexOf('/') + 1);
@@ -63,7 +85,7 @@ function watchForUpdates(): void {
     checking = true;
     try {
       if (await newer()) {
-        if (reloadNow) location.reload();
+        if (reloadNow) reloadIntoUpdate();
         else showBanner();
       }
     } catch { /* offline: try again next time */ }
@@ -75,7 +97,7 @@ function watchForUpdates(): void {
     banner.type = 'button';
     banner.className = 'update-banner';
     banner.textContent = '✨ New version ready · Tap to update';
-    banner.addEventListener('click', () => location.reload());
+    banner.addEventListener('click', reloadIntoUpdate);
     document.body.appendChild(banner);
   };
   document.addEventListener('visibilitychange', () => { if (!document.hidden) check(true); });
