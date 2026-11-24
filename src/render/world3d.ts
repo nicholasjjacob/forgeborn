@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { areaFor, type PropKind } from '../sim/areas';
 import { MAP_H, MAP_W, type GameMap } from '../sim/map';
-import { ELITE, MAX_ENEMIES, MAX_SHOTS, SLAM_RADIUS, SLAM_WIND, STYLE_DASHER, type Enemy, type Sim } from '../sim/sim';
+import { ELITE, MAX_ENEMIES, MAX_HERO_SHOTS, MAX_SHOTS, SLAM_RADIUS, SLAM_WIND, STYLE_DASHER, type Enemy, type Sim } from '../sim/sim';
 import { MAX_PICKUPS } from '../sim/gather';
 import { cloneActor, findClip, loadModel, measure, model } from './models';
 import { Fx3D } from './fx3d';
@@ -168,6 +168,8 @@ export class World3D {
   private readonly pools = new Map<string, Actor[]>();
   private readonly corpses: Corpse[] = [];
   private readonly shotMeshes: THREE.Mesh[] = [];
+  /** Hero projectiles: an arrow, a crossbow bolt and a magic orb per slot (one shown at a time). */
+  private readonly heroShotViews: { root: THREE.Group; arrow: THREE.Group; bolt: THREE.Group; magic: THREE.Mesh; core: THREE.Mesh }[] = [];
   private readonly pickupMeshes: { wood: THREE.Mesh; stone: THREE.Mesh }[] = [];
   private area = -1;
 
@@ -228,6 +230,35 @@ export class World3D {
       m.visible = false;
       this.scene.add(m);
       this.shotMeshes.push(m);
+    }
+
+    // Hero projectiles, built along +z (their flight direction).
+    {
+      const wood = new THREE.MeshLambertMaterial({ color: 0x8a5a32 });
+      const steel = new THREE.MeshLambertMaterial({ color: 0xd8dde8 });
+      const feather = new THREE.MeshLambertMaterial({ color: 0xf4f0e6, side: THREE.DoubleSide });
+      const shaft = (len: number, r: number) => new THREE.CylinderGeometry(r, r, len, 5).rotateX(Math.PI / 2);
+      const head = (len: number, r: number) => new THREE.ConeGeometry(r, len, 5).rotateX(Math.PI / 2);
+      const orbGeo = new THREE.IcosahedronGeometry(2.4, 1);
+      const coreGeo = new THREE.IcosahedronGeometry(1.2, 0);
+      const fin = new THREE.PlaneGeometry(1.6, 2.4);
+      for (let i = 0; i < MAX_HERO_SHOTS; i++) {
+        const root = new THREE.Group();
+        const arrow = new THREE.Group();
+        arrow.add(new THREE.Mesh(shaft(9, 0.22), wood));
+        const ah = new THREE.Mesh(head(2, 0.6), steel); ah.position.z = 5.2; arrow.add(ah);
+        for (const r of [0, Math.PI / 2]) { const f = new THREE.Mesh(fin, feather); f.position.z = -3.8; f.rotation.set(Math.PI / 2, 0, r); arrow.add(f); }
+        const bolt = new THREE.Group();
+        bolt.add(new THREE.Mesh(shaft(6, 0.35), wood));
+        const bh = new THREE.Mesh(head(1.8, 0.75), steel); bh.position.z = 3.8; bolt.add(bh);
+        const fb = new THREE.Mesh(fin, steel); fb.position.z = -2.6; fb.rotation.set(Math.PI / 2, 0, 0); bolt.add(fb);
+        const magic = new THREE.Mesh(orbGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }));
+        const core = new THREE.Mesh(coreGeo, new THREE.MeshBasicMaterial({ color: 0xffffff }));
+        root.add(arrow, bolt, magic, core);
+        root.visible = false;
+        this.scene.add(root);
+        this.heroShotViews.push({ root, arrow, bolt, magic, core });
+      }
     }
 
     const logGeo = new THREE.CylinderGeometry(1, 1, 5.5, 7);
@@ -711,7 +742,7 @@ export class World3D {
       this.heroRoot.updateMatrixWorld(true);
       this.weapon.tip.getWorldPosition(this.wTip);
       this.weapon.base.getWorldPosition(this.wBase);
-      this.fx.trailSample(h.swingT > 0 && !dead, this.wBase, this.wTip, weaponTrailColor(eq?.rarity ?? 0));
+      this.fx.trailSample(h.swingT > 0 && !dead && !sim.ranged, this.wBase, this.wTip, weaponTrailColor(eq?.rarity ?? 0));
       const pulse = 0.75 + 0.25 * Math.sin(t * 4);
       for (const m of this.weapon.glow) m.emissiveIntensity = pulse;
     }
@@ -820,6 +851,26 @@ export class World3D {
       m.position.set(s.prevX + (s.x - s.prevX) * alpha, 6, s.prevY + (s.y - s.prevY) * alpha);
       m.scale.setScalar(1 + Math.sin(t * 30 + i) * 0.15);
       (m.material as THREE.MeshBasicMaterial).color.setHex(SHOT_COLORS[s.monster % SHOT_COLORS.length]);
+    }
+
+    // Hero projectiles
+    for (let i = 0; i < MAX_HERO_SHOTS; i++) {
+      const s = sim.heroShots[i], v = this.heroShotViews[i];
+      if (!s.alive) { v.root.visible = false; continue; }
+      v.root.visible = true;
+      v.root.position.set(s.prevX + (s.x - s.prevX) * alpha, 9, s.prevY + (s.y - s.prevY) * alpha);
+      v.root.rotation.y = Math.atan2(s.vx, s.vy);
+      const magic = s.kind === 'magic';
+      v.arrow.visible = s.kind === 'arrow';
+      v.bolt.visible = s.kind === 'bolt';
+      v.magic.visible = v.core.visible = magic;
+      if (magic) {
+        const c = weaponTrailColor(s.rarity);
+        (v.magic.material as THREE.MeshBasicMaterial).color.setHex(c);
+        v.magic.scale.setScalar((s.splash > 0 ? 1.15 : 0.7) * (1 + Math.sin(t * 40 + i) * 0.15));
+        v.core.scale.setScalar(s.splash > 0 ? 1 : 0.65);
+        this.fx.mote(v.root.position.x, v.root.position.z, 9, c);
+      }
     }
 
     // Wood / stone pickups

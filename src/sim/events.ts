@@ -5,7 +5,7 @@ export const Ev = {
   HeroDie: 4,
   StageClear: 5,
   BossFail: 6,
-  Swing: 7,      // x, y, value = angle
+  Swing: 7,      // x, y, value = angle, flag = 1 for a ranged shot
   BossSpawn: 8,
   Spawn: 9,      // x, y, value = 1 for boss
   AreaEnter: 10, // value = zone index (travelled to a zone)
@@ -21,6 +21,7 @@ export const Ev = {
   ShotPop: 20,   // x, y (a projectile hit a prop or fizzled out)
   ZoneUnlock: 21, // value = zone index (a new zone opened on the world map)
   ZoneClear: 22,  // x, y; value = zone index (its boss was beaten for the first time)
+  Burst: 23,      // x, y; value = radius, flag = rarity (a hero's magic orb exploded)
 } as const;
 export type Ev = (typeof Ev)[keyof typeof Ev];
 

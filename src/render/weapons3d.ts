@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 
 /**
- * Hand-built low-poly weapons (one per form), in world units with the grip at the origin and
+ * Hand-built low-poly weapons (one per form: Sword, Axe, Greataxe, Hammer, Dagger, Crossbow,
+ * Bow, Longbow, Staff, Wand), in world units with the grip at the origin and
  * the business end along +y. Bevelled extrusions give blades a proper edge; rarity changes the
  * metal (steel, blue, violet, gold), adds a glowing gem from Rare up and a glow from Epic up.
  * `tip` and `base` markers bound the striking part, for the swing trail.
@@ -82,19 +83,20 @@ export function buildWeapon(form: number, rarity: number): WeaponView {
     for (const y of [-0.8, 0.8, 2.4]) add(new THREE.CylinderGeometry(0.52, 0.52, 0.35, 8), y < 0 ? leather : dark, 0, y, 0);
     base.position.set(1.5, 7.2, 0); tip.position.set(3.4, 9.8, 0);
   } else if (form === 2) {
-    // Spear: long haft, leaf-shaped head on a collar, red tassel.
-    add(new THREE.CylinderGeometry(0.32, 0.38, 19, 7), wood, 0, 5.5, 0);
-    const leaf = new THREE.Shape();
-    leaf.moveTo(0, 0); leaf.quadraticCurveTo(1.25, 1.2, 0.9, 2.6); leaf.lineTo(0, 4.8); leaf.lineTo(-0.9, 2.6);
-    leaf.quadraticCurveTo(-1.25, 1.2, 0, 0);
-    add(extrude(leaf, 0.14, 0.18), metal, 0, 15.6, 0);
-    add(new THREE.CylinderGeometry(0.3, 0.55, 1.4, 8), trim, 0, 15, 0);
-    add(new THREE.OctahedronGeometry(0.35, 0), gem, 0, 15, 0.45);
-    const tassel = new THREE.ConeGeometry(0.8, 2.2, 6);
-    add(tassel, new THREE.MeshLambertMaterial({ color: 0xc83a2a, flatShading: true }), 0, 13.2, 0);
-    for (const y of [-0.6, 0.6]) add(new THREE.CylinderGeometry(0.44, 0.44, 0.3, 8), leather, 0, y, 0);
-    base.position.set(0, 14, 0); tip.position.set(0, 20.5, 0);
-  } else {
+    // Greataxe: long banded haft, two broad crescent blades and a top spike.
+    add(new THREE.CylinderGeometry(0.42, 0.52, 16, 7), wood, 0, 5.5, 0);
+    const h = new THREE.Shape();
+    h.moveTo(0, 1.2); h.quadraticCurveTo(2.2, 1.8, 3.5, 3.9); h.quadraticCurveTo(4.8, 0.1, 3.6, -3.6);
+    h.quadraticCurveTo(2, -1.4, 0, -1.2); h.lineTo(0, 1.2);
+    add(extrude(h, 0.4, 0.2), metal, 0.4, 11.6, 0);
+    const m = add(extrude(h, 0.4, 0.2), metal, -0.4, 11.6, 0);
+    m.rotation.y = Math.PI;
+    add(new THREE.CylinderGeometry(0.75, 0.75, 2.8, 8), dark, 0, 11.6, 0);
+    add(new THREE.ConeGeometry(0.5, 1.8, 6), metal, 0, 14, 0);
+    add(new THREE.OctahedronGeometry(0.5, 0), gem, 0, 11.6, 0.75);
+    for (const y of [-1.2, 0.2, 1.6]) add(new THREE.CylinderGeometry(0.56, 0.56, 0.35, 8), y < 0 ? leather : dark, 0, y, 0);
+    base.position.set(2, 10, 0); tip.position.set(4.6, 13.6, 0);
+  } else if (form === 3) {
     // Hammer: bevelled rounded head with banded faces and a top spike.
     add(new THREE.CylinderGeometry(0.42, 0.5, 11, 7), wood, 0, 3.5, 0);
     const r = new THREE.Shape();
@@ -108,6 +110,64 @@ export function buildWeapon(form: number, rarity: number): WeaponView {
     add(new THREE.OctahedronGeometry(0.5, 0), gem, 0, 9, 1.55);
     grip(2.4, leather);
     base.position.set(0, 7.5, 0); tip.position.set(0, 11, 0);
+  } else if (form === 4) {
+    // Dagger: short leaf blade, swept guard, wrapped grip.
+    const s = new THREE.Shape();
+    s.moveTo(-0.6, 0); s.quadraticCurveTo(-0.9, 2.4, -0.45, 4); s.lineTo(0, 5.4); s.lineTo(0.45, 4);
+    s.quadraticCurveTo(0.9, 2.4, 0.6, 0); s.lineTo(-0.6, 0);
+    add(extrude(s, 0.1, 0.14), metal, 0, 1.6, 0);
+    add(new THREE.BoxGeometry(3.2, 0.45, 0.6), trim, 0, 1.4, 0);
+    add(new THREE.OctahedronGeometry(0.35, 0), gem, 0, 1.4, 0.4);
+    grip(2, leather);
+    add(new THREE.IcosahedronGeometry(0.5, 0), trim, 0, -1.3, 0);
+    base.position.set(0, 2.2, 0); tip.position.set(0, 7, 0);
+  } else if (form === 5) {
+    // Crossbow: wooden stock pointing forward, metal limbs across the front, a loaded bolt.
+    add(new THREE.BoxGeometry(0.9, 9, 0.9), wood, 0, 3.6, 0);
+    add(new THREE.BoxGeometry(1.1, 2.4, 1.3), dark, 0, 0.2, 0);
+    const limb = (side: number) => {
+      const l = add(new THREE.BoxGeometry(4.2, 0.45, 0.55), metal, side * 2.1, 7.6, 0);
+      l.rotation.z = side * 0.28;
+    };
+    limb(1); limb(-1);
+    add(new THREE.CylinderGeometry(0.06, 0.06, 7.6, 4).rotateZ(Math.PI / 2), dark, 0, 6.6, 0);
+    add(new THREE.CylinderGeometry(0.12, 0.12, 6, 5), wood, 0, 6, 0.55);
+    add(new THREE.ConeGeometry(0.3, 0.9, 5), metal, 0, 9.2, 0.55);
+    add(new THREE.OctahedronGeometry(0.4, 0), gem, 0, 7.6, 0.6);
+    base.position.set(0, 6, 0); tip.position.set(0, 9.5, 0);
+  } else if (form === 6 || form === 7) {
+    // Bow / Longbow: a curved stave held at the grip, with a string.
+    const r = form === 7 ? 9 : 6.5, arc = form === 7 ? 1.5 : 1.7;
+    const stave = new THREE.TorusGeometry(r, form === 7 ? 0.36 : 0.32, 5, 16, arc);
+    stave.rotateZ(-arc / 2);
+    stave.translate(-r, 0, 0);
+    add(stave, wood);
+    const ex = r * Math.cos(arc / 2) - r, ey = r * Math.sin(arc / 2);
+    add(new THREE.CylinderGeometry(0.06, 0.06, ey * 2, 4), new THREE.MeshBasicMaterial({ color: 0xf0ead8 }), ex, 0, 0);
+    for (const sy of [1, -1]) add(new THREE.ConeGeometry(0.32, 1.2, 5).rotateZ(sy > 0 ? 0 : Math.PI), metal, ex + 0.1, sy * (ey - 0.3), 0);
+    add(new THREE.CylinderGeometry(0.5, 0.5, 2.2, 7), leather, 0, 0, 0);
+    add(new THREE.OctahedronGeometry(0.42, 0), gem, 0.45, 0, 0);
+    base.position.set(0, -ey * 0.6, 0); tip.position.set(0, ey * 0.6, 0);
+  } else if (form === 8) {
+    // Staff: tall gnarled shaft with a cradle of prongs holding a glowing orb.
+    add(new THREE.CylinderGeometry(0.34, 0.44, 17, 6), wood, 0, 5.5, 0);
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2;
+      const pr = add(new THREE.ConeGeometry(0.28, 3, 4), trim, Math.cos(a) * 0.8, 14.6, Math.sin(a) * 0.8);
+      pr.rotation.z = -Math.cos(a) * 0.35; pr.rotation.x = Math.sin(a) * 0.35;
+    }
+    const orb = add(new THREE.IcosahedronGeometry(1.25, 1), gem, 0, 15.4, 0);
+    orb.scale.setScalar(1);
+    add(new THREE.CylinderGeometry(0.55, 0.55, 0.5, 7), trim, 0, 13.4, 0);
+    for (const y of [-0.6, 0.6]) add(new THREE.CylinderGeometry(0.48, 0.48, 0.3, 7), leather, 0, y, 0);
+    base.position.set(0, 13, 0); tip.position.set(0, 16.6, 0);
+  } else if (form === 9) {
+    // Wand: short tapered rod with a trim collar and a sparkling gem tip.
+    add(new THREE.CylinderGeometry(0.2, 0.36, 7, 6), wood, 0, 2.6, 0);
+    add(new THREE.CylinderGeometry(0.42, 0.42, 0.45, 7), trim, 0, 5.8, 0);
+    add(new THREE.OctahedronGeometry(0.75, 0), gem, 0, 6.8, 0);
+    add(new THREE.CylinderGeometry(0.42, 0.42, 1.6, 7), leather, 0, -0.2, 0);
+    base.position.set(0, 5, 0); tip.position.set(0, 7.6, 0);
   }
   return { group: g, tip, base, glow };
 }

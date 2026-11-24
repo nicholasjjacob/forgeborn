@@ -1,6 +1,7 @@
 import { CanvasSource, ImageSource, Rectangle, Texture } from 'pixi.js';
 import { Rng } from '../core/rng';
 import { areaFor, type AreaDef, type MonsterPalette, type MonsterShape, type PropKind } from '../sim/areas';
+import { FORMS } from '../sim/weapons';
 
 /**
  * Placeholder art in a soft, shaded cartoon style, drawn in code at startup: ball-shaded
@@ -222,17 +223,58 @@ function drawWeapon(c: Ctx, form: number, p: (typeof WEAPON_PALS)[number]): void
     c.beginPath(); c.moveTo(4, 3); c.lineTo(1.4, 4.4); c.lineTo(4, 5.8); c.closePath();
     c.fillStyle = p.d; c.fill(); c.stroke();
     ball(c, 4.5, 1.6, 0.9, 0.9, p.a);
-  } else if (form === 2) { // spear
-    limb(c, 4.5, 5.5, 4.5, 15, 1.1, WOOD);
-    c.beginPath(); c.moveTo(4.5, 0.2); c.quadraticCurveTo(6.6, 3, 4.5, 5.6); c.quadraticCurveTo(2.4, 3, 4.5, 0.2);
-    c.fillStyle = metal(3, 6.4); c.fill(); c.stroke();
-    ball(c, 4.5, 6, 1.1, 0.7, p.a);
-    c.fillStyle = p.a; c.beginPath(); c.moveTo(4, 6.4); c.lineTo(3, 9); c.lineTo(5, 6.4); c.fill();
-  } else { // hammer
+  } else if (form === 2) { // greataxe: double crescent head on a long haft
+    grip(3.2);
+    for (const sx of [1, -1]) {
+      c.beginPath(); c.moveTo(4.5 + sx * 0.6, 1.2); c.quadraticCurveTo(4.5 + sx * 4.6, 0.6, 4.5 + sx * 4.2, 4.4);
+      c.quadraticCurveTo(4.5 + sx * 4.8, 8.4, 4.5 + sx * 0.6, 7.4); c.closePath();
+      c.fillStyle = metal(sx > 0 ? 5 : 0, sx > 0 ? 9 : 4); c.fill(); c.stroke();
+    }
+    shadedRect(c, 3.6, 2.6, 1.8, 3.8, 0.5, p.d);
+    ball(c, 4.5, 4.4, 0.8, 0.8, p.a);
+  } else if (form === 3) { // hammer
     grip(5);
     shadedRect(c, 0.6, 0.6, 7.8, 4.8, 1.3, p.m);
     c.fillStyle = 'rgba(255,255,255,0.45)'; rrect(c, 1.4, 1.2, 6.2, 1, 0.5); c.fill();
     ball(c, 4.5, 3, 0.9, 0.9, p.a);
+  } else if (form === 4) { // dagger: short leaf blade
+    c.beginPath(); c.moveTo(4.5, 3); c.quadraticCurveTo(6.3, 6.5, 5.6, 10.6); c.lineTo(3.4, 10.6); c.quadraticCurveTo(2.7, 6.5, 4.5, 3);
+    c.fillStyle = metal(3, 6); c.fill(); c.stroke();
+    c.fillStyle = 'rgba(255,255,255,0.55)'; c.fillRect(4.2, 5, 0.45, 5);
+    shadedRect(c, 1.8, 10.5, 5.4, 1.3, 0.6, p.a);
+    grip(12);
+  } else if (form === 5) { // crossbow: stock, limbs across the top, loaded bolt
+    shadedRect(c, 3.7, 3, 1.6, 12.4, 0.5, WOOD);
+    c.beginPath(); c.moveTo(0.4, 6.2); c.quadraticCurveTo(4.5, 2.2, 8.6, 6.2);
+    c.lineWidth = 1.3; c.strokeStyle = p.m; c.stroke();
+    c.lineWidth = 0.35; c.strokeStyle = '#efe6d0'; c.beginPath(); c.moveTo(0.5, 6.2); c.lineTo(4.5, 7.4); c.lineTo(8.5, 6.2); c.stroke();
+    c.lineWidth = 0.5; c.strokeStyle = shade(p.d, -0.5);
+    c.beginPath(); c.moveTo(4.5, 0.4); c.lineTo(5.4, 2.2); c.lineTo(3.6, 2.2); c.closePath(); c.fillStyle = metal(3.6, 5.4); c.fill(); c.stroke();
+    ball(c, 4.5, 4.8, 0.8, 0.8, p.a);
+  } else if (form === 6 || form === 7) { // bow / longbow: curved stave and string
+    const top = form === 7 ? 0.3 : 1.4, bot = form === 7 ? 15.7 : 14.6, bulge = form === 7 ? 1.2 : 1.8;
+    c.beginPath(); c.moveTo(6, top); c.quadraticCurveTo(bulge - 2.2, 8, 6, bot);
+    c.lineWidth = form === 7 ? 1.5 : 1.3; c.strokeStyle = form === 7 ? shade(WOOD, -0.2) : WOOD; c.stroke();
+    c.lineWidth = 0.35; c.strokeStyle = '#efe6d0'; c.beginPath(); c.moveTo(6, top); c.lineTo(6, bot); c.stroke();
+    c.lineWidth = 0.5; c.strokeStyle = shade(p.d, -0.5);
+    ball(c, 6, top, 0.7, 0.7, p.m); ball(c, 6, bot, 0.7, 0.7, p.m);
+    shadedRect(c, 1.4, 6.9, 1.8, 2.4, 0.5, p.a);
+  } else if (form === 8) { // staff: long shaft, prongs around a glowing orb
+    limb(c, 4.5, 4.6, 4.5, 15.6, 1.2, WOOD);
+    c.beginPath(); c.moveTo(2.6, 5); c.quadraticCurveTo(2.2, 1.8, 3.6, 1); c.moveTo(6.4, 5); c.quadraticCurveTo(6.8, 1.8, 5.4, 1);
+    c.lineWidth = 0.8; c.strokeStyle = p.a; c.stroke(); c.lineWidth = 0.5; c.strokeStyle = shade(p.d, -0.5);
+    ball(c, 4.5, 3, 1.7, 1.7, p.m);
+    c.fillStyle = 'rgba(255,255,255,0.7)'; c.beginPath(); c.arc(3.9, 2.4, 0.5, 0, Math.PI * 2); c.fill();
+  } else if (form === 9) { // wand: short rod with a gem star tip
+    limb(c, 4.5, 6, 4.5, 15.4, 1, WOOD);
+    shadedRect(c, 3.5, 5.6, 2, 1, 0.4, p.a);
+    c.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const r = i % 2 ? 1.1 : 2.6, ang = -Math.PI / 2 + (i * Math.PI) / 5;
+      const x = 4.5 + Math.cos(ang) * r, y = 3.3 + Math.sin(ang) * r;
+      if (i) c.lineTo(x, y); else c.moveTo(x, y);
+    }
+    c.closePath(); c.fillStyle = metal(2, 7); c.fill(); c.stroke();
   }
   c.shadowBlur = 0;
 }
@@ -379,7 +421,7 @@ export interface Art {
 
 export function buildArt(): Art {
   const a = new Atlas(160);
-  const weaponRegions = [0, 1, 2, 3].map((form) => WEAPON_PALS.map((pal) => a.draw(9, 16, (c) => drawWeapon(c, form, pal))));
+  const weaponRegions = FORMS.map((_, form) => WEAPON_PALS.map((pal) => a.draw(9, 16, (c) => drawWeapon(c, form, pal))));
   const r = {
     hero: a.draw(16, 20, drawHero),
     crown: a.draw(12, 7, (c) => {

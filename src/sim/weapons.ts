@@ -29,13 +29,30 @@ export const RARITY_COLORS = ['#c8ccd8', '#5ad83a', '#4fa8ff', '#b06cff', '#ffb5
 /** Attack multiplier per rarity: each merge (three weapons into one) roughly doubles it. */
 const RARITY_MULT = [1, 1.9, 3.6, 6.8, 13, 25, 48];
 
-export type Form = 0 | 1 | 2 | 3;
-export interface FormDef { name: string; range: number; arc: number; speed: number; dmg: number; knockback: number; blurb: string }
+/** Weapon type: an index into FORMS. Each hero class wields its own types (see skins.ts). */
+export type Form = number;
+/** How a ranged weapon's projectile flies: speed (units/s), extra enemies it passes through, splash radius. */
+export interface RangedDef { speed: number; pierce: number; splash: number; kind: 'arrow' | 'bolt' | 'magic' }
+export interface FormDef {
+  name: string; range: number; arc: number; speed: number; dmg: number; knockback: number; blurb: string;
+  ranged?: RangedDef;
+}
 export const FORMS: readonly FormDef[] = [
-  { name: 'Sword',  range: 22, arc: 1.25, speed: 1.0,  dmg: 1.0,  knockback: 1.0, blurb: 'Balanced' },
-  { name: 'Axe',    range: 21, arc: 1.65, speed: 0.9,  dmg: 1.1,  knockback: 1.1, blurb: 'Wide sweeps' },
-  { name: 'Spear',  range: 32, arc: 0.6,  speed: 1.05, dmg: 0.95, knockback: 0.8, blurb: 'Long reach, narrow' },
-  { name: 'Hammer', range: 20, arc: 1.25, speed: 0.75, dmg: 1.5,  knockback: 2.2, blurb: 'Slow, heavy hits' },
+  /* 0 */ { name: 'Sword',    range: 22, arc: 1.25, speed: 1.0,  dmg: 1.0,  knockback: 1.0, blurb: 'Balanced' },
+  /* 1 */ { name: 'Axe',      range: 21, arc: 1.65, speed: 0.9,  dmg: 1.1,  knockback: 1.1, blurb: 'Wide sweeps' },
+  /* 2 */ { name: 'Greataxe', range: 25, arc: 1.95, speed: 0.7,  dmg: 1.45, knockback: 1.6, blurb: 'Huge, slow sweeps' },
+  /* 3 */ { name: 'Hammer',   range: 20, arc: 1.25, speed: 0.75, dmg: 1.5,  knockback: 2.2, blurb: 'Slow, heavy hits' },
+  /* 4 */ { name: 'Dagger',   range: 17, arc: 0.9,  speed: 1.45, dmg: 0.72, knockback: 0.5, blurb: 'Very fast, close in' },
+  /* 5 */ { name: 'Crossbow', range: 80, arc: 0.3,  speed: 0.7,  dmg: 1.15, knockback: 0.9, blurb: 'Ranged, heavy bolts',
+            ranged: { speed: 330, pierce: 0, splash: 0, kind: 'bolt' } },
+  /* 6 */ { name: 'Bow',      range: 95, arc: 0.3,  speed: 1.1,  dmg: 0.66, knockback: 0.5, blurb: 'Ranged, quick arrows',
+            ranged: { speed: 300, pierce: 0, splash: 0, kind: 'arrow' } },
+  /* 7 */ { name: 'Longbow',  range: 120, arc: 0.3, speed: 0.75, dmg: 1.0,  knockback: 0.8, blurb: 'Ranged, arrows pierce',
+            ranged: { speed: 380, pierce: 1, splash: 0, kind: 'arrow' } },
+  /* 8 */ { name: 'Staff',    range: 85, arc: 0.3,  speed: 0.75, dmg: 0.95, knockback: 1.0, blurb: 'Ranged, exploding orbs',
+            ranged: { speed: 210, pierce: 0, splash: 22, kind: 'magic' } },
+  /* 9 */ { name: 'Wand',     range: 80, arc: 0.3,  speed: 1.25, dmg: 0.64, knockback: 0.4, blurb: 'Ranged, rapid sparks',
+            ranged: { speed: 260, pierce: 0, splash: 0, kind: 'magic' } },
 ];
 
 /** Material per rarity, for weapon names ("Runed Axe"). */
@@ -85,11 +102,12 @@ export function forgeLevelCap(maxZone: number): number {
 }
 
 export function weaponName(w: Weapon): string {
-  return `${MATERIALS[w.rarity] ?? MATERIALS[MATERIALS.length - 1]} ${FORMS[w.form].name}`;
+  return `${MATERIALS[w.rarity] ?? MATERIALS[MATERIALS.length - 1]} ${(FORMS[w.form] ?? FORMS[0]).name}`;
 }
 
 export function weaponSummary(w: Weapon): string {
-  return `ATK x${fmt(weaponMult(w) * FORMS[w.form].dmg)} · ${FORMS[w.form].blurb}`;
+  const f = FORMS[w.form] ?? FORMS[0];
+  return `ATK x${fmt(weaponMult(w) * f.dmg)} · ${f.blurb}`;
 }
 
 /** Trait strength grows with rarity. */
@@ -128,18 +146,19 @@ export function forgeUpgradeCost(level: number): number {
   return 400 * Math.pow(4, level - 1);
 }
 
-export function forgeWeapon(rng: Rng, id: number, level: number): Weapon {
+/** Forge one weapon of one of `forms` (the current hero's weapon types). */
+export function forgeWeapon(rng: Rng, id: number, level: number, forms: readonly Form[] = [0]): Weapon {
   const [pu, pr, pe, pl] = forgeOdds(level);
   const r = rng.next();
   const rarity: Rarity = r < pl ? 4 : r < pl + pe ? 3 : r < pl + pe + pr ? 2 : r < pl + pe + pr + pu ? 1 : 0;
-  const w: Weapon = { id, rarity, form: rng.int(4) as Form, traits: [] };
+  const w: Weapon = { id, rarity, form: forms[rng.int(forms.length)] ?? 0, traits: [] };
   fillTraits(rng, w);
   return w;
 }
 
 /** A forged weapon with a guaranteed minimum rarity (Level Road rewards). */
-export function bonusWeapon(rng: Rng, id: number, level: number, minRarity: Rarity): Weapon {
-  const w = forgeWeapon(rng, id, level);
+export function bonusWeapon(rng: Rng, id: number, level: number, minRarity: Rarity, forms: readonly Form[] = [0]): Weapon {
+  const w = forgeWeapon(rng, id, level, forms);
   if (w.rarity < minRarity) { w.rarity = minRarity; fillTraits(rng, w); }
   return w;
 }
@@ -160,7 +179,7 @@ export function mergePreview(w: Weapon): Weapon {
 }
 
 /**
- * Inventory order: by type (Sword, Axe, Spear, Hammer), then best rarity, empty slots last.
+ * Inventory order: by type (each class's weapons together), then best rarity, empty slots last.
  * Identical weapons end up side by side, which makes merges easy to spot.
  */
 export function compareWeapons(a: Weapon, b: Weapon): number {
@@ -204,8 +223,8 @@ export function salvageValue(w: Weapon, forgeLevel = 1): number {
   return Math.max(1, Math.round(0.25 * forgeCost(forgeLevel) * Math.pow(2, w.rarity)));
 }
 
-export function starterWeapon(): Weapon {
-  return { id: 1, rarity: 0, form: 0, traits: [] };
+export function starterWeapon(form: Form = 0, id = 1): Weapon {
+  return { id, rarity: 0, form, traits: [] };
 }
 
 /**
@@ -225,7 +244,8 @@ export function upgradeOldWeapon(w: Weapon & { tier?: number }): Weapon {
 
 /** Rough "power" for comparing weapons (used for the better-than-equipped marker). */
 export function weaponPower(w: Weapon): number {
-  let p = weaponMult(w) * FORMS[w.form].dmg * FORMS[w.form].speed;
+  const f = FORMS[w.form] ?? FORMS[0];
+  let p = weaponMult(w) * f.dmg * f.speed;
   for (const tr of w.traits) {
     if (tr.t === 'crit') p *= 1 + tr.v * 1.5;
     else if (tr.t === 'critDmg') p *= 1 + tr.v * 0.15;
@@ -244,7 +264,7 @@ export interface WeaponStats {
 
 export function weaponStats(w: Weapon | null): WeaponStats {
   const s: WeaponStats = {
-    mult: w ? weaponMult(w) : 1, form: FORMS[w?.form ?? 0],
+    mult: w ? weaponMult(w) : 1, form: FORMS[w?.form ?? 0] ?? FORMS[0],
     crit: 0, critDmg: 0, speed: 0, lifesteal: 0, gold: 0, shock: 0, reach: 0,
   };
   if (w) for (const tr of w.traits) s[tr.t] += tr.v;

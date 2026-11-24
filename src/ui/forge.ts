@@ -5,6 +5,7 @@ import type { Sim } from '../sim/sim';
 import { ForgeLevelUI } from './forgeLevel';
 import { InventoryUI } from './inventoryUI';
 import { Pager } from './pager';
+import { skinDef, wieldersOf } from '../sim/skins';
 import {
   forgeCost, forgeLevelCap, FORMS, MAX_FORGE_LEVEL, MAX_RARITY, MERGE_COUNT, RARITY_COLORS, RARITY_NAMES, TRAITS, forgeOdds,
   forgeUpgradeCost, inventoryExpandCost, MAX_INVENTORY, matchingSlots, mergePartners, mergePreview, salvageValue, weaponName, weaponPower, weaponSummary, type Weapon,
@@ -264,11 +265,14 @@ export class ForgePanel {
       (b.children[1] as HTMLElement).textContent = '';
       // Rarity letter (C/U/R/E/L/M/D): merges need matching rarity, so make it readable at a glance.
       (b.children[3] as HTMLElement).textContent = RARITY_NAMES[w.rarity][0];
-      if (weaponPower(w) > eqPower * 1.001) b.classList.add('is-better');
+      // Weapons are class-locked: another hero's weapons are dimmed (they still merge and salvage).
+      const mine = this.sim.canWield(w);
+      if (!mine) b.classList.add('other-class');
+      else if (weaponPower(w) > eqPower * 1.001) b.classList.add('is-better');
       if (i === this.selected) b.classList.add('selected');
       else if (partners.includes(i)) b.classList.add('mergeable');
       if (this.highlight.has(i)) b.classList.add(this.highlightKind);
-      b.setAttribute('aria-label', `${RARITY_NAMES[w.rarity]} ${weaponName(w)}`);
+      b.setAttribute('aria-label', `${RARITY_NAMES[w.rarity]} ${weaponName(w)}${mine ? '' : ` (${heroNames(w.form)} weapon)`}`);
     });
     const shown = [...this.highlight][0] ?? (this.selected >= 0 ? this.selected : -1);
     this.highlight.clear();
@@ -297,7 +301,15 @@ export class ForgePanel {
         return li;
       }));
       const now = this.sim.atk;
-      if (sel) {
+      const theirs = sel && !this.sim.canWield(sel);
+      this.el.equip.textContent = theirs ? `Not for ${skinDef(s.skin).name}` : 'Equip';
+      this.disable(this.el.equip, !!theirs);
+      if (sel && theirs) {
+        // Another hero's weapon: it can't be compared, but it can still merge or be salvaged.
+        this.el.atk.className = 'wc-atk';
+        this.el.atk.innerHTML = `<span class="wc-atk-lbl">⚔</span> ${heroNames(sel.form)} weapon · switch hero to use it`;
+      }
+      if (sel && !theirs) {
         // Attack if equipped, vs. the current attack.
         const next = this.sim.attackWith(sel);
         const diff = next - now;
@@ -307,6 +319,8 @@ export class ForgePanel {
         this.el.atk.innerHTML = `<span class="wc-atk-lbl">⚔ Attack</span> ${fmt(now)} → <b>${fmt(next)}</b> ` +
           (dir === 'same' ? '<em>no change</em>'
             : `<em>${dir === 'up' ? '▲ +' : '▼ −'}${fmt(Math.abs(diff))} (${dir === 'up' ? '+' : '−'}${Math.abs(pctDiff).toFixed(0)}%)</em>`);
+      }
+      if (sel) {
         // Merge needs MERGE_COUNT of the same type and rarity (this one included).
         const have = partners.length + 1;
         const ready = have >= MERGE_COUNT && sel.rarity < MAX_RARITY;
@@ -314,7 +328,7 @@ export class ForgePanel {
         this.el.merge.textContent = `Merge ${Math.min(have, MERGE_COUNT)}/${MERGE_COUNT}`;
         this.disable(this.el.merge, !ready);
         const delta = eqPower > 0 ? weaponPower(sel) / eqPower : 1;
-        const overall = delta >= 1.005 ? `overall ▲ ${((delta - 1) * 100).toFixed(0)}%` : delta <= 0.995 ? `overall ▼ ${((1 - delta) * 100).toFixed(0)}%` : 'overall about the same';
+        const overall = theirs ? 'not for this hero' : delta >= 1.005 ? `overall ▲ ${((delta - 1) * 100).toFixed(0)}%` : delta <= 0.995 ? `overall ▼ ${((1 - delta) * 100).toFixed(0)}%` : 'overall about the same';
         // Same type but another rarity don't count: say so, it's the easy thing to miss.
         const otherRarity = new Map<number, number>();
         for (const o of s.weapons) {
@@ -324,7 +338,7 @@ export class ForgePanel {
         const rarityNote = !ready && others ? ` Your ${others} ${FORMS[sel.form].name} don't count: rarity must match.` : '';
         this.el.hint.textContent = (sel.rarity >= MAX_RARITY ? 'Max rarity · '
           : ready ? `Merge 3 ${kind} → ${RARITY_NAMES[sel.rarity + 1]} · `
-          : `Merge needs 3 ${kind} (have ${have}).${rarityNote} · `) + `${overall} incl. speed & traits`;
+          : `Merge needs 3 ${kind} (have ${have}).${rarityNote} · `) + (theirs ? overall : `${overall} incl. speed & traits`);
         this.el.salvage.textContent = `Salvage +${salvageValue(sel, s.forgeLevel)}`;
       } else {
         const a = this.atkAnim;
@@ -339,7 +353,7 @@ export class ForgePanel {
         const kind = `${RARITY_NAMES[w.rarity]} ${FORMS[w.form].name}s`;
         this.el.hint.textContent = eqMatches.length
           ? (ready ? `Upgrade: merge with 2 matching ${kind} from your bag` : `Upgrade needs 3 ${kind} (have ${have} incl. this one)`)
-          : `${FORMS[w.form].name}: ${FORMS[w.form].blurb.toLowerCase()} · tap a weapon below to compare`;
+          : `${FORMS[w.form].name}: ${FORMS[w.form].blurb.toLowerCase()} · the forge makes ${forgeKinds(s.skin)} for your ${skinDef(s.skin).name}`;
       }
       // What the next merge would do to your Attack.
       const mw = sel ?? s.equipped;
@@ -384,4 +398,14 @@ const ATK_ANIM = 700; // ms
 
 function pct(v: number): string {
   return `${(v * 100).toFixed(v < 0.1 ? 1 : 0)}%`;
+}
+
+/** "Knight" or "Rogue / Shadow Rogue": who can wield weapon type `form`. */
+function heroNames(form: number): string {
+  return wieldersOf(form).map((h) => h.name).join(' / ');
+}
+
+/** "Staffs & Wands": the weapon types the forge makes for hero `skin`. */
+function forgeKinds(skin: string): string {
+  return skinDef(skin).forms.map((f) => `${FORMS[f].name}s`).join(' & ');
 }

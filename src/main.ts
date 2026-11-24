@@ -60,6 +60,7 @@ async function boot() {
   const bootReward = offlineReward(loaded, (Date.now() - loaded.savedAt) / 1000, OFFLINE_CAP_HOURS + loaded.perks.offline);
   if (hasReward(bootReward)) applyOfflineReward(loaded, bootReward);
   const sim = new Sim(loaded);
+  if (import.meta.env.DEV) (window as unknown as { __sim: Sim }).__sim = sim; // dev-only handle for testing
   let saving = true;
   const save = () => { if (saving) writeSave(sim.save); };
 

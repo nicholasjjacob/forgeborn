@@ -1,3 +1,4 @@
+import { starterWeapon } from '../src/sim/weapons';
 import { bossCooldown } from '../src/sim/zones';
 import { describe, expect, it } from 'vitest';
 import { Sim, freshSave, type Enemy } from '../src/sim/sim';
@@ -81,7 +82,10 @@ describe('simulation', () => {
   });
 
   it('a fresh hero with no upgrades eventually dies and recovers instead of soft-locking', () => {
-    const sim = new Sim(freshSave(), 7);
+    // The Rogue (no defensive perk): the Knight's armour can outlast this test.
+    const save = freshSave();
+    save.skins.push('rogue'); save.skin = 'rogue'; save.equipped = starterWeapon(4);
+    const sim = new Sim(save, 7);
     let died = false;
     for (let i = 0; i < 30 * 600; i++) {
       sim.tick();

@@ -2,12 +2,13 @@ import * as THREE from 'three';
 import { sfx } from '../audio/sfx';
 import { cloneActor, findClip, loadModel, measure } from '../render/models';
 import { SKINS, skinDef } from '../sim/skins';
+import { FORMS } from '../sim/weapons';
 import type { Sim } from '../sim/sim';
 import { gi } from './icons';
 import { bindSheetTaps } from './tap';
 
 /**
- * Heroes screen: pick which character the hero is. A live 3D preview of the highlighted hero
+ * Heroes screen: pick which hero (class) to play. A live 3D preview of the highlighted hero
  * turns on a little stage; below, every skin as a card with its portrait. Owned skins can be
  * worn; the rest are bought with gems. The preview has its own small WebGL canvas, created when
  * the screen opens and released when it closes.
@@ -50,7 +51,7 @@ export class HeroesUI {
         <button type="button" class="sheet-x" aria-label="Close">✕</button>
         <div class="sheet-body">
           <div class="hero-stage"><canvas></canvas><div class="hero-gems"><i class="jewel"></i><b></b></div></div>
-          <div class="hero-info"><b class="hero-name"></b><span class="hero-blurb"></span></div>
+          <div class="hero-info"><b class="hero-name"></b><span class="hero-role"></span><span class="hero-perk"></span><span class="hero-weapons"></span></div>
           <div class="hero-action"></div>
           <div class="hero-grid"></div>
         </div>
@@ -104,7 +105,9 @@ export class HeroesUI {
     const gems = s.missions.gems;
     this.wrap.querySelector('.hero-gems b')!.textContent = String(gems);
     this.wrap.querySelector('.hero-name')!.textContent = def.name;
-    this.wrap.querySelector('.hero-blurb')!.textContent = def.blurb;
+    this.wrap.querySelector('.hero-role')!.textContent = def.role;
+    this.wrap.querySelector('.hero-perk')!.textContent = def.perk;
+    this.wrap.querySelector('.hero-weapons')!.textContent = `Weapons: ${def.forms.map((f) => FORMS[f].name).join(', ')}${def.forms.some((f) => FORMS[f].ranged) ? ' · ranged' : ''}`;
     this.wrap.querySelector('.hero-action')!.innerHTML = worn
       ? `<button type="button" class="btn big grey" disabled>${gi('check-mark', 'green')} Equipped</button>`
       : owned
@@ -116,7 +119,7 @@ export class HeroesUI {
       const img = portraits.get(k.id);
       return `<button type="button" class="hero-card ${k.id === this.pick ? 'sel' : ''} ${have ? 'owned' : 'locked'}" data-act="pick:${k.id}">
         <span class="hero-portrait">${img ? `<img alt="" src="${img}" />` : ''}${have ? '' : `<i class="hero-lock">${gi('padlock', 'grey')}</i>`}</span>
-        <span class="hero-card-name">${k.name}</span><span class="hero-tag">${tag}</span></button>`;
+        <span class="hero-card-name">${k.name}</span><span class="hero-card-role">${k.role}</span><span class="hero-tag">${tag}</span></button>`;
     }).join('');
     void this.showModel(this.pick);
   }

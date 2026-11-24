@@ -1,4 +1,4 @@
-import { DEFAULT_SKIN, SKINS } from './skins';
+import { DEFAULT_SKIN, SKINS, canWield, skinDef, type ClassMods } from './skins';
 import { Rng } from '../core/rng';
 import { areaFor, type MonsterDef } from './areas';
 import {
@@ -21,7 +21,7 @@ import { MAX_LEVEL, levelBonus, milestoneReward, xpForKill, xpToNext, MILESTONES
 import { zoneArea, zoneBossMonster, zoneLevel, zoneName, zoneStage, bossCooldown } from './zones';
 import {
   forgeCost, forgeLevelCap, INVENTORY_SIZE, INVENTORY_STEP, MAX_FORGE_LEVEL, MAX_INVENTORY, inventoryExpandCost, MERGE_COUNT, bonusWeapon, compareWeapons, forgeAtkBonus, forgeUpgradeCost, forgeWeapon, matchingSlots, mergePartners, mergeWeapons,
-  salvageValue, starterWeapon, weaponStats, type Weapon,
+  salvageValue, starterWeapon, weaponStats, type RangedDef, type Weapon,
 } from './weapons';
 
 export const MAX_ENEMIES = 40;
@@ -47,6 +47,22 @@ export interface Shot {
   life: number;
   monster: number; // who fired it (for its colour)
 }
+/** A hero projectile (arrow, crossbow bolt or magic orb) in flight. */
+export interface HeroShot {
+  alive: boolean;
+  x: number; y: number; prevX: number; prevY: number;
+  vx: number; vy: number;
+  dmg: number;
+  crit: boolean;
+  life: number;
+  pierce: number;   // enemies it can still pass through
+  splash: number;   // explosion radius on hit (0 = none)
+  kind: RangedDef['kind'];
+  rarity: number;   // for its colour
+  /** Enemies already hit (so a piercing shot never hits the same one twice). */
+  hits: Enemy[];
+}
+export const MAX_HERO_SHOTS = 24;
 const RATE_BUCKETS = 60;
 const RATE_BUCKET_SECONDS = 5;
 
@@ -54,7 +70,7 @@ export type BuyMode = 1 | 10 | 'max';
 
 /** Everything that persists between sessions. Kept flat and JSON-friendly. */
 export interface SaveData {
-  v: 6;
+  v: 7;
   stage: number;
   highestStage: number;
   gold: number;
@@ -69,7 +85,9 @@ export interface SaveData {
   shards: number;
   forgeLevel: number;
   weapons: (Weapon | null)[];   // fixed-size inventory grid
-  equipped: Weapon | null;
+  equipped: Weapon | null;   // the current hero's weapon
+  /** The other heroes' equipped weapons, by skin id (v7: weapons are class-locked). */
+  gear: Record<string, Weapon | null>;
   nextWeaponId: number;
   // Meta progression (v3)
   embers: number;
@@ -91,7 +109,7 @@ export interface SaveData {
   zone: number;              // the zone the hero is in
   zoneBosses: number;        // zone bosses beaten, in order: zone z's boss is down when z < zoneBosses
   zoneBest: number;          // furthest zone ever unlocked (across runs)
-  /** Hero look (cosmetic): the selected skin and every skin owned. Kept through Reforge. */
+  /** The hero (class) being played and every hero owned. Kept through Reforge. */
   skin: string;
   skins: string[];
   /** Zone → wall-clock time (ms) when its beaten boss can be rematched again. */
@@ -103,10 +121,10 @@ export interface SaveData {
 
 export function freshSave(): SaveData {
   return {
-    v: 6, stage: 1, highestStage: 1, gold: 0, kills: 0, farming: false,
+    v: 7, stage: 1, highestStage: 1, gold: 0, kills: 0, farming: false,
     upgrades: { atk: 0, hp: 0, aspd: 0, crit: 0, gold: 0 },
     buyMode: 1, fps: 60, auto: true, sound: true, quality: 'high',
-    shards: 0, forgeLevel: 1, weapons: Array(INVENTORY_SIZE).fill(null), equipped: starterWeapon(), nextWeaponId: 2,
+    shards: 0, forgeLevel: 1, weapons: Array(INVENTORY_SIZE).fill(null), equipped: starterWeapon(), gear: {}, nextWeaponId: 2,
     rates: { gold: 0, shards: 0 },
     embers: 0, embersEarned: 0, perks: freshPerks(), bestEver: 1, stats: freshStats(), quests: [], achievements: {},
     missions: freshMissions(),
@@ -192,6 +210,11 @@ export class Sim {
     alive: false, x: 0, y: 0, prevX: 0, prevY: 0, vx: 0, vy: 0, dmg: 0, life: 0, monster: 0,
   }));
 
+  readonly heroShots: HeroShot[] = Array.from({ length: MAX_HERO_SHOTS }, (): HeroShot => ({
+    alive: false, x: 0, y: 0, prevX: 0, prevY: 0, vx: 0, vy: 0, dmg: 0, crit: false, life: 0,
+    pierce: 0, splash: 0, kind: 'arrow', rarity: 0, hits: [],
+  }));
+
   readonly hero: Hero = {
     x: MAP_W / 2, y: MAP_H / 2, prevX: MAP_W / 2, prevY: MAP_H / 2,
     hp: 0, maxHp: 0, atkCd: 0, swingT: 0, swingAngle: 0, hitT: 0, faceX: 1, moving: false,
@@ -211,6 +234,10 @@ export class Sim {
   knockback = 1;
   lifesteal = 0;
   shock = 0;
+  /** The current hero's class modifiers (see skins.ts). */
+  cls: ClassMods = {};
+  /** Projectile of the equipped weapon, if it is ranged. */
+  ranged: RangedDef | null = null;
   /** Bumped whenever the inventory/equipped weapon changes, so the UI can redraw lazily. */
   invVersion = 0;
   moveSpeed = HERO_SPEED;
@@ -395,19 +422,21 @@ export class Sim {
     const swift = 1 + 0.04 * p.swift;
     const glow = this.save.embersEarned;
     const lb = levelBonus(this.save.level);
+    const c = this.cls = skinDef(this.save.skin).mods;
     this.atk = this.attackWith(this.save.equipped);
-    this.hero.maxHp = UPGRADES.hp.value(u.hp) * (1 + 0.25 * p.vigor) * (1 + GLOW_HP * glow) * lb.hp;
-    this.aspd = UPGRADES.aspd.value(u.aspd) * w.form.speed * (1 + w.speed) * swift;
-    this.moveSpeed = HERO_SPEED * swift;
+    this.hero.maxHp = UPGRADES.hp.value(u.hp) * (1 + 0.25 * p.vigor) * (1 + GLOW_HP * glow) * lb.hp * (c.hp ?? 1);
+    this.aspd = UPGRADES.aspd.value(u.aspd) * w.form.speed * (1 + w.speed) * swift * (c.aspd ?? 1);
+    this.moveSpeed = HERO_SPEED * swift * (c.move ?? 1);
     this.shardMult = 1 + 0.15 * p.shards;
-    this.crit = Math.min(0.9, UPGRADES.crit.value(u.crit) + w.crit);
-    this.critMult = CRIT_MULT + w.critDmg;
+    this.crit = Math.min(0.9, UPGRADES.crit.value(u.crit) + w.crit + (c.crit ?? 0));
+    this.critMult = CRIT_MULT + w.critDmg + (c.critDmg ?? 0);
     this.goldMult = UPGRADES.gold.value(u.gold) * (1 + w.gold) * (1 + 0.2 * p.fortune) * this.achBonus * lb.gold;
     this.range = w.form.range * (1 + w.reach);
-    this.arc = w.form.arc;
+    this.arc = w.form.arc * (c.arc ?? 1);
     this.knockback = w.form.knockback;
     this.lifesteal = w.lifesteal;
-    this.shock = w.shock;
+    this.shock = Math.min(0.6, w.shock + (c.shock ?? 0));
+    this.ranged = w.form.ranged ?? null;
   }
 
   /** Hero attack if `weapon` were equipped (everything else unchanged). Used for previews. */
@@ -437,7 +466,7 @@ export class Sim {
       const slot = s.weapons.indexOf(null);
       if (slot < 0) break;
       s.shards -= cost;
-      const w = forgeWeapon(this.rng, s.nextWeaponId++, s.forgeLevel);
+      const w = forgeWeapon(this.rng, s.nextWeaponId++, s.forgeLevel, skinDef(s.skin).forms);
       s.weapons[slot] = w;
       s.stats.forged++;
       if (w.rarity === 3) s.stats.legendaries++;
@@ -531,11 +560,14 @@ export class Sim {
     return new Map(list.map((w, i) => [w.id, i]));
   }
 
-  /** Swap the weapon in `slot` with the equipped one. */
+  /** Can the current hero wield `w`? (Weapons are class-locked.) */
+  canWield(w: Weapon): boolean { return canWield(this.save.skin, w.form); }
+
+  /** Swap the weapon in `slot` with the equipped one (only weapons the current hero can wield). */
   equip(slot: number): boolean {
     const s = this.save;
     const w = s.weapons[slot];
-    if (!w) return false;
+    if (!w || !this.canWield(w)) return false;
     s.weapons[slot] = s.equipped;
     s.equipped = w;
     this.applyWeaponChange();
@@ -610,6 +642,7 @@ export class Sim {
     this.moveHero(dt);
     this.updateEnemies(dt);
     this.updateShots(dt);
+    this.updateHeroShots(dt);
     this.heroAttack();
     this.gather.update(dt);
     this.spawn(dt);
@@ -729,14 +762,23 @@ export class Sim {
     if (!def || this.ownsSkin(id) || m.gems < def.cost) return false;
     m.gems -= def.cost;
     this.save.skins.push(id);
-    this.save.skin = id;
+    this.save.gear[id] = starterWeapon(def.forms[0], this.save.nextWeaponId++);
+    this.selectSkin(id);
     return true;
   }
 
-  /** Wear an owned skin. */
+  /** Play as an owned hero: the current hero's weapon is put away and the new hero's comes out. */
   selectSkin(id: string): boolean {
+    const s = this.save;
     if (!this.ownsSkin(id)) return false;
-    this.save.skin = id;
+    if (id === s.skin) return true;
+    s.gear[s.skin] = s.equipped;
+    s.skin = id;
+    const mine = s.gear[id];
+    delete s.gear[id];
+    s.equipped = mine && canWield(id, mine.form) ? mine : starterWeapon(skinDef(id).forms[0], s.nextWeaponId++);
+    for (const sh of this.heroShots) sh.alive = false;
+    this.applyWeaponChange();
     return true;
   }
 
@@ -762,7 +804,8 @@ export class Sim {
     s.shards = 0;
     for (const id of UPGRADE_IDS) s.upgrades[id] = 0;
     s.weapons = s.weapons.map(() => null);
-    s.equipped = { ...starterWeapon(), id: s.nextWeaponId++ };
+    s.equipped = starterWeapon(skinDef(s.skin).forms[0], s.nextWeaponId++);
+    s.gear = {};
     s.forgeLevel = Math.min(MAX_FORGE_LEVEL, 1 + s.perks.forgemaster);
     s.quests = [];
     this.notifiedQuests.clear();
@@ -878,6 +921,12 @@ export class Sim {
     return best;
   }
 
+  /** Damage multiplier from the Berserker's rage (more as HP drops). */
+  private rageMult(): number {
+    const r = this.cls.rage ?? 0, h = this.hero;
+    return r > 0 && h.maxHp > 0 ? 1 + r * Math.max(0, 1 - h.hp / h.maxHp) : 1;
+  }
+
   private heroAttack(): void {
     const h = this.hero;
     if (h.atkCd > 0) return;
@@ -889,11 +938,15 @@ export class Sim {
     const ang = Math.atan2(target.y - h.y, target.x - h.x);
     h.swingAngle = ang;
     h.faceX = Math.cos(ang) >= 0 ? 1 : -1;
-    this.events.push(Ev.Swing, h.x, h.y, ang);
-    this.gather.chop(ang, this.range, this.arc);
+    this.events.push(Ev.Swing, h.x, h.y, ang, this.ranged ? 1 : 0);
+    // Ranged heroes still clip trees and rocks right next to them.
+    this.gather.chop(ang, this.ranged ? Math.min(this.range, 22) : this.range, this.ranged ? 1.0 : this.arc);
 
     const isCrit = this.rng.chance(this.crit);
-    const dmg = this.atk * (isCrit ? this.critMult : 1);
+    const dmg = this.atk * this.rageMult() * (isCrit ? this.critMult : 1);
+
+    if (this.ranged) { this.fire(ang, dmg, isCrit, this.ranged); return; }
+
     let dealt = 0;
     // Cone sweep: everything in reach and within the arc gets hit.
     for (let i = 0; i < MAX_ENEMIES; i++) {
@@ -905,43 +958,113 @@ export class Sim {
       let da = Math.atan2(dy, dx) - ang;
       da = Math.atan2(Math.sin(da), Math.cos(da));
       if (Math.abs(da) > this.arc && d > e.radius + HERO_RADIUS + 2) continue;
-      dealt += Math.min(dmg, Math.max(0, e.hp));
-      e.hp -= dmg;
-      e.hitT = 0.12;
-      e.aggro = true;
-      const kb = (e.boss ? 25 : 90) * this.knockback;
-      e.kx += (dx / (d || 1)) * kb;
-      e.ky += (dy / (d || 1)) * kb;
-      this.events.push(Ev.Hit, e.x, e.y - e.radius * 2 - 4, dmg, isCrit ? 1 : 0);
-      if (e.hp <= 0) this.kill(e);
+      dealt += this.strike(e, dmg, isCrit, dx / (d || 1), dy / (d || 1), 1);
     }
+    if (this.shock > 0 && this.rng.chance(this.shock)) dealt += this.chainShock(target, dmg);
+    if (this.lifesteal > 0 && dealt > 0) h.hp = Math.min(h.maxHp, h.hp + dealt * this.lifesteal);
+  }
 
-    // Chain shock: arcs from the target to up to 3 nearby enemies for 60% damage.
-    if (this.shock > 0 && this.rng.chance(this.shock)) {
-      let fromX = target.x, fromY = target.y;
-      for (let jump = 0; jump < 3; jump++) {
-        let next: Enemy | null = null;
-        let best = 60;
-        for (let i = 0; i < MAX_ENEMIES; i++) {
-          const e = this.enemies[i];
-          if (!e.alive || e.spawnT > 0 || e === target || e.hitT > 0.11) continue;
-          const d = Math.hypot(e.x - fromX, e.y - fromY);
-          if (d < best) { best = d; next = e; }
-        }
-        if (!next) break;
-        const zap = dmg * 0.6;
-        dealt += Math.min(zap, Math.max(0, next.hp));
-        next.hp -= zap;
-        next.hitT = 0.12;
-        next.aggro = true;
-        this.events.push(Ev.Shock, next.x, next.y - next.radius, zap, 0, fromX, fromY - 6);
-        this.events.push(Ev.Hit, next.x, next.y - next.radius * 2 - 4, zap, 2);
-        fromX = next.x; fromY = next.y;
-        if (next.hp <= 0) this.kill(next);
+  /**
+   * Hit one enemy for `dmg` (an Assassin's ambush turns a hit on an unhurt enemy into a crit),
+   * knocking it along (nx, ny). Returns the damage actually dealt.
+   */
+  private strike(e: Enemy, dmg: number, crit: boolean, nx: number, ny: number, kbScale: number): number {
+    if (!crit && this.cls.ambush && e.hp >= e.maxHp) { dmg *= this.critMult; crit = true; }
+    const dealt = Math.min(dmg, Math.max(0, e.hp));
+    e.hp -= dmg;
+    e.hitT = 0.12;
+    e.aggro = true;
+    const kb = (e.boss ? 25 : 90) * this.knockback * kbScale;
+    e.kx += nx * kb;
+    e.ky += ny * kb;
+    this.events.push(Ev.Hit, e.x, e.y - e.radius * 2 - 4, dmg, crit ? 1 : 0);
+    if (e.hp <= 0) this.kill(e);
+    return dealt;
+  }
+
+  /** Chain shock: arcs from `from` to nearby enemies (3, or more for the Mage) for 60% damage. */
+  private chainShock(from: Enemy, dmg: number): number {
+    let dealt = 0;
+    let fromX = from.x, fromY = from.y;
+    const jumps = 3 + (this.cls.shockJumps ?? 0);
+    for (let jump = 0; jump < jumps; jump++) {
+      let next: Enemy | null = null;
+      let best = 60;
+      for (let i = 0; i < MAX_ENEMIES; i++) {
+        const e = this.enemies[i];
+        if (!e.alive || e.spawnT > 0 || e === from || e.hitT > 0.11) continue;
+        const d = Math.hypot(e.x - fromX, e.y - fromY);
+        if (d < best) { best = d; next = e; }
+      }
+      if (!next) break;
+      const zap = dmg * 0.6;
+      dealt += Math.min(zap, Math.max(0, next.hp));
+      next.hp -= zap;
+      next.hitT = 0.12;
+      next.aggro = true;
+      this.events.push(Ev.Shock, next.x, next.y - next.radius, zap, 0, fromX, fromY - 6);
+      this.events.push(Ev.Hit, next.x, next.y - next.radius * 2 - 4, zap, 2);
+      fromX = next.x; fromY = next.y;
+      if (next.hp <= 0) this.kill(next);
+    }
+    return dealt;
+  }
+
+  /** Loose a projectile from the hero along `ang`. */
+  private fire(ang: number, dmg: number, crit: boolean, r: RangedDef): void {
+    const sh = this.heroShots.find((x) => !x.alive);
+    if (!sh) return;
+    const h = this.hero;
+    sh.alive = true;
+    sh.x = sh.prevX = h.x + Math.cos(ang) * 6;
+    sh.y = sh.prevY = h.y + Math.sin(ang) * 6;
+    sh.vx = Math.cos(ang) * r.speed;
+    sh.vy = Math.sin(ang) * r.speed;
+    sh.dmg = dmg;
+    sh.crit = crit;
+    sh.life = (this.range * 1.25 + 20) / r.speed;
+    sh.pierce = r.pierce + (this.cls.pierce ?? 0);
+    sh.splash = r.splash;
+    sh.kind = r.kind;
+    sh.rarity = this.save.equipped?.rarity ?? 0;
+    sh.hits.length = 0;
+  }
+
+  private updateHeroShots(dt: number): void {
+    for (const sh of this.heroShots) {
+      if (!sh.alive) continue;
+      sh.prevX = sh.x; sh.prevY = sh.y;
+      sh.x += sh.vx * dt; sh.y += sh.vy * dt;
+      sh.life -= dt;
+      if (sh.life <= 0) { sh.alive = false; continue; }
+      for (let i = 0; i < MAX_ENEMIES && sh.alive; i++) {
+        const e = this.enemies[i];
+        if (!e.alive || e.spawnT > 0 || sh.hits.includes(e)) continue;
+        if (Math.hypot(e.x - sh.x, e.y - sh.y) > e.radius + 4) continue;
+        this.shotHit(sh, e);
       }
     }
+  }
 
-    if (this.lifesteal > 0 && dealt > 0) h.hp = Math.min(h.maxHp, h.hp + dealt * this.lifesteal);
+  private shotHit(sh: HeroShot, e: Enemy): void {
+    const sp = Math.hypot(sh.vx, sh.vy) || 1;
+    sh.hits.push(e);
+    let dealt = this.strike(e, sh.dmg, sh.crit, sh.vx / sp, sh.vy / sp, 0.6);
+    if (sh.splash > 0) {
+      // Magic orbs burst: everything else nearby takes half damage.
+      this.events.push(Ev.Burst, sh.x, sh.y, sh.splash, sh.rarity);
+      for (let i = 0; i < MAX_ENEMIES; i++) {
+        const o = this.enemies[i];
+        if (o === e || !o.alive || o.spawnT > 0) continue;
+        const dx = o.x - sh.x, dy = o.y - sh.y, d = Math.hypot(dx, dy);
+        if (d > sh.splash + o.radius) continue;
+        dealt += this.strike(o, sh.dmg * 0.5, false, dx / (d || 1), dy / (d || 1), 0.4);
+      }
+    }
+    if (this.shock > 0 && this.rng.chance(this.shock)) dealt += this.chainShock(e, sh.dmg);
+    if (this.lifesteal > 0 && dealt > 0) this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + dealt * this.lifesteal);
+    if (sh.pierce > 0) sh.pierce--;
+    else sh.alive = false;
   }
 
   private updateEnemies(dt: number): void {
@@ -1065,6 +1188,7 @@ export class Sim {
 
   private hurtHero(dmg: number): void {
     const h = this.hero;
+    dmg *= this.cls.dmgTaken ?? 1;
     h.hp -= dmg;
     h.hitT = 0.15;
     this.events.push(Ev.HeroHit, h.x, h.y - 18, dmg);
@@ -1326,7 +1450,7 @@ export class Sim {
     if (r.weapon) {
       const slot = s.weapons.indexOf(null);
       if (slot < 0) return 'full';
-      s.weapons[slot] = bonusWeapon(this.rng, s.nextWeaponId++, s.forgeLevel, r.weapon.rarity);
+      s.weapons[slot] = bonusWeapon(this.rng, s.nextWeaponId++, s.forgeLevel, r.weapon.rarity, skinDef(s.skin).forms);
       this.invVersion++;
       this.sortInventory();
     }
@@ -1394,6 +1518,7 @@ export class Sim {
   private clearEnemies(): void {
     for (const e of this.enemies) e.alive = false;
     for (const s of this.shots) s.alive = false;
+    for (const s of this.heroShots) s.alive = false;
   }
 }
 

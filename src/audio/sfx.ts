@@ -9,10 +9,10 @@
 
 export type SoundName =
   | 'swing' | 'hit' | 'crit' | 'kill' | 'coin' | 'shard' | 'hurt' | 'die' | 'boss' | 'bossKill'
-  | 'stage' | 'area' | 'forge' | 'merge' | 'achieve' | 'tick' | 'zap';
+  | 'stage' | 'area' | 'forge' | 'merge' | 'achieve' | 'tick' | 'zap' | 'shoot' | 'cast' | 'burst';
 
 const MIN_GAP: Partial<Record<SoundName, number>> = {
-  swing: 0.06, hit: 0.045, crit: 0.06, kill: 0.05, coin: 0.07, shard: 0.09, hurt: 0.12, zap: 0.08, tick: 0.03,
+  swing: 0.06, hit: 0.045, crit: 0.06, kill: 0.05, coin: 0.07, shard: 0.09, hurt: 0.12, zap: 0.08, tick: 0.03, shoot: 0.06, cast: 0.06, burst: 0.06,
 };
 const MAX_VOICES = 14;
 
@@ -88,6 +88,10 @@ class Sfx {
       case 'merge': this.tone(now, 'sine', 400, 1200, 0.22, 0.18); this.tone(now + 0.12, 'triangle', 1200, 1600, 0.15, 0.1); break;
       case 'achieve': this.arp(now, [784, 988, 1175, 1568], 0.08, 'square', 0.09); break;
       case 'tick': this.tone(now, 'sine', 1000, 900, 0.025, 0.06); break;
+      // Bowstring twang / crossbow thunk, a spell's whoosh, and a magic orb popping.
+      case 'shoot': this.tone(now, 'triangle', 520, 180, 0.08, 0.12 * intensity); this.noiseSweep(now, 0.06, 2600, 900, 0.07 * intensity, 'bandpass'); break;
+      case 'cast': this.tone(now, 'sine', 300, 900, 0.12, 0.1 * intensity); this.noiseSweep(now, 0.1, 1200, 4000, 0.05 * intensity, 'bandpass'); break;
+      case 'burst': this.tone(now, 'sine', 500, 120, 0.16, 0.14); this.noiseSweep(now, 0.14, 3000, 400, 0.1, 'lowpass'); break;
     }
   }
 

@@ -1,3 +1,4 @@
+import { weaponTrailColor } from './weapons3d';
 import { BitmapText, Container, Sprite, type Application } from 'pixi.js';
 import { levelTier } from '../sim/level';
 import { Ev } from '../sim/events';
@@ -241,7 +242,14 @@ export class Scene {
       const x = q.x[i], y = q.y[i], v = q.value[i], f = q.flag[i];
       switch (q.type[i]) {
         case Ev.Swing:
-          sfx.play('swing');
+          // Ranged heroes: a twang or a spell (by weapon type); melee: a whoosh.
+          if (f === 1) sfx.play((this.sim.save.equipped?.form ?? 0) >= 8 ? 'cast' : 'shoot');
+          else sfx.play('swing');
+          break;
+        case Ev.Burst:
+          sfx.play('burst');
+          fx3.ring(x, y, weaponTrailColor(f), v, 0.35);
+          fx3.hit(x, y, 6, true, weaponTrailColor(f));
           break;
         case Ev.Hit:
           if (f !== 2) sfx.play(f === 1 ? 'crit' : 'hit');

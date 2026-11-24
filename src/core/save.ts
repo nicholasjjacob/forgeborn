@@ -2,7 +2,8 @@ import { DEFAULT_SKIN } from '../sim/skins';
 import { zoneLevel, zoneStage } from '../sim/zones';
 import { freshMaterials } from '../sim/gather';
 import { freshSave, type SaveData } from '../sim/sim';
-import { INVENTORY_SIZE, INVENTORY_STEP, MAX_INVENTORY, upgradeOldWeapon } from '../sim/weapons';
+import { FORMS, INVENTORY_SIZE, INVENTORY_STEP, MAX_INVENTORY, starterWeapon, upgradeOldWeapon, type Weapon } from '../sim/weapons';
+import { canWield, skinDef } from '../sim/skins';
 import { freshPerks, freshStats } from '../sim/meta';
 import { freshMissions } from '../sim/missions';
 
@@ -129,7 +130,7 @@ export function migrate(input: unknown): SaveData {
   const base = freshSave();
   if (!input || typeof input !== 'object') return base;
   const data = { ...(input as Record<string, unknown>) } as Omit<Partial<SaveData>, 'v'> & { v?: number };
-  if (data.v !== 1 && data.v !== 2 && data.v !== 3 && data.v !== 4 && data.v !== 5 && data.v !== 6) return base;
+  if (data.v !== 1 && data.v !== 2 && data.v !== 3 && data.v !== 4 && data.v !== 5 && data.v !== 6 && data.v !== 7) return base;
   const oldVersion = data.v;
 
   // v1 → v2: forge added (shards, forge level, inventory, starter weapon).
@@ -137,11 +138,12 @@ export function migrate(input: unknown): SaveData {
   // v3 → v4: gems, login calendar, daily/weekly boards, 7-day journey, codex.
   // v4 → v5: hero level, XP and Level Road claims.
   // v5 → v6: world map zones (see below).
+  // v6 → v7: heroes are classes with class-locked weapons (see below).
   // All additions are filled from defaults by the merge below.
   const fm = freshMissions();
   const dm = (data.missions ?? {}) as Partial<typeof fm>;
   const save = {
-    ...base, ...data, v: 6,
+    ...base, ...data, v: 7,
     missions: {
       ...fm, ...dm,
       attendance: { ...fm.attendance, ...dm.attendance },
@@ -164,7 +166,7 @@ export function migrate(input: unknown): SaveData {
   save.level = Number.isFinite(save.level) ? Math.max(1, Math.min(100, Math.floor(save.level))) : 1;
   save.xp = Number.isFinite(save.xp) ? Math.max(0, save.xp) : 0;
   save.bestEver = Math.max(save.bestEver ?? 1, save.highestStage ?? 1, save.stage ?? 1);
-  if (oldVersion !== 6) {
+  if (oldVersion < 6) {
     // Stages → zones: every zone whose successor was within this run's reach counts as
     // having its boss beaten; the hero lands in the furthest zone their level allows.
     const reach = Math.max(1, save.highestStage ?? 1);
@@ -196,9 +198,30 @@ export function migrate(input: unknown): SaveData {
   if (save.equipped) save.equipped = upgradeOldWeapon(save.equipped);
   while (inv.length < size) inv.push(null);
   save.weapons = inv;
+  // v6 → v7: Spears (old type 2) become Swords: type 2 is now the Barbarian's Greataxe. The
+  // equipped weapon re-forms into the current hero's weapon type if that hero can't wield it,
+  // so nobody loses their best weapon.
+  const known = (w: Weapon | null): Weapon | null => (w && (!Number.isInteger(w.form) || !FORMS[w.form]) ? { ...w, form: 0 } : w);
+  if (oldVersion < 7) {
+    const spear = (w: Weapon | null): Weapon | null => (w && w.form === 2 ? { ...w, form: 0 } : w);
+    save.weapons = save.weapons.map(spear);
+    save.equipped = spear(save.equipped);
+    save.gear = {};
+  }
+  save.weapons = save.weapons.map(known);
+  save.equipped = known(save.equipped);
+  if (!save.equipped) save.equipped = starterWeapon(skinDef(save.skin).forms[0], 0);
+  else if (!canWield(save.skin, save.equipped.form)) save.equipped = { ...save.equipped, form: skinDef(save.skin).forms[0] };
+  const gear: Record<string, Weapon | null> = {};
+  for (const [id, w] of Object.entries(save.gear && typeof save.gear === 'object' ? save.gear : {})) {
+    const k = known(w);
+    if (k && id !== save.skin && save.skins.includes(id) && canWield(id, k.form)) gear[id] = k;
+  }
+  save.gear = gear;
   // Keep weapon ids unique even if the counter was lost.
   let maxId = save.equipped?.id ?? 0;
-  for (const w of inv) if (w && w.id > maxId) maxId = w.id;
+  for (const w of [...save.weapons, ...Object.values(save.gear)]) if (w && w.id > maxId) maxId = w.id;
   save.nextWeaponId = Math.max(save.nextWeaponId ?? 0, maxId + 1);
+  if (save.equipped.id === 0) save.equipped.id = save.nextWeaponId++;
   return save;
 }

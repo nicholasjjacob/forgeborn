@@ -177,6 +177,12 @@ export class Fx3D {
 
   private n(count: number): number { return this.low ? Math.ceil(count / 2) : count; }
 
+  /** One small drifting spark (trails behind magic orbs). */
+  mote(x: number, y: number, h: number, color: number): void {
+    if (this.low && Math.random() < 0.5) return;
+    this.spark(x, h, y, (Math.random() - 0.5) * 12, 6 + Math.random() * 10, (Math.random() - 0.5) * 12, 0.3 + Math.random() * 0.2, 2.2, color, 0, 2);
+  }
+
   /** Sparks flying off a struck monster (game x, y; h = height of the hit). */
   hit(x: number, y: number, h: number, crit: boolean, color = 0xfff4d0): void {
     const n = this.n(crit ? 16 : 8);
