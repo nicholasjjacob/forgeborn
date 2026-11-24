@@ -13,7 +13,7 @@
   --card-hi: #3a4cab;      /* card (top of gradient) */
   --cream-3: #141c4c;      /* troughs, dividers, inner rings */
   --wood: #0a1035;         /* the thick dark outline around everything */
-  --wood-dark: #050920;    /* drop shadow under cards and buttons */
+  --wood-dark: #0509207a;  /* drop shadow under cards and buttons (soft) */
   --title: #ffd84a;        /* section titles */
   --good: #7dff6a;
   --bad: #ff6a5a;
@@ -29,7 +29,8 @@
   --purple-1: #d6a0ff; --purple-2: #9446f0; --purple-edge: #461890;
   --grey-1: #7684b8; --grey-2: #4f5b90; --grey-edge: #283262;
   --badge: #ff3b4b;
-  --outline: 0 2px 0 #0a1035, 1.5px 1.5px 0 #0a1035, -1.5px 1.5px 0 #0a1035, 1.5px -1.5px 0 #0a1035, -1.5px -1.5px 0 #0a1035, 0 -1.5px 0 #0a1035, 1.5px 0 0 #0a1035, -1.5px 0 0 #0a1035;
+  /* A thin, soft outline: crisp on bright buttons without smothering the letters. */
+  --outline: 0 1.5px 0 #0a1035d0, 1px 1px 0 #0a1035c0, -1px 1px 0 #0a1035c0, 1px -1px 0 #0a1035a0, -1px -1px 0 #0a1035a0;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   color-scheme: dark;
@@ -869,15 +870,18 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 /* --- Super casual finish ------------------------------------------------------------------- */
 /* Heavy rounded display type for everything that's a label, number or title. */
 .btn, .buy, .tabs button, .sheet-tabs button, .ribbon-text, #stage-label, .modal-card h2, .gold, .gems, .shards, .embers,
-.side-lbl, .name, .chip, #challenge-btn, #toast, .lv-badge, .flc-level, .rf-embers, .gem-balance, .day-label, .ditem,
-.zone-name, .section-title, .codex-area, .bag-title, .task-pts b, .ptrack-pts b, .ach-tier, .bag-amt, .offer-name, .wc-name,
-.map-area-head, .map-you, .jday, .update-banner, .lv-medal, .slot .tier, .badge, .dot, .q-text, .ach-name, .task-text,
-.bag-detail-name, .forge-level-btn b, .level-chip, #area-label {
-  font-family: var(--font-display); font-weight: 400; letter-spacing: 0.01em;
+.side-lbl, .chip, #challenge-btn, #toast, .lv-badge, .flc-level, .rf-embers, .gem-balance, .day-label, .ditem,
+.section-title, .codex-area, .bag-title, .task-pts b, .ptrack-pts b, .ach-tier, .bag-amt,
+.map-area-head, .jday, .update-banner, .lv-medal, .slot .tier, .badge, .dot, .level-chip, #area-label {
+  font-family: var(--font-display); font-weight: 400; letter-spacing: 0.035em;
+}
+/* Row and card titles: the rounder body font at its boldest, easier to read at small sizes. */
+.name, .q-text, .ach-name, .task-text, .wc-name, .offer-name, .bag-detail-name, .zone-name, .map-you, .forge-level-btn b {
+  font-family: var(--font); font-weight: 600; letter-spacing: 0.01em;
 }
 /* Every button gets the pack's thick dark outline and a glossy top band. */
 .btn, .buy, .tabs button, .sheet-tabs button, #challenge-btn, .jday, #panel-toggle, .chip, .sheet-x, .update-banner, .flb-go {
-  outline: 2.5px solid var(--wood); outline-offset: 0;
+  outline: 2px solid var(--wood); outline-offset: 0;
 }
 .btn, .buy, .tabs button, .sheet-tabs button, .jday { position: relative; overflow: hidden; }
 #challenge-btn, .sheet-x { overflow: hidden; } /* already absolutely positioned */
@@ -892,9 +896,9 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 .tabs button, .sheet-tabs button { overflow: visible; }
 /* Cards: a thin light rim inside the dark outline, like the pack's panels. */
 .upgrade, .quest, .ach, .task, .lv-row, .codex-card, .offer, .day-cell, .weapon-card, .bag-tile, .bag-weapons, .bag-detail, .forge-level-btn, .track-card {
-  outline: 2px solid var(--wood); outline-offset: -1px;
+  outline: 1.5px solid #0a1035b0; outline-offset: -1px;
 }
-.name, .q-text, .ach-name, .task-text, .wc-name, .offer-name, .bag-detail-name, .zone-name { text-shadow: var(--outline); }
+.name, .q-text, .ach-name, .task-text, .wc-name, .offer-name, .bag-detail-name, .zone-name { text-shadow: 0 1px 0 #0a103580; }
 .icon { box-shadow: inset 0 0 0 2.5px var(--wood), inset 0 4px 0 #ffffff40, 0 3px 0 var(--wood-dark); }
 
 /* --- Icons (ui/icons.ts: game-icons.net, CC BY 3.0) ------------------------------------------ */
