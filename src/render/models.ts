@@ -94,6 +94,10 @@ export function findClip(g: GLTF, names: readonly string[]): THREE.AnimationClip
 /** Height and footprint of a model in its own units, from its bind pose. */
 export function measure(obj: THREE.Object3D): { h: number; w: number; minY: number; cx: number; cz: number } {
   obj.updateMatrixWorld(true);
+  // Skinned vertices are measured through the skeleton's bone matrices, which normally only
+  // refresh when the model is drawn: bring them up to date with the current pose first (a fresh
+  // clone otherwise carries stale ones and can measure ten times too small or far off-centre).
+  obj.traverse((o) => { if ((o as THREE.SkinnedMesh).isSkinnedMesh) (o as THREE.SkinnedMesh).skeleton.update(); });
   const box = new THREE.Box3().setFromObject(obj, true);
   const size = box.getSize(new THREE.Vector3());
   return { h: size.y, w: Math.max(size.x, size.z), minY: box.min.y, cx: (box.min.x + box.max.x) / 2, cz: (box.min.z + box.max.z) / 2 };
