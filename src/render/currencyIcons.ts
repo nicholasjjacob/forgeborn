@@ -10,7 +10,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
  * available the CSS icons simply stay.
  */
 
-type Kind = 'coin' | 'gem' | 'jewel' | 'ember' | 'up' | 'anvil' | 'scroll';
+type Kind = 'coin' | 'gem' | 'jewel' | 'ember' | 'up' | 'anvil' | 'scroll' | 'chest' | 'chestOpen';
 
 function coin(): THREE.Object3D {
   const g = new THREE.Group();
@@ -156,7 +156,54 @@ function scroll(): THREE.Object3D {
   return g;
 }
 
-const BUILD: Record<Kind, () => THREE.Object3D> = { coin, gem: shard, jewel, ember, up: upArrow, anvil, scroll };
+function chest(open: boolean): THREE.Object3D {
+  // A wooden treasure chest with gold bands and a lock; open, its lid swings back on a pile of gold.
+  const g = new THREE.Group();
+  const wood = new THREE.MeshStandardMaterial({ color: 0xa8622a, roughness: 0.6, emissive: 0x4a2008, emissiveIntensity: 0.35, flatShading: true });
+  const gold = new THREE.MeshStandardMaterial({ color: 0xffc83a, metalness: 0.8, roughness: 0.3, emissive: 0x9a6a00, emissiveIntensity: 0.45 });
+  const W = 1.8, D = 1.1, H = 0.95;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(W, H, D), wood);
+  body.position.y = H / 2;
+  g.add(body);
+  for (const x of [-0.62, 0.62]) {
+    const band = new THREE.Mesh(new THREE.BoxGeometry(0.16, H + 0.04, D + 0.06), gold);
+    band.position.set(x, H / 2, 0);
+    g.add(band);
+  }
+  const rim = new THREE.Mesh(new THREE.BoxGeometry(W + 0.06, 0.1, D + 0.06), gold);
+  rim.position.y = H;
+  g.add(rim);
+  // Lid: a half cylinder hinged along the back edge.
+  const hinge = new THREE.Group();
+  hinge.position.set(0, H, -D / 2);
+  const lidGeo = new THREE.CylinderGeometry(D / 2, D / 2, W, 16, 1, false, 0, Math.PI).rotateZ(Math.PI / 2).rotateX(Math.PI / 2);
+  const lid = new THREE.Mesh(lidGeo, wood);
+  lid.position.z = D / 2;
+  hinge.add(lid);
+  for (const x of [-0.62, 0.62]) {
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(D / 2 + 0.03, D / 2 + 0.03, 0.16, 16, 1, false, 0, Math.PI).rotateZ(Math.PI / 2).rotateX(Math.PI / 2), gold);
+    b.position.set(x, 0, D / 2);
+    hinge.add(b);
+  }
+  if (!open) {
+    const lock = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.4, 0.12), gold);
+    lock.position.set(0, H - 0.05, D / 2 + 0.06);
+    g.add(lock);
+  } else {
+    hinge.rotation.x = -1.9;
+    const pile = new THREE.Mesh(new THREE.SphereGeometry(0.75, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xffd24a, metalness: 0.7, roughness: 0.25, emissive: 0xc88a00, emissiveIntensity: 0.7 }));
+    pile.scale.set(1.05, 0.45, 0.6);
+    pile.position.y = H - 0.02;
+    g.add(pile);
+  }
+  g.add(hinge);
+  g.rotation.set(0.42, -0.5, 0);
+  return g;
+}
+
+const BUILD: Record<Kind, () => THREE.Object3D> = {
+  coin, gem: shard, jewel, ember, up: upArrow, anvil, scroll, chest: () => chest(false), chestOpen: () => chest(true),
+};
 
 /** Render the icons and switch the UI over to them. Resolves true on success. */
 export function installCurrencyIcons(size = 96): boolean {
