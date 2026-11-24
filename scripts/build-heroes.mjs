@@ -26,6 +26,23 @@ const doc = await io.read(join(rig, 'Rig_Medium_General.glb'));
 mergeDocuments(doc, await io.read(join(rig, 'Rig_Medium_MovementBasic.glb')));
 const root = doc.getRoot();
 for (const a of root.listAnimations()) if (!KEEP.has(a.getName())) a.dispose();
+// The merge brought a second copy of the skeleton. Point every clip at the first skeleton's
+// bones (by name) and drop the copy: loaders rename duplicate bones ("hips_1"), which would leave
+// those clips animating nothing and the hero stuck in its rest pose.
+const [mainScene, ...extraScenes] = root.listScenes();
+const mainBones = new Map();
+mainScene.traverse((n) => { if (!mainBones.has(n.getName())) mainBones.set(n.getName(), n); });
+for (const a of root.listAnimations()) {
+  for (const c of a.listChannels()) {
+    const t = c.getTargetNode();
+    const m = t && mainBones.get(t.getName());
+    if (m && m !== t) c.setTargetNode(m);
+  }
+}
+for (const sc of extraScenes) sc.dispose();
+const live = new Set();
+mainScene.traverse((n) => live.add(n));
+for (const n of root.listNodes()) if (!live.has(n)) n.dispose();
 // Drop the mannequin meshes (keep the bones the clips animate).
 for (const n of root.listNodes()) { if (n.getMesh()) n.setMesh(null); n.setSkin(null); }
 for (const m of root.listMeshes()) m.dispose();

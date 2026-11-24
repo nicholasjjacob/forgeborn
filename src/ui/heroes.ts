@@ -14,6 +14,9 @@ import { bindSheetTaps } from './tap';
  */
 
 const portraits = new Map<string, string>();
+const AUTO_SPIN = 0.7;     // rad/s when left alone
+const DRAG_TURN = 0.012;   // radians per pixel dragged
+const MAX_FLING = 12;      // rad/s
 
 export class HeroesUI {
   private wrap: HTMLElement | null = null;
@@ -26,6 +29,10 @@ export class HeroesUI {
   private shown = '';
   private raf = 0;
   private last = 0;
+  /** Turntable: spin speed (rad/s), the direction it settles back to, and an active drag. */
+  private spin = AUTO_SPIN;
+  private spinDir = 1;
+  private drag: { id: number; x: number; t: number } | null = null;
 
   constructor(private readonly sim: Sim, private readonly toast: (m: string) => void) {}
 
@@ -139,10 +146,41 @@ export class HeroesUI {
       const dt = Math.min(0.05, (now - this.last) / 1000);
       this.last = now;
       this.mixer?.update(dt);
-      if (this.model) this.model.rotation.y += dt * 0.7;
+      // Not held: ease back to the slow auto-spin (keeping any fling's momentum for a moment).
+      if (!this.drag) {
+        this.spin += (AUTO_SPIN * this.spinDir - this.spin) * (1 - Math.exp(-dt * 1.8));
+        if (this.model) this.model.rotation.y += this.spin * dt;
+      }
       this.draw();
     };
     this.raf = requestAnimationFrame(loop);
+
+    // Drag left/right to turn the hero by hand; let go and it carries on spinning.
+    canvas.addEventListener('pointerdown', (e) => {
+      this.drag = { id: e.pointerId, x: e.clientX, t: performance.now() };
+      this.spin = 0;
+      canvas.setPointerCapture(e.pointerId);
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      const d = this.drag;
+      if (!d || d.id !== e.pointerId) return;
+      const now = performance.now();
+      const turn = (e.clientX - d.x) * DRAG_TURN;
+      if (this.model) this.model.rotation.y += turn;
+      const dt = Math.max(0.008, (now - d.t) / 1000);
+      this.spin = this.spin * 0.5 + (turn / dt) * 0.5; // smoothed fling speed
+      d.x = e.clientX; d.t = now;
+    });
+    const release = (e: PointerEvent) => {
+      if (!this.drag || this.drag.id !== e.pointerId) return;
+      // A finger held still before lifting shouldn't fling.
+      if (performance.now() - this.drag.t > 120) this.spin = 0;
+      this.spin = Math.max(-MAX_FLING, Math.min(MAX_FLING, this.spin));
+      if (Math.abs(this.spin) > 0.3) this.spinDir = Math.sign(this.spin);
+      this.drag = null;
+    };
+    canvas.addEventListener('pointerup', release);
+    canvas.addEventListener('pointercancel', release);
   }
 
   private draw(): void {
