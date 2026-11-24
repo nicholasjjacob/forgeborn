@@ -1,4 +1,4 @@
-import { paintMonsterPortraits } from './monsterPreview';
+import { monsterSlot, paintMonsterPortraits } from './monsterPreview';
 import { gi, terrainIcon } from './icons';
 import { zoneName } from '../sim/zones';
 import { haptic, sfx } from '../audio/sfx';
@@ -328,7 +328,7 @@ export class MissionsUI {
           <span class="cl-main"><b>${areaName(area)}</b>
             <span class="bar thin"><span class="bar-fill" style="transform:scaleX(${p.stars / p.total})"></span></span>
             <small>★ ${p.stars}/${p.total}</small></span>
-          <span class="cl-mons">${[0, 1, 2, 3].map((slot) => `<img alt="" src="${this.codexIcon(area, slot)}" class="${this.sim.missions.codexKills(area, slot) > 0 ? '' : 'unseen'}" />`).join('')}</span>
+          <span class="cl-mons">${[0, 1, 2, 3].map((slot) => monsterSlot(area, slot, this.codexIcon(area, slot), 'cl-mon', this.sim.missions.codexKills(area, slot) === 0)).join('')}</span>
           ${p.ready ? '<b class="dot">!</b>' : ''}
         </button>`;
       }).join('')}</div>

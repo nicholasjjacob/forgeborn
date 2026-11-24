@@ -1,3 +1,4 @@
+import { monsterSlot, paintMonsterPortraits } from './monsterPreview';
 import { gi, terrainIcon } from './icons';
 import { sfx } from '../audio/sfx';
 import { fmt } from '../core/format';
@@ -104,6 +105,7 @@ export class WorldMapUI {
       <div class="map-you">📍 <b>${zoneName(s.zone)}</b> · Hero Lv ${s.level}</div>
       <p class="sheet-note">Zones open as your hero levels up and you beat each zone's boss. Stuck? Travel back and farm an easier zone.</p>
       ${cards.join('')}`;
+    paintMonsterPortraits();
   }
 
   private areaCard(a: number, max: number): string {
@@ -112,7 +114,7 @@ export class WorldMapUI {
     const g = def.ground;
     const discovered = a * ZONES_PER_AREA <= max;
     const mons = discovered
-      ? [0, 1, 2].map((slot) => `<img alt="" src="${this.codexIcon(a, slot)}" />`).join('')
+      ? [0, 1, 2].map((slot) => monsterSlot(a, slot, this.codexIcon(a, slot), 'map-mon')).join('')
       : '';
     const zones: string[] = [];
     for (let i = 0; i < ZONES_PER_AREA; i++) {

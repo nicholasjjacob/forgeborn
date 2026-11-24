@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { cloneActor, findClip, measure, model } from '../render/models';
+import { areaFor } from '../sim/areas';
 
 /**
  * Live 3D portraits: any `<canvas class="mon3d" data-model="m0_1">` on the page shows that
@@ -83,6 +84,9 @@ export function paintMonsterPortraits(): void {
     if (!p) continue;
     const w = Math.round(c.clientWidth * dpr), h = Math.round(c.clientHeight * dpr);
     if (!w || !h) continue;
+    // Scrolled out of view (long lists): leave it until it comes back.
+    const rect = c.getBoundingClientRect();
+    if (rect.bottom < 0 || rect.top > innerHeight) continue;
     if (!ticked.has(key)) { ticked.add(key); p.mixer.update(dt); }
     if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
     const size = r.getSize(new THREE.Vector2());
@@ -110,4 +114,14 @@ function loop(now: number): void {
   if (now - last < FRAME_MS - 2) return;
   last = now;
   paintMonsterPortraits();
+}
+
+/**
+ * Markup for a monster portrait: the sprite with the live 3D model drawn over it. `cls` sizes the
+ * slot; `unseen` shows it as a dark silhouette.
+ */
+export function monsterSlot(area: number, slot: number, sprite: string, cls: string, unseen = false): string {
+  const fly = slot < 3 && areaFor(area).def.monsters[slot]?.shape === 'bat';
+  const u = unseen ? ' unseen' : '';
+  return `<span class="mon-slot ${cls}"><img alt="" src="${sprite}" class="${u}" /><canvas class="mon3d${u}" data-model="m${area % 6}_${slot}" data-fly="${fly ? 1 : 0}"></canvas></span>`;
 }
