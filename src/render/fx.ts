@@ -13,11 +13,11 @@ export function installFonts(): void {
   BitmapFont.install({
     name: FONT,
     style: {
-      fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+      fontFamily: '"Lilita One", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
       fontSize: FONT_PX,
-      fontWeight: '900',
+      fontWeight: '400',
       fill: '#ffffff',
-      stroke: { color: '#1b1626', width: 7, join: 'round' },
+      stroke: { color: '#0a1035', width: 7, join: 'round' },
     },
     chars: [['0', '9'], ['a', 'z'], '.KMBT!+- LVEUP'],
     resolution: 2,

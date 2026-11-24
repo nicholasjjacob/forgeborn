@@ -1,4 +1,7 @@
 import { Application, TextureStyle } from 'pixi.js';
+import '@fontsource/lilita-one/400.css';
+import '@fontsource/fredoka/500.css';
+import '@fontsource/fredoka/600.css';
 import { loadSave, wipeSave, writeSave } from './core/save';
 import { installFonts } from './render/fx';
 import { Scene } from './render/scene';
@@ -42,6 +45,8 @@ async function boot() {
   });
   host.appendChild(app.canvas);
 
+  // Damage numbers use the display font: wait briefly for it so the bitmap font is built from it.
+  await Promise.race([document.fonts.load('32px "Lilita One"'), new Promise((r) => setTimeout(r, 1500))]).catch(() => {});
   installFonts();
   const art = buildArt();
   // Rendered 3D sprites (hero + scenery now, each area's monsters on demand). If they're slow
