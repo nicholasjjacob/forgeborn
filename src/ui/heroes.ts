@@ -146,6 +146,7 @@ export class HeroesUI {
       const dt = Math.min(0.05, (now - this.last) / 1000);
       this.last = now;
       this.mixer?.update(dt);
+      if (this.model) centerOnHips(this.model);
       // Not held: ease back to the slow auto-spin (keeping any fling's momentum for a moment).
       if (!this.drag) {
         this.spin += (AUTO_SPIN * this.spinDir - this.spin) * (1 - Math.exp(-dt * 1.8));
@@ -207,6 +208,8 @@ export class HeroesUI {
     inner.rotation.set(0, 0, 0);
     inner.traverse((o) => o.layers.set(0));
     inner.getObjectByName('weapon-hand')?.removeFromParent(); // the battlefield's weapon, if cloned along
+    // The clone copies whatever pose the battlefield hero was in (mid-run, mid-swing): measure it at rest.
+    inner.traverse((o) => { if ((o as THREE.SkinnedMesh).isSkinnedMesh) (o as THREE.SkinnedMesh).skeleton.pose(); });
     const dims = measure(inner);
     const k = 1.5 / dims.h;
     inner.scale.setScalar(k);
@@ -217,6 +220,7 @@ export class HeroesUI {
     const idle = findClip(anims, ['Idle_A']);
     if (idle) mixer.clipAction(idle).play();
     mixer.update(0.4);
+    centerOnHips(obj);
     return { obj, mixer };
   }
 
@@ -263,4 +267,19 @@ export class HeroesUI {
       this.render();
     }
   }
+}
+
+const _hip = new THREE.Vector3();
+/**
+ * Keep the hero standing on the turntable's axis: shift the model so its hips sit at the centre
+ * (x/z only), whatever pose or animation it is in. Otherwise it can orbit off to one side as it spins.
+ */
+function centerOnHips(obj: THREE.Object3D): void {
+  const inner = obj.children[0];
+  const hips = inner?.getObjectByName('hips');
+  if (!inner || !hips) return;
+  obj.updateMatrixWorld(true);
+  obj.worldToLocal(hips.getWorldPosition(_hip));
+  inner.position.x -= _hip.x;
+  inner.position.z -= _hip.z;
 }
