@@ -1224,3 +1224,17 @@ html.icons3d .chest.ready .chest-ico { width: 38px; height: 38px; filter: drop-s
 }
 @keyframes chest-hop { to { transform: translateY(-2px); } }
 .chest.ready .chest-pts { color: transparent; }
+/* Achievements: two even columns that never overflow (long text wraps instead of widening its
+   column). Each card: tier badge + name on top, then the goal and its bar across the full width. */
+.ach-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 2px 2px 0; }
+.ach { min-width: 0; display: grid; grid-template-columns: 32px minmax(0, 1fr); column-gap: 8px; row-gap: 6px; align-items: center; padding: 12px 11px 13px; }
+.ach-main { display: contents; }
+.ach-tier { grid-column: 1; grid-row: 1; width: 32px; height: 32px; font-size: 14px; }
+.ach-name { grid-column: 2; grid-row: 1; font-size: 15px; line-height: 1.15; white-space: normal; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.ach-goal { grid-column: 1 / -1; grid-row: 2; font-size: 12.5px; line-height: 1.25; white-space: normal; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; min-height: 2.5em; }
+.ach .bar.thin { grid-column: 1 / -1; grid-row: 3; height: 8px; }
+.page-foot .ach-bonus { font-size: 13px; }
+@media (max-height: 740px) {
+  .ach-list { gap: 7px; }
+  .ach { padding: 8px 9px 9px; row-gap: 4px; }
+}
