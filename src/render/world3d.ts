@@ -260,6 +260,8 @@ export class World3D {
     this.pxPerUnit = this.h / (2 * this.dist * tan);
     this.halfW = viewW / 2;
     this.halfD = (this.dist * tan) / Math.sin(PITCH);
+    // Fog distance follows the camera distance (it changes when the view is resized).
+    if (this.scene.fog instanceof THREE.Fog) { this.scene.fog.near = this.dist * 1.05; this.scene.fog.far = this.dist * 1.9; }
     this.camera.near = this.dist * 0.3;
     this.camera.far = this.dist * 3;
     this.camera.updateProjectionMatrix();

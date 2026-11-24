@@ -253,14 +253,35 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 #panel {
   flex: 0 0 auto;
   height: 40dvh;
+  transition: height 0.22s ease;
   display: flex; flex-direction: column;
   background: var(--cream);
   border-top: 4px solid var(--wood);
   box-shadow: 0 -3px 0 var(--wood-dark), inset 0 3px 0 #fff8;
   padding-bottom: var(--safe-bottom);
 }
-.panel-head { padding: 8px 8px 4px; }
-.tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+.panel-head { padding: 8px 8px 4px; display: flex; gap: 6px; align-items: stretch; touch-action: none; }
+.tabs { flex: 1 1 auto; display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+/* Collapse / expand the menu: only the tab bar stays, the battlefield gets the room. */
+#panel-toggle {
+  flex: 0 0 38px; border: 0; border-radius: 12px; padding: 0;
+  background: linear-gradient(var(--cream-2), var(--cream-3));
+  box-shadow: inset 0 0 0 2px var(--wood), 0 3px 0 var(--wood-dark);
+  display: grid; place-items: center;
+}
+#panel-toggle .chev {
+  width: 10px; height: 10px; margin-top: -4px;
+  border-right: 3px solid var(--wood-dark); border-bottom: 3px solid var(--wood-dark);
+  transform: rotate(45deg); transition: transform 0.2s, margin 0.2s;
+}
+#panel.collapsed { height: calc(56px + var(--safe-bottom)); }
+#panel.collapsed #panel-toggle .chev { transform: rotate(-135deg); margin-top: 4px; }
+#panel.collapsed .tab-page { display: none; }
+#panel.collapsed .tabs button[aria-selected="true"] {
+  color: var(--ink-soft); text-shadow: none;
+  background: linear-gradient(var(--cream-2), var(--cream-3));
+  box-shadow: inset 0 0 0 2px var(--wood), 0 3px 0 var(--wood-dark);
+}
 .tabs button {
   position: relative;
   border: 0; border-radius: 12px; padding: 7px 4px;

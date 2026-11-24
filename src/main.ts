@@ -124,6 +124,10 @@ async function boot() {
   const relayout = () => scene.layout(app.screen.width, app.screen.height);
   app.renderer.on('resize', relayout);
   relayout();
+  // The battlefield also changes size without a window resize (hiding/showing the menu).
+  // Redraw at once: a resized canvas is blank until its next frame, which would flicker
+  // while the menu slides.
+  new ResizeObserver(() => { app.resize(); scene.world3d.render(); app.render(); }).observe(host);
 
   // Fixed-timestep simulation with render interpolation.
   let acc = 0;

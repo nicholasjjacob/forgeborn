@@ -98,8 +98,31 @@ export class Hud {
     this.badges = { forge: $('#forge-badge'), quests: $('#quests-badge'), reforge: $('#reforge-badge') };
 
     for (const t of root.querySelectorAll<HTMLButtonElement>('[data-tab]')) {
-      t.addEventListener('click', () => this.showTab(t.dataset.tab as Tab));
+      t.addEventListener('click', () => {
+        if (performance.now() - this.swipedAt < 400) return; // this "click" ended a swipe
+        // Tapping the open tab again hides the menu; any tab opens it.
+        const tab = t.dataset.tab as Tab;
+        if (tab === this.tab && !this.collapsed) this.setCollapsed(true);
+        else { this.setCollapsed(false); this.showTab(tab); }
+      });
     }
+    $('#panel-toggle').addEventListener('click', () => {
+      if (performance.now() - this.swipedAt < 400) return;
+      sfx.play('tick'); this.setCollapsed(!this.collapsed); });
+    // Swipe the tab bar down to hide the menu, up to show it.
+    const head = $('.panel-head');
+    let y0: number | null = null;
+    head.addEventListener('pointerdown', (e) => { y0 = e.clientY; });
+    head.addEventListener('pointerup', (e) => {
+      if (y0 === null) return;
+      const dy = e.clientY - y0;
+      y0 = null;
+      if (Math.abs(dy) > 30) { this.swipedAt = performance.now(); this.setCollapsed(dy > 0); }
+    });
+    head.addEventListener('pointercancel', () => { y0 = null; });
+    let saved = false;
+    try { saved = localStorage.getItem('fb-panel-collapsed') === '1'; } catch { /* storage blocked */ }
+    this.setCollapsed(saved);
     this.refresh();
   }
 
@@ -151,6 +174,20 @@ export class Hud {
     btn.addEventListener('lostpointercapture', stop);
     // Keyboard access: Enter/Space trigger click without pointer events.
     btn.addEventListener('click', (e) => { if (e.detail === 0) action(); });
+  }
+
+  private collapsed = false;
+  private swipedAt = -1e9;
+
+  /** Hide the menu down to its tab bar (the battlefield grows to fill the room), or show it. */
+  setCollapsed(c: boolean): void {
+    this.collapsed = c;
+    const panel = document.getElementById('panel')!;
+    panel.classList.toggle('collapsed', c);
+    const btn = document.getElementById('panel-toggle')!;
+    btn.setAttribute('aria-expanded', String(!c));
+    btn.setAttribute('aria-label', c ? 'Show menu' : 'Hide menu');
+    try { localStorage.setItem('fb-panel-collapsed', c ? '1' : '0'); } catch { /* storage blocked */ }
   }
 
   private showTab(tab: Tab): void {
