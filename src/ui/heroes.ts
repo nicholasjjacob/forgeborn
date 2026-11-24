@@ -3,6 +3,7 @@ import { sfx } from '../audio/sfx';
 import { cloneActor, findClip, loadModel, measure } from '../render/models';
 import { SKINS, lookOf, skinDef } from '../sim/skins';
 import { applyLook } from '../render/heroLook';
+import { buildKitWeapon, KIT_MODELS } from '../render/weapons3d';
 import { FORMS } from '../sim/weapons';
 import type { Sim } from '../sim/sim';
 import { gi } from './icons';
@@ -226,7 +227,7 @@ export class HeroesUI {
     inner.scale.setScalar(1);
     inner.rotation.set(0, 0, 0);
     inner.traverse((o) => o.layers.set(0));
-    inner.getObjectByName('weapon-hand')?.removeFromParent(); // the battlefield's weapon, if cloned along
+    for (const n of ['weapon-hand', 'weapon-kit-r', 'weapon-kit-l']) inner.getObjectByName(n)?.removeFromParent(); // the battlefield's weapon, if cloned along
     applyLook(inner, id, lookOf(id, this.sim.save.looks));
     // The clone copies whatever pose the battlefield hero was in (mid-run, mid-swing): measure it at rest.
     inner.traverse((o) => { if ((o as THREE.SkinnedMesh).isSkinnedMesh) (o as THREE.SkinnedMesh).skeleton.pose(); });
@@ -234,6 +235,16 @@ export class HeroesUI {
     const k = 1.5 / dims.h;
     inner.scale.setScalar(k);
     inner.position.set(-dims.cx * k, -dims.minY * k, -dims.cz * k);
+    // The hero holds their weapon: the equipped one, or what they would draw when picked.
+    // (Added after measuring, so a tall staff does not shrink the hero.)
+    await Promise.all(KIT_MODELS.map((n) => loadModel(n).catch(() => null)));
+    const s = this.sim.save;
+    const w = id === s.skin ? s.equipped : s.gear[id] ?? null;
+    const kit = buildKitWeapon(w?.form ?? skinDef(id).forms[0], w?.rarity ?? 0);
+    if (kit) {
+      inner.getObjectByName('handslotr')?.add(kit.group);
+      if (kit.off) inner.getObjectByName('handslotl')?.add(kit.off);
+    }
     const obj = new THREE.Group();
     obj.add(inner);
     const mixer = new THREE.AnimationMixer(inner);

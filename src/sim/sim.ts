@@ -238,6 +238,8 @@ export class Sim {
   shock = 0;
   /** The current hero's class modifiers (see skins.ts). */
   cls: ClassMods = {};
+  /** Share of incoming damage the equipped weapon's shield blocks. */
+  block = 0;
   /** Projectile of the equipped weapon, if it is ranged. */
   ranged: RangedDef | null = null;
   /** Bumped whenever the inventory/equipped weapon changes, so the UI can redraw lazily. */
@@ -439,6 +441,7 @@ export class Sim {
     this.lifesteal = w.lifesteal;
     this.shock = Math.min(0.6, w.shock + (c.shock ?? 0));
     this.ranged = w.form.ranged ?? null;
+    this.block = w.form.block ?? 0;
   }
 
   /** Hero attack if `weapon` were equipped (everything else unchanged). Used for previews. */
@@ -1197,7 +1200,7 @@ export class Sim {
 
   private hurtHero(dmg: number): void {
     const h = this.hero;
-    dmg *= this.cls.dmgTaken ?? 1;
+    dmg *= (this.cls.dmgTaken ?? 1) * (1 - this.block);
     h.hp -= dmg;
     h.hitT = 0.15;
     this.events.push(Ev.HeroHit, h.x, h.y - 18, dmg);

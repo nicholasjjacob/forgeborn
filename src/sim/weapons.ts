@@ -36,6 +36,8 @@ export interface RangedDef { speed: number; pierce: number; splash: number; kind
 export interface FormDef {
   name: string; range: number; arc: number; speed: number; dmg: number; knockback: number; blurb: string;
   ranged?: RangedDef;
+  /** Share of incoming damage a shield blocks. */
+  block?: number;
 }
 export const FORMS: readonly FormDef[] = [
   /* 0 */ { name: 'Sword',    range: 22, arc: 1.25, speed: 1.0,  dmg: 1.0,  knockback: 1.0, blurb: 'Balanced' },
@@ -53,6 +55,8 @@ export const FORMS: readonly FormDef[] = [
             ranged: { speed: 210, pierce: 0, splash: 22, kind: 'magic' } },
   /* 9 */ { name: 'Wand',     range: 80, arc: 0.3,  speed: 1.25, dmg: 0.64, knockback: 0.4, blurb: 'Ranged, rapid sparks',
             ranged: { speed: 260, pierce: 0, splash: 0, kind: 'magic' } },
+  /* 10 */ { name: 'Sword & Shield', range: 21, arc: 1.15, speed: 0.95, dmg: 0.9, knockback: 1.3, blurb: 'Shield blocks 25% of damage',
+            block: 0.25 },
 ];
 
 /** Material per rarity, for weapon names ("Runed Axe"). */

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { cloneActor, loadModel, model } from './models';
 
 /**
  * Hand-built low-poly weapons (one per form: Sword, Axe, Greataxe, Greatsword, Dagger, Crossbow,
@@ -19,6 +20,7 @@ export function weaponTrailColor(rarity: number): number {
 }
 
 export function buildWeapon(form: number, rarity: number): WeaponView {
+  if (form === 10) form = 0; // Sword & Shield: the sword (the shield only exists as a pack model)
   const g = new THREE.Group();
   const glow: THREE.MeshPhongMaterial[] = [];
   const metal = new THREE.MeshPhongMaterial({
@@ -172,4 +174,75 @@ export function buildWeapon(form: number, rarity: number): WeaponView {
     base.position.set(0, 5, 0); tip.position.set(0, 7.6, 0);
   }
   return { group: g, tip, base, glow };
+}
+
+// --- KayKit weapon models -----------------------------------------------------------------
+
+/**
+ * Which pack model each weapon type uses (see scripts/build-weapons.mjs): `main` goes in the
+ * right hand slot, `off` in the left; `gold` replaces `main` from Legendary up.
+ */
+const KIT: Record<number, { main: string; gold?: string; off?: string; scale?: number }> = {
+  0: { main: 'sword_1handed' },
+  1: { main: 'axe_1handed' },
+  2: { main: 'axe_2handed' },
+  3: { main: 'sword_2handed', gold: 'sword_2handed_color' },
+  4: { main: 'dagger' },
+  5: { main: 'crossbow_1handed' },
+  6: { main: 'bow_withString' },
+  7: { main: 'bow_withString', scale: 1.25 },
+  8: { main: 'staff' },
+  9: { main: 'wand' },
+  10: { main: 'sword_1handed', off: 'shield_badge_color' },
+};
+
+/** Every weapon model file (to preload). */
+export const KIT_MODELS = [...new Set(Object.values(KIT).flatMap((k) => [k.main, k.gold, k.off].filter((x): x is string => !!x)))]
+  .concat(['arrow_bow', 'arrow_crossbow']).map((n) => `w_${n}`);
+
+/** Rarity glow strength on the pack models (Common … Divine): rarity tints the whole weapon. */
+const KIT_GLOW = [0, 0.1, 0.16, 0.26, 0.34, 0.4, 0.46];
+
+export interface KitWeaponView extends WeaponView { off: THREE.Object3D | null }
+
+function kitPiece(name: string, rarity: number, glow: THREE.MeshLambertMaterial[]): THREE.Object3D | null {
+  const g = model(`w_${name}`);
+  if (!g) { void loadModel(`w_${name}`).catch(() => {}); return null; }
+  const o = cloneActor(g);
+  const c = new THREE.Color(weaponTrailColor(rarity));
+  o.traverse((x) => {
+    const m = x as THREE.Mesh;
+    if (!m.isMesh) return;
+    m.castShadow = true;
+    for (const mat of Array.isArray(m.material) ? m.material : [m.material]) {
+      const l = mat as THREE.MeshLambertMaterial;
+      if (!l.emissive) continue;
+      l.emissive.copy(c).multiplyScalar(KIT_GLOW[rarity] ?? 0);
+      if (rarity >= 3) glow.push(l);
+    }
+  });
+  return o;
+}
+
+/**
+ * The pack model for weapon type `form` at `rarity`, in the model's own units (it goes straight
+ * into the character's hand slot bones). Null while the model is still loading.
+ */
+export function buildKitWeapon(form: number, rarity: number): KitWeaponView | null {
+  const k = KIT[form];
+  if (!k) return null;
+  const glow: THREE.MeshLambertMaterial[] = [];
+  const main = kitPiece(rarity >= 4 && k.gold ? k.gold : k.main, rarity, glow);
+  const off = k.off ? kitPiece(k.off, rarity, glow) : null;
+  if (!main || (k.off && !off)) return null;
+  const group = new THREE.Group();
+  group.add(main);
+  if (k.scale) group.scale.setScalar(k.scale);
+  // Swing-trail markers: from a third of the way up the weapon to its far end.
+  const box = new THREE.Box3().setFromObject(main);
+  const tip = new THREE.Object3D(), base = new THREE.Object3D();
+  base.position.set(0, box.min.y + (box.max.y - box.min.y) * 0.4, 0);
+  tip.position.set(0, box.max.y, 0);
+  group.add(tip, base);
+  return { group, tip, base, glow: glow as unknown as THREE.MeshPhongMaterial[], off };
 }

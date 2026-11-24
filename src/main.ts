@@ -8,6 +8,7 @@ import { Scene } from './render/scene';
 import { areaArt, buildArt, ensureAreaSprites, loadRenderedArt } from './render/sprites';
 import { TICK } from './sim/balance';
 import { Sim } from './sim/sim';
+import { renderKitIcons } from './render/weaponIcons';
 import { Hud } from './ui/hud';
 import { Input } from './ui/input';
 import { zoneArea, zoneName } from './sim/zones';
@@ -105,6 +106,8 @@ async function boot() {
     install: () => pwa.install(),
     canInstall: () => pwa.canInstall(),
   }));
+  // Inventory icons from the pack's weapon models (replacing the drawn stand-ins once ready).
+  setTimeout(() => { void renderKitIcons(art.weaponIcons).then((ok) => { if (ok) sim.invVersion++; }); }, 1200);
   applyFps();
   applyQuality();
   sfx.enabled = sim.save.sound;

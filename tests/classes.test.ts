@@ -50,6 +50,14 @@ describe('hero classes', () => {
     expect(sim.ranged).toBeNull();
   });
 
+  it("the Knight's Sword & Shield blocks a quarter of incoming damage", () => {
+    const save = heroSave('knight');
+    save.equipped = starterWeapon(10);
+    const sim = new Sim(save, 1);
+    expect(skinDef('knight').forms).toContain(10);
+    expect(sim.block).toBe(0.25);
+  });
+
   it('class perks change the hero: the Knight is tougher than the Rogue', () => {
     const knight = new Sim(heroSave('knight'), 1);
     const rogue = new Sim(heroSave('rogue'), 1);

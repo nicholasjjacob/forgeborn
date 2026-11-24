@@ -22,7 +22,7 @@ export function loadModel(name: string): Promise<GLTF> {
         m.material = Array.isArray(m.material) ? m.material.map(toLambert) : toLambert(m.material);
         // Characters use palette atlases (flat colour cells): mipmaps would blend neighbouring
         // cells into mud at a distance, so sample them without mipmaps.
-        if (/^(m\d|hero)/.test(name)) {
+        if (/^(m\d|hero|w_)/.test(name)) {
           for (const mat of Array.isArray(m.material) ? m.material : [m.material]) {
             const map = (mat as THREE.MeshLambertMaterial).map;
             if (map) { map.generateMipmaps = false; map.minFilter = THREE.LinearFilter; map.needsUpdate = true; }

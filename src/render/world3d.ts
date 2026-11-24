@@ -7,7 +7,7 @@ import { ELITE, MAX_ENEMIES, MAX_HERO_SHOTS, MAX_SHOTS, SLAM_RADIUS, SLAM_WIND, 
 import { MAX_PICKUPS } from '../sim/gather';
 import { cloneActor, findClip, loadModel, measure, model } from './models';
 import { Fx3D } from './fx3d';
-import { buildWeapon, weaponTrailColor, type WeaponView } from './weapons3d';
+import { KIT_MODELS, buildKitWeapon, buildWeapon, weaponTrailColor, type WeaponView } from './weapons3d';
 import { applyLook } from './heroLook';
 import { lookOf } from '../sim/skins';
 
@@ -158,7 +158,12 @@ export class World3D {
   private heroSwing = 0;
   private heroDead = false;
   private readonly hand = Object.assign(new THREE.Group(), { name: 'weapon-hand' }); // weapon holder, in world units
+  /** Pack weapon models go straight into the rig's hand slot bones, in the model's own units. */
+  private readonly kitHand = Object.assign(new THREE.Group(), { name: 'weapon-kit-r' });
+  private readonly kitOff = Object.assign(new THREE.Group(), { name: 'weapon-kit-l' });
   private weaponKey = '';
+  /** The shown weapon is the pack model (not the hand-built stand-in shown while it loads). */
+  private weaponIsKit = false;
   private weapon: WeaponView | null = null;
   private readonly wTip = new THREE.Vector3();
   private readonly wBase = new THREE.Vector3();
@@ -173,13 +178,14 @@ export class World3D {
   /** Which model + style the hero's look was last applied to. */
   private heroLookOn = '';
   /** Hero projectiles: an arrow, a crossbow bolt and a magic orb per slot (one shown at a time). */
-  private readonly heroShotViews: { root: THREE.Group; arrow: THREE.Group; bolt: THREE.Group; magic: THREE.Mesh; core: THREE.Mesh }[] = [];
+  private readonly heroShotViews: { root: THREE.Group; arrow: THREE.Group; bolt: THREE.Group; magic: THREE.Mesh; core: THREE.Mesh; kit?: boolean }[] = [];
   private readonly pickupMeshes: { wood: THREE.Mesh; stone: THREE.Mesh }[] = [];
   private area = -1;
 
   private low = false;
 
   constructor(host: HTMLElement) {
+    for (const n of KIT_MODELS) void loadModel(n).catch(() => {}); // weapons (pack models)
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     this.canvas = this.renderer.domElement;
     host.prepend(this.canvas);
@@ -544,6 +550,19 @@ export class World3D {
 
   // --- Actors ------------------------------------------------------------------------------
 
+  /** Swap a projectile's stand-in arrow and bolt for the pack's models once they've loaded. */
+  private kitArrows(v: { arrow: THREE.Group; bolt: THREE.Group; kit?: boolean }): void {
+    const a = model('w_arrow_bow'), b = model('w_arrow_crossbow');
+    if (!a || !b) return;
+    for (const [group, g, scale] of [[v.arrow, a, 7], [v.bolt, b, 7.5]] as const) {
+      group.clear();
+      const o = g.scene.clone(true);
+      o.scale.setScalar(scale);
+      group.add(o);
+    }
+    v.kit = true;
+  }
+
   /** Show the given skin: load its model and the shared animations, then swap it in. */
   private loadHero(id: string): void {
     this.heroSkin = id;
@@ -593,12 +612,14 @@ export class World3D {
     const bone = findBone(m, ['handslotr', 'handslot.r', 'handr', 'hand.r']);
     if (bone) {
       bone.add(this.hand);
+      bone.add(this.kitHand);
       m.updateMatrixWorld(true);
       const s = new THREE.Vector3();
       bone.getWorldScale(s);
       this.hand.scale.setScalar(0.75 / s.x);
       this.hand.rotation.set(HAND_ROT[0], HAND_ROT[1], HAND_ROT[2]);
     }
+    findBone(m, ['handslotl', 'handslot.l', 'handl', 'hand.l'])?.add(this.kitOff);
   }
 
   private heroPlay(a: THREE.AnimationAction | null, fade = 0.15, restart = false): void {
@@ -610,10 +631,26 @@ export class World3D {
 
   private setWeapon(form: number, rarity: number): void {
     const key = `${form}|${rarity}`;
-    if (key === this.weaponKey) return;
+    if (key === this.weaponKey && this.weaponIsKit) return;
+    const kit = buildKitWeapon(form, rarity);
+    if (!kit && key === this.weaponKey) return; // the stand-in is up; the pack model is still loading
     this.weaponKey = key;
     this.hand.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) m.geometry.dispose(); });
     this.hand.clear();
+    // Pack models share geometry with their template: only their own materials are freed.
+    for (const h of [this.kitHand, this.kitOff]) {
+      h.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) for (const x of Array.isArray(m.material) ? m.material : [m.material]) x.dispose(); });
+      h.clear();
+    }
+    this.weaponIsKit = !!kit;
+    if (kit) {
+      kit.group.traverse((o) => o.layers.set(HERO_LAYER));
+      kit.off?.traverse((o) => o.layers.set(HERO_LAYER));
+      this.kitHand.add(kit.group);
+      if (kit.off) this.kitOff.add(kit.off);
+      this.weapon = kit;
+      return;
+    }
     const w = buildWeapon(form, rarity);
     w.group.traverse((o) => o.layers.set(HERO_LAYER));
     this.hand.add(w.group);
@@ -870,6 +907,7 @@ export class World3D {
       v.root.position.set(s.prevX + (s.x - s.prevX) * alpha, 9, s.prevY + (s.y - s.prevY) * alpha);
       v.root.rotation.y = Math.atan2(s.vx, s.vy);
       const magic = s.kind === 'magic';
+      if (!magic && !v.kit) this.kitArrows(v);
       v.arrow.visible = s.kind === 'arrow';
       v.bolt.visible = s.kind === 'bolt';
       v.magic.visible = v.core.visible = magic;
