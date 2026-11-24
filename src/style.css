@@ -1252,3 +1252,8 @@ html.icons3d .chest.ready .chest-ico { width: 38px; height: 38px; filter: drop-s
 #dock .dock-ico { width: 40px; height: 40px; }
 #dock .dock-lbl { font-size: 12px; }
 #challenge-btn { bottom: calc(var(--dock-h) + var(--safe-bottom) + 4px); }
+/* 7-Day Journey: day buttons show their badge outside the corner (the gloss is inset, so no
+   clipping is needed), with room above and beside the row so it isn't cut by the page edge. */
+.jday { overflow: visible; }
+.jdays { padding: 8px 5px 0; }
+.jday .dot { z-index: 1; }
