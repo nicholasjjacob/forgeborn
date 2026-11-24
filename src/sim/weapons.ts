@@ -17,10 +17,17 @@ export function inventoryExpandCost(size: number): number {
   return Math.round(1500 * Math.pow(3, Math.max(0, size - INVENTORY_SIZE) / INVENTORY_STEP));
 }
 /** Shards per forge at the base forge level (see forgeCost: it grows as the forge levels up). */
-export const FORGE_COST = 10;
+export const FORGE_COST = 120;
 export const MAX_FORGE_LEVEL = 25;
-/** Weapons consumed per merge: this many of the same type and rarity make one of the next rarity. */
-export const MERGE_COUNT = 3;
+/**
+ * Weapons consumed per merge, by the rarity being merged: this many of the same type and rarity
+ * make one of the next. Rises at the top so the best weapons take a real grind: a Divine is worth
+ * 3·3·4·4·5·5 = 3,600 Commons.
+ */
+export const MERGE_COUNTS = [3, 3, 4, 4, 5, 5] as const;
+export function mergeCount(rarity: number): number {
+  return MERGE_COUNTS[Math.max(0, Math.min(MERGE_COUNTS.length - 1, rarity))];
+}
 
 export type Rarity = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 export const MAX_RARITY: Rarity = 6;
@@ -127,14 +134,16 @@ function fillTraits(rng: Rng, w: Weapon): void {
 
 /**
  * Chance a forge comes out Uncommon, Rare, Epic or Legendary (the rest are Common); better
- * with forge level. Mythic and Divine only come from merging.
+ * with forge level. Kept low on purpose: good weapons are mostly merged up, a long grind
+ * (an active player's first Rare ~15 min, Epic ~1 h, Legendary ~5 h). Mythic and Divine only
+ * come from merging.
  */
 export function forgeOdds(level: number): [number, number, number, number] {
   return [
-    Math.min(0.45, 0.22 + 0.02 * level),
-    Math.min(0.22, 0.04 + 0.012 * level),
-    Math.min(0.08, 0.004 + 0.004 * level),
-    Math.min(0.02, 0.0005 + 0.0008 * level),
+    Math.min(0.25, 0.08 + 0.008 * level),
+    Math.min(0.06, 0.008 + 0.002 * level),
+    Math.min(0.01, 0.0004 + 0.0003 * level),
+    Math.min(0.002, 0.00002 * level),
   ];
 }
 
@@ -165,7 +174,7 @@ export function bonusWeapon(rng: Rng, id: number, level: number, minRarity: Rari
 
 /**
  * Can `a` and `b` go into the same merge? They must match in type (form) and rarity:
- * MERGE_COUNT matching weapons (e.g. three Common Swords) make one of the next rarity.
+ * mergeCount(rarity) matching weapons (e.g. three Common Swords) make one of the next rarity.
  */
 export function canMerge(a: Weapon, b: Weapon): boolean {
   return a.id !== b.id && a.form === b.form && a.rarity === b.rarity && a.rarity < MAX_RARITY;
@@ -203,12 +212,12 @@ export function mergePartners(inv: readonly (Weapon | null)[], slot: number): nu
 }
 
 /**
- * Merge `keep` with matching weapons (`others`, MERGE_COUNT - 1 of them) into one of the next
+ * Merge `keep` with matching weapons (`others`, mergeCount - 1 of them) into one of the next
  * rarity. `keep` (the weapon the player chose) passes on its traits, strengthened for the new
  * rarity, and gains one fresh trait.
  */
 export function mergeWeapons(rng: Rng, id: number, keep: Weapon, others: readonly Weapon[]): Weapon {
-  if (others.length !== MERGE_COUNT - 1 || others.some((o) => !canMerge(keep, o))) throw new Error('invalid merge');
+  if (others.length !== mergeCount(keep.rarity) - 1 || others.some((o) => !canMerge(keep, o))) throw new Error('invalid merge');
   const w: Weapon = { ...mergePreview(keep), id };
   fillTraits(rng, w);
   return w;

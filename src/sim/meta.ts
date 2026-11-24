@@ -102,10 +102,10 @@ interface QuestTemplate { kind: QuestKind; target: (s: number) => number; gold: 
 
 const round5 = (n: number) => Math.max(5, Math.round(n / 5) * 5);
 const QUEST_TEMPLATES: QuestTemplate[] = [
-  { kind: 'kills', target: (s) => round5(25 + s * 1.5), gold: 40, shards: (s) => 8 + Math.floor(s / 3), minStage: 1, text: 'Defeat {n} monsters' },
-  { kind: 'elites', target: () => 3, gold: 60, shards: (s) => 12 + Math.floor(s / 2), minStage: 4, text: 'Defeat {n} elites' },
-  { kind: 'bosses', target: () => 1, gold: 100, shards: (s) => 20 + Math.floor(s / 2), minStage: 6, text: 'Defeat {n} boss' },
-  { kind: 'forged', target: () => 5, gold: 80, shards: () => 10, minStage: 1, text: 'Forge {n} weapons' },
+  { kind: 'kills', target: (s) => round5(25 + s * 1.5), gold: 40, shards: (s) => 4 * (8 + Math.floor(s / 3)), minStage: 1, text: 'Defeat {n} monsters' },
+  { kind: 'elites', target: () => 3, gold: 60, shards: (s) => 4 * (12 + Math.floor(s / 2)), minStage: 4, text: 'Defeat {n} elites' },
+  { kind: 'bosses', target: () => 1, gold: 100, shards: (s) => 4 * (20 + Math.floor(s / 2)), minStage: 6, text: 'Defeat {n} boss' },
+  { kind: 'forged', target: () => 5, gold: 80, shards: () => 40, minStage: 1, text: 'Forge {n} weapons' },
   { kind: 'merges', target: () => 2, gold: 60, shards: () => 10, minStage: 3, text: 'Merge weapons {n} times' },
   { kind: 'gold', target: (s) => enemyGold(s) * 120, gold: 0, shards: (s) => 15 + Math.floor(s / 2), minStage: 1, text: 'Earn {n} gold' },
 ];

@@ -166,7 +166,7 @@ export class MissionSystem {
 
   offerReward(id: string): Reward {
     const s = this.sim.save;
-    if (id === 'shards') return { shards: 60 };
+    if (id === 'shards') return { shards: 240 };
     if (id === 'gold') return { gold: enemyGold(Math.max(1, s.stage)) * 250 };
     if (id === 'mats') return { wood: 20, stone: 20 };
     if (id === 'xp') return { xp: xpForKill(Math.max(1, s.bestEver), false) * 300 }; // ~300 kills' worth

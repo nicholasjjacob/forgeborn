@@ -3,6 +3,7 @@ import { Rng } from '../src/core/rng';
 import { migrate } from '../src/core/save';
 import { Sim, freshSave } from '../src/sim/sim';
 import {
+  mergeCount,
   FORGE_COST, INVENTORY_SIZE, forgeCost, forgeLevelCap, forgeOdds, salvageValue, TRAITS, forgeWeapon, mergePreview, mergeWeapons,
   upgradeOldWeapon, weaponMult, type Rarity, type Weapon,
 } from '../src/sim/weapons';
@@ -28,11 +29,15 @@ describe('weapon rules', () => {
     }
   });
 
-  it('merging three matches gives the next rarity, keeps form and traits, adds one trait', () => {
+  it('higher rarities need more weapons to merge (3, 3, 4, 4, 5, 5)', () => {
+    expect([0, 1, 2, 3, 4, 5].map(mergeCount)).toEqual([3, 3, 4, 4, 5, 5]);
+  });
+
+  it('merging matches gives the next rarity, keeps form and traits, adds one trait', () => {
     const rng = new Rng(4);
     const traits: Weapon['traits'] = [{ t: 'crit', v: 0.03 }, { t: 'gold', v: 0.1 }];
     const keep = w(2, 3, traits);
-    const others = [w(2, 3), w(2, 3)];
+    const others = [w(2, 3), w(2, 3), w(2, 3)]; // Rare needs 4
     for (let i = 0; i < 50; i++) {
       const m = mergeWeapons(rng, 99, keep, others);
       expect(m.rarity).toBe(3);
@@ -41,6 +46,7 @@ describe('weapon rules', () => {
       expect(m.traits.slice(0, 2).map((t) => t.t)).toEqual(['crit', 'gold']);
       expect(m.traits[0].v).toBeGreaterThan(0.03); // strengthened for the new rarity
     }
+    expect(() => mergeWeapons(rng, 1, w(2, 3), [w(2, 3), w(2, 3)])).toThrow(); // too few for a Rare
     expect(() => mergeWeapons(rng, 1, w(6), [w(6), w(6)])).toThrow(); // Divine is the top
   });
 
@@ -91,20 +97,23 @@ describe('forge commands', () => {
     expect(save.weapons.filter(Boolean).length).toBe(3); // 3 swords became 1; axe + rare sword stay
   });
 
-  it('upgrades the equipped weapon with two matching weapons from the bag', () => {
+  it('upgrades the equipped weapon with matching weapons from the bag', () => {
     const save = freshSave();
     save.equipped = w(2, 1, [{ t: 'gold', v: 0.1 }]); // rare axe
     save.weapons[0] = w(2, 1);
     save.weapons[5] = w(1, 1); // uncommon: doesn't match
     const sim = new Sim(save, 7);
     const atk = sim.atk;
-    expect(sim.mergeEquipped()).toBe(false); // only 2 of 3
+    expect(sim.mergeEquipped()).toBe(false); // only 2 of 4 (Rare merges need 4)
     save.weapons[3] = w(2, 1);
+    expect(sim.mergeEquipped()).toBe(false); // 3 of 4
+    save.weapons[4] = w(2, 1);
     expect(sim.mergeEquipped()).toBe(true);
     expect(save.equipped!.rarity).toBe(3);
     expect(save.equipped!.form).toBe(1);
     expect(save.weapons[0]).toBeNull();
     expect(save.weapons[3]).toBeNull();
+    expect(save.weapons[4]).toBeNull();
     expect(save.weapons[5]).not.toBeNull();
     expect(sim.atk).toBeGreaterThan(atk);
   });

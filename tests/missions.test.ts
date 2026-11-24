@@ -131,7 +131,7 @@ describe('gem shop', () => {
     const sim = new Sim(freshSave(), 8);
     sim.save.missions.gems = 50;
     expect(sim.missions.buy('shards')).not.toBeNull();
-    expect(sim.save.shards).toBe(60);
+    expect(sim.save.shards).toBe(240);
     expect(sim.missions.buy('shards')).toBeNull();
     expect(sim.save.missions.gems).toBe(10);
   });

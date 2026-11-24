@@ -117,20 +117,20 @@ export function attendanceReward(day: number, bestEver: number): Reward {
   const g = enemyGold(Math.max(1, bestEver)) * 150;
   return [
     { gold: g },
-    { shards: 40 },
+    { shards: 160 },
     { gems: 30 },
     { gold: g * 2 },
-    { shards: 80 },
+    { shards: 320 },
     { gems: 50 },
-    { gems: 150, shards: 150, embers: 5 },
+    { gems: 150, shards: 600, embers: 5 },
   ][day % 7];
 }
 
 export function boardChestReward(kind: 'daily' | 'weekly' | 'journey', index: number, bestEver: number): Reward {
   const g = enemyGold(Math.max(1, bestEver)) * 80 * (index + 1);
-  if (kind === 'daily') return [{ gold: g }, { shards: 20 }, { gems: 15 }, { shards: 40 }, { gems: 40, gold: g }][index];
-  if (kind === 'weekly') return [{ gems: 30 }, { shards: 80 }, { gems: 60 }, { shards: 150 }, { gems: 150, embers: 3 }][index];
-  return [{ gems: 20 }, { shards: 50 }, { gems: 40 }, { shards: 100, gold: g }, { gems: 80 }, { shards: 200 }, { gems: 250, embers: 10 }][index];
+  if (kind === 'daily') return [{ gold: g }, { shards: 80 }, { gems: 15 }, { shards: 160 }, { gems: 40, gold: g }][index];
+  if (kind === 'weekly') return [{ gems: 30 }, { shards: 320 }, { gems: 60 }, { shards: 600 }, { gems: 150, embers: 3 }][index];
+  return [{ gems: 20 }, { shards: 200 }, { gems: 40 }, { shards: 400, gold: g }, { gems: 80 }, { shards: 800 }, { gems: 250, embers: 10 }][index];
 }
 
 // --- Codex ---------------------------------------------------------------------

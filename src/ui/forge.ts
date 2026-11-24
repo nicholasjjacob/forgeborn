@@ -7,7 +7,7 @@ import { InventoryUI } from './inventoryUI';
 import { Pager } from './pager';
 import { skinDef, wieldersOf } from '../sim/skins';
 import {
-  forgeCost, forgeLevelCap, FORMS, MAX_FORGE_LEVEL, MAX_RARITY, MERGE_COUNT, RARITY_COLORS, RARITY_NAMES, TRAITS, forgeOdds,
+  forgeCost, forgeLevelCap, FORMS, MAX_FORGE_LEVEL, MAX_RARITY, mergeCount, RARITY_COLORS, RARITY_NAMES, TRAITS, forgeOdds,
   forgeUpgradeCost, inventoryExpandCost, MAX_INVENTORY, matchingSlots, mergePartners, mergePreview, salvageValue, weaponName, weaponPower, weaponSummary, type Weapon,
 } from '../sim/weapons';
 
@@ -321,11 +321,12 @@ export class ForgePanel {
             : `<em>${dir === 'up' ? '▲ +' : '▼ −'}${fmt(Math.abs(diff))} (${dir === 'up' ? '+' : '−'}${Math.abs(pctDiff).toFixed(0)}%)</em>`);
       }
       if (sel) {
-        // Merge needs MERGE_COUNT of the same type and rarity (this one included).
+        // Merge needs mergeCount of the same type and rarity (this one included).
         const have = partners.length + 1;
-        const ready = have >= MERGE_COUNT && sel.rarity < MAX_RARITY;
+        const need = mergeCount(sel.rarity);
+        const ready = have >= need && sel.rarity < MAX_RARITY;
         const kind = `${RARITY_NAMES[sel.rarity]} ${FORMS[sel.form].name}s`;
-        this.el.merge.textContent = `Merge ${Math.min(have, MERGE_COUNT)}/${MERGE_COUNT}`;
+        this.el.merge.textContent = `Merge ${Math.min(have, need)}/${need}`;
         this.disable(this.el.merge, !ready);
         const delta = eqPower > 0 ? weaponPower(sel) / eqPower : 1;
         const overall = theirs ? 'not for this hero' : delta >= 1.005 ? `overall ▲ ${((delta - 1) * 100).toFixed(0)}%` : delta <= 0.995 ? `overall ▼ ${((1 - delta) * 100).toFixed(0)}%` : 'overall about the same';
@@ -337,8 +338,8 @@ export class ForgePanel {
         const others = [...otherRarity].map(([r, n]) => `${n} ${RARITY_NAMES[r]}`).join(', ');
         const rarityNote = !ready && others ? ` Your ${others} ${FORMS[sel.form].name} don't count: rarity must match.` : '';
         this.el.hint.textContent = (sel.rarity >= MAX_RARITY ? 'Max rarity · '
-          : ready ? `Merge 3 ${kind} → ${RARITY_NAMES[sel.rarity + 1]} · `
-          : `Merge needs 3 ${kind} (have ${have}).${rarityNote} · `) + (theirs ? overall : `${overall} incl. speed & traits`);
+          : ready ? `Merge ${need} ${kind} → ${RARITY_NAMES[sel.rarity + 1]} · `
+          : `Merge needs ${need} ${kind} (have ${have}).${rarityNote} · `) + (theirs ? overall : `${overall} incl. speed & traits`);
         this.el.salvage.textContent = `Salvage +${salvageValue(sel, s.forgeLevel)}`;
       } else {
         const a = this.atkAnim;
@@ -347,17 +348,18 @@ export class ForgePanel {
         this.el.atk.innerHTML = `<span class="wc-atk-lbl">⚔ Attack</span> <b>${fmt(a ? a.from : now)}</b>` +
           (a ? ` <i class="atk-delta">${delta > 0 ? '▲ +' : '▼ −'}${fmt(Math.abs(delta))}</i>` : '');
         const have = eqMatches.length + 1;
-        const ready = have >= MERGE_COUNT && w.rarity < MAX_RARITY;
-        this.el.merge.textContent = `Merge ${Math.min(have, MERGE_COUNT)}/${MERGE_COUNT}`;
+        const need = mergeCount(w.rarity);
+        const ready = have >= need && w.rarity < MAX_RARITY;
+        this.el.merge.textContent = `Merge ${Math.min(have, need)}/${need}`;
         this.disable(this.el.merge, !ready);
         const kind = `${RARITY_NAMES[w.rarity]} ${FORMS[w.form].name}s`;
         this.el.hint.textContent = eqMatches.length
-          ? (ready ? `Upgrade: merge with 2 matching ${kind} from your bag` : `Upgrade needs 3 ${kind} (have ${have} incl. this one)`)
+          ? (ready ? `Upgrade: merge with ${need - 1} matching ${kind} from your bag` : `Upgrade needs ${need} ${kind} (have ${have} incl. this one)`)
           : `${FORMS[w.form].name}: ${FORMS[w.form].blurb.toLowerCase()} · the forge makes ${forgeKinds(s.skin)} for your ${skinDef(s.skin).name}`;
       }
       // What the next merge would do to your Attack.
       const mw = sel ?? s.equipped;
-      const canShow = mw && mw.rarity < MAX_RARITY && (sel ? partners.length + 1 >= MERGE_COUNT : eqMatches.length > 0);
+      const canShow = mw && mw.rarity < MAX_RARITY && (sel ? partners.length + 1 >= mergeCount(mw.rarity) : eqMatches.length > 0);
       if (canShow && mw) {
         const after = this.sim.attackWith(mergePreview(mw));
         const base = sel ? this.sim.attackWith(sel) : now;
@@ -377,18 +379,19 @@ export class ForgePanel {
     const s = this.sim.save;
     const forges = Math.min(Math.floor(s.shards / forgeCost(s.forgeLevel)), this.sim.freeSlots());
     if (forges > 0) return String(forges);
-    return hasPair(s.weapons) || matchingSlots(s.weapons, s.equipped).length >= MERGE_COUNT - 1 ? '!' : '';
+    const eq = s.equipped;
+    return hasPair(s.weapons) || (eq && matchingSlots(s.weapons, eq).length >= mergeCount(eq.rarity) - 1) ? '!' : '';
   }
 }
 
-/** Any MERGE_COUNT weapons of the same type and rarity (i.e. something to merge)? */
+/** Enough weapons of the same type and rarity to merge? */
 function hasPair(inv: (Weapon | null)[]): boolean {
   const count = new Map<number, number>();
   for (const w of inv) {
     if (!w || w.rarity >= MAX_RARITY) continue;
     const key = w.rarity * 16 + w.form;
     const n = (count.get(key) ?? 0) + 1;
-    if (n >= MERGE_COUNT) return true;
+    if (n >= mergeCount(w.rarity)) return true;
     count.set(key, n);
   }
   return false;

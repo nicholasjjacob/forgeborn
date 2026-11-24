@@ -20,7 +20,7 @@ import { Gatherer, freshMaterials, type Materials } from './gather';
 import { MAX_LEVEL, levelBonus, milestoneReward, xpForKill, xpToNext, MILESTONES, type MilestoneReward } from './level';
 import { zoneArea, zoneBossMonster, zoneLevel, zoneName, zoneStage, bossCooldown } from './zones';
 import {
-  forgeCost, forgeLevelCap, INVENTORY_SIZE, INVENTORY_STEP, MAX_FORGE_LEVEL, MAX_INVENTORY, inventoryExpandCost, MERGE_COUNT, bonusWeapon, compareWeapons, forgeAtkBonus, forgeUpgradeCost, forgeWeapon, matchingSlots, mergePartners, mergeWeapons,
+  forgeCost, forgeLevelCap, INVENTORY_SIZE, INVENTORY_STEP, MAX_FORGE_LEVEL, MAX_INVENTORY, inventoryExpandCost, mergeCount, bonusWeapon, compareWeapons, forgeAtkBonus, forgeUpgradeCost, forgeWeapon, matchingSlots, mergePartners, mergeWeapons,
   salvageValue, starterWeapon, weaponStats, type RangedDef, type Weapon,
 } from './weapons';
 
@@ -479,7 +479,7 @@ export class Sim {
   }
 
   /**
-   * Merge the weapon in `into` with MERGE_COUNT - 1 matching weapons (same type, tier and
+   * Merge the weapon in `into` with mergeCount - 1 matching weapons (same type, tier and
    * rarity) into one of the next tier, which lands in `into`. Uses `withSlots` if given (and
    * valid), otherwise picks partners automatically. Returns false if there aren't enough matches.
    */
@@ -488,8 +488,9 @@ export class Sim {
     const keep = s.weapons[into];
     if (!keep) return false;
     const partners = mergePartners(s.weapons, into);
-    const use = withSlots ?? partners.slice(0, MERGE_COUNT - 1);
-    if (use.length !== MERGE_COUNT - 1 || new Set(use).size !== use.length || use.some((i) => !partners.includes(i))) return false;
+    const need = mergeCount(keep.rarity) - 1;
+    const use = withSlots ?? partners.slice(0, need);
+    if (use.length !== need || new Set(use).size !== use.length || use.some((i) => !partners.includes(i))) return false;
     const m = mergeWeapons(this.rng, s.nextWeaponId++, keep, use.map((i) => s.weapons[i]!));
     s.weapons[into] = m;
     for (const i of use) s.weapons[i] = null;
@@ -500,15 +501,16 @@ export class Sim {
   }
 
   /**
-   * Upgrade the equipped weapon: merge it with MERGE_COUNT - 1 matching inventory weapons. The
+   * Upgrade the equipped weapon: merge it with mergeCount - 1 matching inventory weapons. The
    * result stays equipped. Returns false if there aren't enough matches.
    */
   mergeEquipped(): boolean {
     const s = this.save;
     const eq = s.equipped;
     if (!eq) return false;
-    const use = matchingSlots(s.weapons, eq).slice(0, MERGE_COUNT - 1);
-    if (use.length < MERGE_COUNT - 1) return false;
+    const need = mergeCount(eq.rarity) - 1;
+    const use = matchingSlots(s.weapons, eq).slice(0, need);
+    if (use.length < need) return false;
     const m = mergeWeapons(this.rng, s.nextWeaponId++, eq, use.map((i) => s.weapons[i]!));
     s.equipped = m;
     for (const i of use) s.weapons[i] = null;
@@ -519,7 +521,7 @@ export class Sim {
   }
 
   /**
-   * Repeatedly merge every group of MERGE_COUNT matching weapons (same type, tier and rarity),
+   * Repeatedly merge every group of mergeCount matching weapons (same type, tier and rarity),
    * lowest tiers first, so results can merge again. Returns the slots holding merged weapons.
    */
   autoMerge(): number[] {
@@ -536,8 +538,9 @@ export class Sim {
       });
       for (const key of [...groups.keys()].sort((x, y) => x - y)) {
         const slots = groups.get(key)!;
-        if (slots.length < MERGE_COUNT) continue;
-        const [into, ...rest] = slots.slice(0, MERGE_COUNT);
+        const n = mergeCount(Math.floor(key / 16));
+        if (slots.length < n) continue;
+        const [into, ...rest] = slots.slice(0, n);
         if (this.merge(into, rest)) {
           for (const r of rest) { const at = results.indexOf(r); if (at >= 0) results.splice(at, 1); }
           if (!results.includes(into)) results.push(into);
@@ -1374,7 +1377,7 @@ export class Sim {
 
     // Shards for the forge: bosses always drop a bundle, regular monsters sometimes drop one.
     const per = 1 + Math.floor(this.save.stage / 12);
-    const raw = (e.boss ? 10 * per : e.elite ? 3 * per : this.rng.chance(0.2) ? per : 0) * this.shardMult;
+    const raw = (e.boss ? 10 * per : e.elite ? 3 * per : this.rng.chance(0.1) ? per : 0) * this.shardMult;
     // Random rounding keeps fractional bonuses fair over time.
     const shards = Math.floor(raw) + (this.rng.chance(raw % 1) ? 1 : 0);
     if (shards > 0) {

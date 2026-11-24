@@ -105,5 +105,7 @@ export class ForgeLevelUI {
 }
 
 function pct(v: number): string {
-  return `${(v * 100).toFixed(v < 0.1 ? 1 : 0)}%`;
+  // Small odds keep enough digits to stay readable (0.002%, 0.04%, 1.2%, 25%).
+  const p = v * 100;
+  return `${p.toFixed(p >= 10 ? 0 : p >= 1 ? 1 : p >= 0.1 ? 2 : 3)}%`;
 }

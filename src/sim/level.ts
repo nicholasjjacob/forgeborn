@@ -68,7 +68,7 @@ export function milestoneReward(level: number, bestStage: number): MilestoneRewa
   const shardPer = 1 + Math.floor(stage / 12);
   const r: MilestoneReward = {
     gold: Math.round(enemyGold(stage) * (30 + 3 * level)),
-    shards: Math.round(shardPer * (10 + level / 2)),
+    shards: Math.round(4 * shardPer * (10 + level / 2)),
   };
   if (level % 10 === 0) r.gems = 20 + level;
   if (level % 25 === 0) r.embers = level === 100 ? 25 : level / 5;
