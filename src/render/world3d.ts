@@ -22,6 +22,7 @@ const VIEW_H = 90;                     // …and at least this many vertically
 const CHUNK = 160;                     // props are instanced per chunk so off-screen chunks are culled
 const HERO_H = 17;
 const SWING_TIME = 0.22;
+const HERO_LAYER = 1;
 
 /** Monster heights (world units) by body shape; bosses use their own big models. */
 const SHAPE_H: Record<string, number> = { blob: 9, bat: 7, husk: 12, beetle: 10, golem: 14, imp: 13, spider: 9 };
@@ -140,6 +141,12 @@ export class World3D {
   private heroAct: Record<'idle' | 'run' | 'attack' | 'death' | 'walk', THREE.AnimationAction | null> = { idle: null, run: null, attack: null, death: null, walk: null };
   private heroCur: THREE.AnimationAction | null = null;
   private heroMats: THREE.MeshLambertMaterial[] = [];
+  /** Scratch list for the silhouette pass (hero meshes and their own materials). */
+  private readonly heroMeshes: { mesh: THREE.Mesh; mat: THREE.Material | THREE.Material[] }[] = [];
+  /** Drawn only where something (a tree, a rock) is in front of the hero. */
+  private readonly silhouette = new THREE.MeshBasicMaterial({
+    color: 0xbfe4ff, transparent: true, opacity: 0.5, depthFunc: THREE.GreaterDepth, depthWrite: false, fog: false,
+  });
   private heroYaw = 0;
   private heroSwing = 0;
   private heroDead = false;
@@ -171,6 +178,11 @@ export class World3D {
     this.sun.shadow.bias = -0.0004;
     this.sun.shadow.normalBias = 0.4;
     this.sun.shadow.radius = 3;
+    // The hero lives on layer 1 so it can be drawn after the world (see render()); the lights
+    // and the sun's shadow camera see both layers.
+    this.sun.layers.enable(HERO_LAYER);
+    this.hemi.layers.enable(HERO_LAYER);
+    this.sun.shadow.camera.layers.enable(HERO_LAYER);
 
     // Hero slash arc: a flat crescent on the ground that sweeps with the swing.
     const sg = new THREE.RingGeometry(7, 22, 20, 1, -1, 2);
@@ -302,6 +314,7 @@ export class World3D {
     const names = new Set<string>();
     for (const p of areaFor(map.area).def.props) for (const n of PROP_SPECS[p.kind].models) if (!n.startsWith('@')) names.add(n);
     for (const [n] of COVER[map.area % COVER.length]) names.add(n);
+    if (names.has('bush_0')) names.add('tree_0'); // bushes borrow the tree's green leaves
     let missing = false;
     for (const n of names) if (!model(n)) missing = true;
     if (changed) this.buildGround(map);
@@ -395,6 +408,16 @@ export class World3D {
       add(pick[0], parts, false, -1, d.x, d.y, hash(d.y, d.x) * 6.28, 0.8 + 0.4 * hash(d.x + 1, d.y));
     }
 
+    // Extra cover on high quality so open ground doesn't look flat.
+    const extra = this.low ? 0 : 420;
+    for (let i = 0; i < extra; i++) {
+      const x = 20 + hash(i * 1.37, 3.1) * (MAP_W - 40), y = 20 + hash(7.7, i * 0.91) * (MAP_H - 40);
+      let r = hash(x, y) * total, pick = cover[0];
+      for (const c of cover) { if ((r -= c[1]) < 0) { pick = c; break; } }
+      const parts = this.parts(pick[0], { models: [], size: pick[2], by: 'h', shadow: false }, look.coverTint, map.area);
+      if (parts) add(pick[0], parts, false, -1, x, y, hash(y, x) * 6.28, 0.7 + 0.5 * hash(x + 2, y));
+    }
+
     this.propRefs = map.props.map(() => null);
     for (const g of groups.values()) {
       const meshes: THREE.InstancedMesh[] = [];
@@ -436,11 +459,30 @@ export class World3D {
       const m = o as THREE.Mesh;
       if (!m.isMesh) return;
       const mats = Array.isArray(m.material) ? m.material : [m.material];
-      const mat = name.startsWith('@') ? mats[0] : this.tinted(mats[0], tint);
+      let mat = name.startsWith('@') ? mats[0] : this.tinted(mats[0], tint);
+      if (name.startsWith('bush') && mat.name.includes('Twisted')) mat = this.greenLeaves(mat, tint);
       out.push({ geo: m.geometry, mat, m: norm.clone().multiply(m.matrixWorld) });
     });
     this.partCache.set(key, out);
     return out;
+  }
+
+  /** The kit's bushes use the red twisted-tree leaves; swap in the common tree's green ones. */
+  private greenLeaves(mat: THREE.Material, tint: number): THREE.Material {
+    const key = 'leaves' + mat.uuid + tint;
+    let t = this.tintCache.get(key);
+    if (t) return t;
+    let leaves: THREE.Texture | null = null;
+    model('tree_0')?.scene.traverse((o) => {
+      const m = (o as THREE.Mesh).material as THREE.MeshLambertMaterial | undefined;
+      if (m && !Array.isArray(m) && m.name?.includes('Leaves') && m.map) leaves = m.map;
+    });
+    if (!leaves) return mat;
+    t = mat.clone();
+    (t as THREE.MeshLambertMaterial).map = leaves;
+    (t as THREE.MeshLambertMaterial).color.set(tint);
+    this.tintCache.set(key, t);
+    return t;
   }
 
   private tinted(mat: THREE.Material, tint: number): THREE.Material {
@@ -475,6 +517,7 @@ export class World3D {
       for (const mat of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) this.heroMats.push(mat as THREE.MeshLambertMaterial);
     });
     this.heroRoot.add(m);
+    m.traverse((o) => o.layers.set(HERO_LAYER));
     const mixer = new THREE.AnimationMixer(m);
     this.heroMixer = mixer;
     const act = (names: string[]) => { const c = findClip(g, names); return c ? mixer.clipAction(c) : null; };
@@ -519,7 +562,9 @@ export class World3D {
     this.weaponKey = key;
     for (const c of this.hand.children) (c as THREE.Mesh).geometry?.dispose();
     this.hand.clear();
-    this.hand.add(weaponModel(form, rarity));
+    const w = weaponModel(form, rarity);
+    w.traverse((o) => o.layers.set(HERO_LAYER));
+    this.hand.add(w);
   }
 
   private acquire(key: string, flying: boolean): Actor | null {
@@ -795,8 +840,31 @@ export class World3D {
     }
   }
 
+  /**
+   * Three passes: the world without the hero; the hero as a pale silhouette wherever scenery
+   * is in front of it (depth test "greater", against world depth only); then the hero itself.
+   */
   render(): void {
-    this.renderer.render(this.scene, this.camera);
+    const r = this.renderer, cam = this.camera;
+    r.render(this.scene, cam);
+    const hm = this.heroMeshes;
+    hm.length = 0;
+    this.heroRoot.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) hm.push({ mesh: m, mat: m.material }); });
+    if (!hm.length) return;
+    const shadows = r.shadowMap.autoUpdate;
+    r.shadowMap.autoUpdate = false;
+    r.autoClear = false;
+    const bg = this.scene.background;
+    this.scene.background = null; // a colour background would repaint over the world
+    cam.layers.set(HERO_LAYER);
+    for (const h of hm) h.mesh.material = this.silhouette;
+    r.render(this.scene, cam);
+    for (const h of hm) h.mesh.material = h.mat;
+    r.render(this.scene, cam);
+    cam.layers.set(0);
+    this.scene.background = bg;
+    r.autoClear = true;
+    r.shadowMap.autoUpdate = shadows;
   }
 }
 

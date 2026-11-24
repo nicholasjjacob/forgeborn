@@ -79,12 +79,42 @@ def export(name, anims=True, lossless=False):
     print('WROTE', name, os.path.getsize(path))
 
 
+def attach_helmet(path, pos=(0.0, 0.02, 4.92)):
+    """Import a helmet, centre it on the knight's head in the rest pose and bone-parent it to
+    'Head' so it follows every animation (same fit as the old sprite renderer)."""
+    from mathutils import Vector
+    arm = next(o for o in bpy.data.objects if o.type == 'ARMATURE')
+    before = set(bpy.data.objects)
+    bpy.ops.import_scene.fbx(filepath=path)
+    parts = [o for o in bpy.data.objects if o not in before and o.type == 'MESH']
+    for o in [o for o in bpy.data.objects if o not in before and o.type != 'MESH']:
+        bpy.data.objects.remove(o)
+    arm.data.pose_position = 'REST'
+    bpy.context.view_layer.update()
+    pts = [o.matrix_world @ Vector(c) for o in parts for c in o.bound_box]
+    mn = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
+    mx = Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))
+    centre = (mn + mx) / 2
+    for o in parts:
+        o.location = o.location + (Vector(pos) - centre)
+    bpy.context.view_layer.update()
+    for o in parts:
+        world = o.matrix_world.copy()
+        o.parent = arm
+        o.parent_type = 'BONE'
+        o.parent_bone = 'Head'
+        o.matrix_world = world
+    arm.data.pose_position = 'POSE'
+    bpy.context.view_layer.update()
+
+
 ONLY = os.environ.get('FB_ONLY', '')
 
 # --- Hero: knight with only the animations the game plays ---------------------------------
 if ONLY in ('', 'hero'):
   reset()
   bpy.ops.import_scene.fbx(filepath=os.path.join(KNIGHT, 'KnightCharacter.fbx'))
+  attach_helmet(os.path.join(KNIGHT, 'Helmet3.fbx'))
   keep_actions([r'\|Idle_swordRight$', r'\|Run_swordRight$', r'\|Run_swordAttack$', r'\|Death$', r'\|Walking$'])
   export('hero', lossless=True)
 
