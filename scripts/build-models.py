@@ -6,7 +6,6 @@ Run with Blender (tested on 5.3):
 
 Sources (not in the repo; all CC0 1.0 by Quaternius, https://quaternius.com):
   ../assets-src/monsters/Ultimate Monsters/          Ultimate Monsters pack
-  ~/Downloads/Knight Character Animated by Quaternius  Knight + weapons
   ~/Downloads/Stylized Nature MegaKit[Standard]        Stylized Nature MegaKit (free version)
 
 Only the animations the game uses are kept, normal maps are dropped and textures are shrunk,
@@ -110,13 +109,7 @@ def attach_helmet(path, pos=(0.0, 0.02, 4.92)):
 
 ONLY = os.environ.get('FB_ONLY', '')
 
-# --- Hero: knight with only the animations the game plays ---------------------------------
-if ONLY in ('', 'hero'):
-  reset()
-  bpy.ops.import_scene.fbx(filepath=os.path.join(KNIGHT, 'KnightCharacter.fbx'))
-  attach_helmet(os.path.join(KNIGHT, 'Helmet3.fbx'))
-  keep_actions([r'\|Idle_swordRight$', r'\|Run_swordRight$', r'\|Run_swordAttack$', r'\|Death$', r'\|Walking$'])
-  export('hero', lossless=True)
+# The hero characters come from the KayKit Adventurers pack: see scripts/build-heroes.mjs.
 
 # --- Monsters: (folder, file) for each area's three monsters and its boss ----------------------
 MONSTERS = {

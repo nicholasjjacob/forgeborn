@@ -19,6 +19,8 @@ const NAMES = [
   'grass', 'mushroom', 'cactus', 'crystal-growth', 'snowflake-1', 'volcano',
   // shop
   'hourglass', 'book-cover',
+  // heroes
+  'visored-helm',
 ];
 
 const out = {};

@@ -1,4 +1,5 @@
 import { gi } from './icons';
+import { HeroesUI } from './heroes';
 import { fmt } from '../core/format';
 import { WorldMapUI } from './worldMap';
 import { zoneBossName, zoneLevel, zoneName, zoneTerrain } from '../sim/zones';
@@ -21,7 +22,7 @@ const ICONS: Record<UpgradeId, string> = {
 /** Side column and top bar icons (the HTML ships emoji placeholders; these replace them). */
 const SIDE_ICONS: [string, string, Parameters<typeof gi>[1]][] = [
   ['#side-map', 'treasure-map', 'gold'], ['#side-missions', 'checklist', 'white'], ['#side-journey', 'present', 'pink'],
-  ['#side-codex', 'spell-book', 'purple'], ['#side-bag', 'knapsack', 'orange'],
+  ['#side-codex', 'spell-book', 'purple'], ['#side-bag', 'knapsack', 'orange'], ['#side-heroes', 'visored-helm', 'cyan'],
 ];
 
 interface Row {
@@ -106,6 +107,8 @@ export class Hud {
     this.badges = { forge: $('#forge-badge'), quests: $('#quests-badge'), reforge: $('#reforge-badge') };
     for (const [sel, name, color] of SIDE_ICONS) $(`${sel} .side-ico`).innerHTML = gi(name, color);
     $('#settings-btn').innerHTML = gi('cog');
+    const heroes = new HeroesUI(sim, (m) => this.toast(m));
+    $('#side-heroes').addEventListener('click', () => { sfx.play('tick'); heroes.open(); });
 
     for (const t of root.querySelectorAll<HTMLButtonElement>('[data-tab]')) {
       t.addEventListener('click', () => {
@@ -213,6 +216,9 @@ export class Hud {
     this.toggle(el, 'show', text !== '');
   }
 
+  private challengeHtml = '';
+  private bossAnnounced = -1;
+
   private set(el: HTMLElement, text: string): void {
     if (this.cache.get(el) === text) return;
     this.cache.set(el, text);
@@ -301,8 +307,19 @@ export class Hud {
     this.missions.refreshMain(now);
     this.missions.refresh();
 
+    // Boss button: a plain "Rematch" once beaten; while the zone's boss is still standing it's a
+    // big glowing, bouncing call to action with the boss's name, announced once per zone.
+    const fresh = !sim.zoneBossBeaten;
     this.toggle(this.el.challenge, 'show', !sim.isBossStage && sim.phase === 'playing');
-    this.set(this.el.challenge, sim.zoneBossBeaten ? 'Rematch Boss' : 'Fight Boss');
+    this.toggle(this.el.challenge, 'ready', fresh);
+    const cbHtml = fresh
+      ? `<span class="cb-main">${gi('skull-crossed-bones', 'white')} Fight Boss!</span><span class="cb-sub">${zoneBossName(s.zone)}</span>`
+      : 'Rematch Boss';
+    if (cbHtml !== this.challengeHtml) { this.challengeHtml = cbHtml; this.el.challenge.innerHTML = cbHtml; }
+    if (fresh && !sim.isBossStage && this.bossAnnounced !== s.zone && performance.now() > this.toastUntil) {
+      this.bossAnnounced = s.zone;
+      this.toast(`${zoneBossName(s.zone)} awaits! Tap Fight Boss`, 'boss');
+    }
     this.worldMap.refresh();
 
     for (const b of document.querySelectorAll<HTMLElement>('[data-buy-mode]')) {

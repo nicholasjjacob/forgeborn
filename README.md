@@ -31,9 +31,9 @@ Pushing to `main` deploys to GitHub Pages.
 - **PixiJS:** the 2D overlay with health bars and damage numbers.
 - **The rest:** the game rules (`src/sim/`) run in a fixed 30 Hz simulation with no rendering, so they're fully testable. The 3D world lives in `src/render/` and the menus in `src/ui/`.
 
-The 3D models in `public/models/` are converted from the source packs with `blender -b --python scripts/build-models.py`.
+The 3D models in `public/models/` come from the source packs: `blender -b --python scripts/build-models.py` (monsters, scenery) and `node scripts/build-heroes.mjs` (heroes).
 
 ## Credits
 
-3D models by [Quaternius](https://quaternius.com) (CC0): Ultimate Monsters, Stylized Nature MegaKit, Knight Character.
+Heroes from [KayKit Adventurers](https://kaylousberg.com) by Kay Lousberg (CC0). Monsters and scenery by [Quaternius](https://quaternius.com) (CC0): Ultimate Monsters, Stylized Nature MegaKit.
 UI icons from [game-icons.net](https://game-icons.net) by Lorc, Delapouite and contributors (CC BY 3.0), restyled in code. Fonts: Lilita One and Fredoka (SIL OFL).

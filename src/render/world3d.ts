@@ -23,6 +23,8 @@ const VIEW_H = 90;                     // …and at least this many vertically
 const CHUNK = 160;                     // props are instanced per chunk so off-screen chunks are culled
 const HERO_H = 17;
 const HERO_LAYER = 1;
+/** Weapon orientation in the hero's hand slot (blade along the holder's +y). */
+const HAND_ROT: [number, number, number] = [0, 0, 0];
 
 /** Monster heights (world units) by body shape; bosses use their own big models. */
 const SHAPE_H: Record<string, number> = { blob: 9, bat: 7, husk: 12, beetle: 10, golem: 14, imp: 13, spider: 9 };
@@ -62,8 +64,8 @@ const LOOKS: AreaLook[] = [
 ];
 
 /** Start loading everything a terrain needs (hero, its monsters, scenery); resolves when done. */
-export function preloadArea(area: number): Promise<unknown> {
-  const names = new Set<string>(['hero']);
+export function preloadArea(area: number, skin = 'knight'): Promise<unknown> {
+  const names = new Set<string>([`hero_${skin}`, 'hero_anims']);
   for (let i = 0; i < 4; i++) names.add(`m${area % 6}_${i}`);
   for (const p of areaFor(area).def.props) for (const n of PROP_SPECS[p.kind].models) if (!n.startsWith('@')) names.add(n);
   for (const [n] of COVER[area % COVER.length]) names.add(n);
@@ -137,6 +139,8 @@ export class World3D {
   // Hero
   private readonly heroRoot = new THREE.Group();
   private heroMixer: THREE.AnimationMixer | null = null;
+  private heroModel: THREE.Object3D | null = null;
+  private heroSkin = '';
   private heroAct: Record<'idle' | 'run' | 'attack' | 'death' | 'walk', THREE.AnimationAction | null> = { idle: null, run: null, attack: null, death: null, walk: null };
   private heroCur: THREE.AnimationAction | null = null;
   private heroMats: THREE.MeshLambertMaterial[] = [];
@@ -149,7 +153,7 @@ export class World3D {
   private heroYaw = 0;
   private heroSwing = 0;
   private heroDead = false;
-  private readonly hand = new THREE.Group();  // weapon holder, in world units
+  private readonly hand = Object.assign(new THREE.Group(), { name: 'weapon-hand' }); // weapon holder, in world units
   private weaponKey = '';
   private weapon: WeaponView | null = null;
   private readonly wTip = new THREE.Vector3();
@@ -189,7 +193,6 @@ export class World3D {
 
     this.fx = new Fx3D(this.scene);
 
-    void loadModel('hero').then((g) => this.setupHero(g)).catch(() => {});
 
     // Per-enemy ground markers: elite aura, slam circles, dash lane.
     const flat = (geo: THREE.BufferGeometry, color: number, opacity: number, add = false) => {
@@ -504,48 +507,60 @@ export class World3D {
 
   // --- Actors ------------------------------------------------------------------------------
 
-  private setupHero(g: GLTF): void {
+  /** Show the given skin: load its model and the shared animations, then swap it in. */
+  private loadHero(id: string): void {
+    this.heroSkin = id;
+    void Promise.all([loadModel(`hero_${id}`), loadModel('hero_anims')])
+      .then(([g, anims]) => { if (this.heroSkin === id) this.setupHero(g, anims); })
+      .catch(() => {});
+  }
+
+  private setupHero(g: GLTF, anims: GLTF): void {
+    // Take down the previous skin (its weapon holder moves to the new hand).
+    if (this.heroModel) { this.heroMixer?.stopAllAction(); this.heroModel.removeFromParent(); }
+    this.heroMats = [];
+    this.heroCur = null;
     const m = g.scene;
+    m.position.set(0, 0, 0);
+    m.scale.setScalar(1);
     const dims = measure(m);
     const k = HERO_H / dims.h;
     m.scale.setScalar(k);
     m.position.set(-dims.cx * k, -dims.minY * k, -dims.cz * k);
     m.traverse((o) => {
       const mesh = o as THREE.Mesh;
+      o.layers.set(HERO_LAYER);
       if (!mesh.isMesh) return;
       mesh.frustumCulled = false;
+      mesh.castShadow = true;
       for (const mat of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) this.heroMats.push(mat as THREE.MeshLambertMaterial);
     });
     this.heroRoot.add(m);
-    m.traverse((o) => o.layers.set(HERO_LAYER));
+    this.heroModel = m;
     const mixer = new THREE.AnimationMixer(m);
     this.heroMixer = mixer;
-    const act = (names: string[]) => { const c = findClip(g, names); return c ? mixer.clipAction(c) : null; };
+    const act = (names: string[]) => { const c = findClip(anims, names); return c ? mixer.clipAction(c) : null; };
     this.heroAct = {
-      idle: act(['Idle_swordRight', 'Idle']),
-      run: act(['Run_swordRight', 'Run']),
-      attack: act(['Run_swordAttack', 'swordAttack']),
-      death: act(['Death']),
-      walk: act(['Walking']),
+      idle: act(['Idle_A']),
+      run: act(['Running_A']),
+      attack: act(['Throw', 'Use_Item']),
+      death: act(['Death_A']),
+      walk: act(['Walking_A']),
     };
     if (this.heroAct.attack) { this.heroAct.attack.setLoop(THREE.LoopOnce, 1); this.heroAct.attack.clampWhenFinished = true; }
     if (this.heroAct.death) { this.heroAct.death.setLoop(THREE.LoopOnce, 1); this.heroAct.death.clampWhenFinished = true; }
+    this.heroDead = false;
     this.heroPlay(this.heroAct.idle, 0);
-    // Weapon goes in the right hand. The holder cancels the bone's scale so weapons are built in world units.
-    const bone = findBone(m, ['PalmR', 'Palm.R', 'Palm_R', 'MiddleHandR', 'LowerArmR']);
+    // Weapon goes in the right hand slot. The holder cancels the bone's scale so weapons are built
+    // in world units.
+    const bone = findBone(m, ['handslotr', 'handslot.r', 'handr', 'hand.r']);
     if (bone) {
       bone.add(this.hand);
       m.updateMatrixWorld(true);
       const s = new THREE.Vector3();
       bone.getWorldScale(s);
       this.hand.scale.setScalar(0.75 / s.x);
-      // Grip along the fist: the blade points up and a little forward in the idle pose.
-      this.hand.rotation.set(0, 0, 1.0);
-    }
-    // A brighter, bluer steel than the source model's flat grey, so the hero reads at a glance.
-    for (const m of this.heroMats) {
-      if (m.name === 'Armor') m.color.setHex(0xa8b4d0);
-      else if (m.name === 'Boots') m.color.setHex(0x6a4a34);
+      this.hand.rotation.set(HAND_ROT[0], HAND_ROT[1], HAND_ROT[2]);
     }
   }
 
@@ -563,7 +578,6 @@ export class World3D {
     this.hand.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) m.geometry.dispose(); });
     this.hand.clear();
     const w = buildWeapon(form, rarity);
-    w.group.rotation.y = Math.PI / 2; // flat of the blade toward the camera
     w.group.traverse((o) => o.layers.set(HERO_LAYER));
     this.hand.add(w.group);
     this.weapon = w;
@@ -658,6 +672,7 @@ export class World3D {
     }
 
     // Hero
+    if (sim.save.skin !== this.heroSkin) this.loadHero(sim.save.skin);
     this.heroRoot.position.set(hx, 0, hy);
     const mvx = h.x - h.prevX, mvy = h.y - h.prevY;
     let want = this.heroYaw;

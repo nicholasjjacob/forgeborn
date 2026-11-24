@@ -55,7 +55,7 @@ async function boot() {
   const loaded = await savePromise;
   // The 3D models for the hero's zone (a few MB the first time, cached after): wait a little
   // so the game doesn't open on an empty field; anything slower pops in when it arrives.
-  await Promise.race([preloadArea(zoneArea(loaded.zone ?? 0)), new Promise((r) => setTimeout(r, 6000))]);
+  await Promise.race([preloadArea(zoneArea(loaded.zone ?? 0), loaded.skin), new Promise((r) => setTimeout(r, 6000))]);
   // Offline earnings since the last save (rewards are granted immediately, then shown).
   const bootReward = offlineReward(loaded, (Date.now() - loaded.savedAt) / 1000, OFFLINE_CAP_HOURS + loaded.perks.offline);
   if (hasReward(bootReward)) applyOfflineReward(loaded, bootReward);

@@ -131,3 +131,21 @@ describe('achievements', () => {
     expect(s.stats.bosses).toBe(0);
   });
 });
+
+describe('hero skins', () => {
+  it('starts with the knight, buys skins with gems, keeps them through reforge', () => {
+    const sim = new Sim(freshSave());
+    expect(sim.save.skin).toBe('knight');
+    expect(sim.buySkin('barbarian')).toBe(false); // no gems
+    sim.save.missions.gems = 200;
+    expect(sim.buySkin('barbarian')).toBe(true);
+    expect(sim.save.missions.gems).toBe(50);
+    expect(sim.save.skin).toBe('barbarian');
+    expect(sim.buySkin('barbarian')).toBe(false); // already owned
+    expect(sim.selectSkin('mage')).toBe(false);   // not owned
+    expect(sim.selectSkin('knight')).toBe(true);
+    const back = migrate(JSON.parse(JSON.stringify({ ...sim.save, skin: 'ghost', skins: ['barbarian'] })));
+    expect(back.skins).toEqual(['knight', 'barbarian']);
+    expect(back.skin).toBe('knight');
+  });
+});

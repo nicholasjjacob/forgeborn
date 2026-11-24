@@ -1,3 +1,4 @@
+import { DEFAULT_SKIN, SKINS } from './skins';
 import { Rng } from '../core/rng';
 import { areaFor, type MonsterDef } from './areas';
 import {
@@ -90,6 +91,9 @@ export interface SaveData {
   zone: number;              // the zone the hero is in
   zoneBosses: number;        // zone bosses beaten, in order: zone z's boss is down when z < zoneBosses
   zoneBest: number;          // furthest zone ever unlocked (across runs)
+  /** Hero look (cosmetic): the selected skin and every skin owned. Kept through Reforge. */
+  skin: string;
+  skins: string[];
   /** Recent earnings per second, used to pay out offline progress. */
   rates: { gold: number; shards: number };
   savedAt: number;
@@ -106,6 +110,7 @@ export function freshSave(): SaveData {
     missions: freshMissions(),
     level: 1, xp: 0, levelClaimed: [], materials: freshMaterials(),
     zone: 0, zoneBosses: 0, zoneBest: 0,
+    skin: DEFAULT_SKIN, skins: [DEFAULT_SKIN],
     savedAt: Date.now(),
   };
 }
@@ -693,6 +698,28 @@ export class Sim {
    * Prestige: bank embers for this run's best stage, then restart. Keeps embers, perks,
    * achievements, lifetime stats and settings; resets stage, gold, shards, upgrades and weapons.
    */
+  // --- Hero skins (cosmetic) ------------------------------------------------------------
+
+  ownsSkin(id: string): boolean { return this.save.skins.includes(id); }
+
+  /** Buy a skin with gems. Returns false if already owned, unknown or unaffordable. */
+  buySkin(id: string): boolean {
+    const def = SKINS.find((s) => s.id === id);
+    const m = this.save.missions;
+    if (!def || this.ownsSkin(id) || m.gems < def.cost) return false;
+    m.gems -= def.cost;
+    this.save.skins.push(id);
+    this.save.skin = id;
+    return true;
+  }
+
+  /** Wear an owned skin. */
+  selectSkin(id: string): boolean {
+    if (!this.ownsSkin(id)) return false;
+    this.save.skin = id;
+    return true;
+  }
+
   reforge(): number {
     const gain = this.reforgeGain;
     if (gain <= 0) return 0;

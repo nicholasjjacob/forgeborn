@@ -1,15 +1,16 @@
 import { gi } from './icons';
-/** Icon per Reforge perk. */
-const PERK_ICONS: Record<string, string> = {
-  might: 'broadsword', vigor: 'hearts', fortune: 'two-coins', shards: 'crystal-cluster', swift: 'sprint',
-  forgemaster: 'anvil-impact', headstart: 'fast-forward-button', offline: 'night-sleep',
-};
 import { fmt } from '../core/format';
 import { sfx } from '../audio/sfx';
 import { GLOW_DMG, GLOW_HP, PERKS, PERK_IDS, REFORGE_MIN_STAGE, embersFor, type PerkId } from '../sim/meta';
 import { zoneName, zoneStage } from '../sim/zones';
 import type { Sim } from '../sim/sim';
 import { confirmDialog } from './dialog';
+
+/** Icon per Reforge perk. */
+const PERK_ICONS: Record<string, string> = {
+  might: 'broadsword', vigor: 'hearts', fortune: 'two-coins', shards: 'crystal-cluster', swift: 'sprint',
+  forgemaster: 'anvil-impact', headstart: 'fast-forward-button', offline: 'night-sleep',
+};
 
 /** Reforge tab: ember balance, prestige button with a confirm step, and the ember perk shop. */
 export class ReforgePanel {

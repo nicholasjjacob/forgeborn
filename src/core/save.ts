@@ -1,3 +1,4 @@
+import { DEFAULT_SKIN } from '../sim/skins';
 import { zoneLevel, zoneStage } from '../sim/zones';
 import { freshMaterials } from '../sim/gather';
 import { freshSave, type SaveData } from '../sim/sim';
@@ -165,6 +166,9 @@ export function migrate(input: unknown): SaveData {
   save.zone = Number.isFinite(save.zone) ? Math.max(0, Math.floor(save.zone)) : 0;
   save.zoneBosses = Number.isFinite(save.zoneBosses) ? Math.max(0, Math.floor(save.zoneBosses)) : 0;
   save.zoneBest = Math.max(save.zone, Number.isFinite(save.zoneBest) ? save.zoneBest : 0);
+  // Skins: always own the default; the selected skin must be owned.
+  save.skins = Array.isArray(save.skins) ? [...new Set([DEFAULT_SKIN, ...save.skins.filter((x) => typeof x === 'string')])] : [DEFAULT_SKIN];
+  if (typeof save.skin !== 'string' || !save.skins.includes(save.skin)) save.skin = DEFAULT_SKIN;
   // Normalise the inventory size: at least the starting size, whole rows, at most the maximum
   // (it grows when the player buys expansions).
   const raw = Array.isArray(save.weapons) ? save.weapons : [];

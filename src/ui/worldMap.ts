@@ -1,8 +1,4 @@
 import { gi } from './icons';
-/** Icon per terrain on the world map. */
-const TERRAIN_ICONS: [string, Parameters<typeof gi>[1]][] = [
-  ['grass', 'green'], ['mushroom', 'red'], ['cactus', 'green'], ['crystal-growth', 'purple'], ['snowflake-1', 'cyan'], ['volcano', 'orange'],
-];
 import { sfx } from '../audio/sfx';
 import { fmt } from '../core/format';
 import { areaFor, areaName } from '../sim/areas';
@@ -12,6 +8,11 @@ import {
   ZONES_PER_AREA, isTerrainBossZone, zoneArea, zoneBossName, zoneLevel, zoneName, zoneStage,
 } from '../sim/zones';
 import { bindSheetTaps } from './tap';
+
+/** Icon per terrain on the world map. */
+const TERRAIN_ICONS: [string, Parameters<typeof gi>[1]][] = [
+  ['grass', 'green'], ['mushroom', 'red'], ['cactus', 'green'], ['crystal-growth', 'purple'], ['snowflake-1', 'cyan'], ['volcano', 'orange'],
+];
 
 /**
  * The world map: every terrain discovered so far as a card painted in its own ground colours,
