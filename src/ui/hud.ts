@@ -16,6 +16,9 @@ import { BagUI } from './bag';
 import { MAX_LEVEL, levelTier } from '../sim/level';
 
 type Tab = 'upgrades' | 'forge' | 'quests' | 'reforge';
+const PAGE_TITLE: Record<Tab, string> = { upgrades: 'Upgrades', forge: 'Forge', quests: 'Quests', reforge: 'Reforge' };
+/** Stand-in icons for the bottom bar until the 3D ones are rendered (see render/currencyIcons.ts). */
+const DOCK_ICONS: [string, string, 'white' | 'gold' | 'grey' | 'green'][] = [['up', 'sprint', 'green'], ['anvil', 'anvil-impact', 'grey'], ['scroll', 'checklist', 'gold']];
 
 const ICONS: Record<UpgradeId, string> = {
   atk: gi('crossed-swords'), hp: gi('hearts'), aspd: gi('sprint'), crit: gi('bullseye'), gold: gi('two-coins'),
@@ -44,7 +47,8 @@ export class Hud {
   private readonly cache = new Map<HTMLElement, string>();
   private readonly el: Record<string, HTMLElement>;
   private toastTimer = 0;
-  private tab: Tab = 'upgrades';
+  /** The menu page open over the battlefield, if any. */
+  private tab: Tab | null = null;
   private readonly forge: ForgePanel;
   private readonly quests: QuestPanel;
   private readonly reforge: ReforgePanel;
@@ -102,7 +106,7 @@ export class Hud {
     this.reforge = new ReforgePanel($('#reforge-root'), sim, (m) => this.toast(m, 'boss'));
     this.missions = new MissionsUI(sim, (m) => this.toast(m), codexIcon);
     this.levelRoad = new LevelRoad(sim, (m, k) => this.toast(m, k));
-    this.bag = new BagUI(sim, () => this.showTab('forge'));
+    this.bag = new BagUI(sim, () => this.openPage('forge'));
     $('#side-bag').addEventListener('click', () => { sfx.play('tick'); this.bag.open(); });
     this.worldMap = new WorldMapUI(sim, (m) => this.toast(m), codexIcon);
     $('#side-map').addEventListener('click', () => { sfx.play('tick'); this.worldMap.open(); });
@@ -111,38 +115,24 @@ export class Hud {
     this.lv.chip.addEventListener('click', () => { sfx.play('tick'); this.levelRoad.open(); });
     this.badges = { forge: $('#forge-badge'), quests: $('#quests-badge'), reforge: $('#reforge-badge') };
     for (const [sel, name, color] of SIDE_ICONS) $(`${sel} .side-ico`).innerHTML = gi(name, color);
-    $('#settings-btn').innerHTML = gi('cog');
+    $('#settings-btn .cog').innerHTML = gi('cog');
+    for (const [ico, name, color] of DOCK_ICONS) $(`.dock-ico[data-ico="${ico}"]`).innerHTML = gi(name, color);
     const heroes = new HeroesUI(sim, (m) => this.toast(m));
     $('#side-heroes').addEventListener('click', () => { sfx.play('tick'); heroes.open(); });
 
-    for (const t of root.querySelectorAll<HTMLButtonElement>('[data-tab]')) {
+    // Bottom bar: each icon opens its page over the battlefield; tapping it again closes it.
+    for (const t of root.querySelectorAll<HTMLButtonElement>('#dock [data-tab]')) {
       t.addEventListener('click', () => {
-        if (performance.now() - this.swipedAt < 400) return; // this "click" ended a swipe
-        // Tapping the open tab again hides the menu; any tab opens it.
+        sfx.play('tick');
         const tab = t.dataset.tab as Tab;
-        if (tab === this.tab && !this.collapsed) this.setCollapsed(true);
-        else { this.setCollapsed(false); this.showTab(tab); }
+        if (tab === this.tab) this.closePage(); else this.openPage(tab);
       });
     }
-    $('#panel-toggle').addEventListener('click', () => {
-      if (performance.now() - this.swipedAt < 400) return;
-      sfx.play('tick'); this.setCollapsed(!this.collapsed); });
-    // Swipe the tab bar down to hide the menu, up to show it.
-    const head = $('.panel-head');
-    let y0: number | null = null;
-    head.addEventListener('pointerdown', (e) => { y0 = e.clientY; });
-    head.addEventListener('pointerup', (e) => {
-      if (y0 === null) return;
-      const dy = e.clientY - y0;
-      y0 = null;
-      if (Math.abs(dy) > 30) { this.swipedAt = performance.now(); this.setCollapsed(dy > 0); }
-    });
-    head.addEventListener('pointercancel', () => { y0 = null; });
-    let saved = false;
-    try { saved = localStorage.getItem('fb-panel-collapsed') === '1'; } catch { /* storage blocked */ }
-    this.setCollapsed(saved);
+    $('#page-close').addEventListener('click', () => { sfx.play('tick'); this.closePage(); });
+    window.addEventListener('resize', () => this.fitPagers());
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && this.tab && !document.querySelector('.modal')) this.closePage(); });
     // The open menu page never scrolls: on a very short screen its content shrinks to fit.
-    this.fitAll = autoFit(document.getElementById('panel')!, () => performance.now() < this.animUntil);
+    this.fitAll = autoFit(document.getElementById('panel')!, () => false);
     this.refresh();
   }
 
@@ -196,32 +186,34 @@ export class Hud {
     btn.addEventListener('click', (e) => { if (e.detail === 0) action(); });
   }
 
-  private collapsed = false;
-  private swipedAt = -1e9;
-  /** The menu's open/close animation is running until then (page heights are in flux). */
-  private animUntil = 0;
   private fitAll: () => void = () => {};
 
-  /** Hide the menu down to its tab bar (the battlefield grows to fill the room), or show it. */
-  setCollapsed(c: boolean): void {
-    if (c !== this.collapsed) {
-      this.animUntil = performance.now() + 300;
-      window.setTimeout(() => this.fitAll(), 320); // in case the animation never reports its end
-    }
-    this.collapsed = c;
+  /** Open a menu page (Upgrades, Forge, Quests; Reforge from Settings) over the battlefield. */
+  openPage(tab: Tab): void {
+    this.tab = tab;
     const panel = document.getElementById('panel')!;
-    panel.classList.toggle('collapsed', c);
-    const btn = document.getElementById('panel-toggle')!;
-    btn.setAttribute('aria-expanded', String(!c));
-    btn.setAttribute('aria-label', c ? 'Show menu' : 'Hide menu');
-    try { localStorage.setItem('fb-panel-collapsed', c ? '1' : '0'); } catch { /* storage blocked */ }
+    panel.hidden = false;
+    for (const t of document.querySelectorAll<HTMLElement>('#dock [data-tab]')) t.setAttribute('aria-pressed', String(t.dataset.tab === tab));
+    for (const p of document.querySelectorAll<HTMLElement>('[data-page]')) p.hidden = p.dataset.page !== tab;
+    document.getElementById('page-title')!.textContent = PAGE_TITLE[tab];
+    this.refresh();
+    this.fitPagers();
+    this.fitAll();
   }
 
-  private showTab(tab: Tab): void {
-    this.tab = tab;
-    for (const t of document.querySelectorAll<HTMLElement>('[data-tab]')) t.setAttribute('aria-selected', String(t.dataset.tab === tab));
-    for (const p of document.querySelectorAll<HTMLElement>('[data-page]')) p.hidden = p.dataset.page !== tab;
-    this.refresh();
+  /** Paged lists show as many rows as the (now taller) page fits. */
+  private fitPagers(): void {
+    if (this.tab === 'forge') this.forge.fitPager();
+    if (this.tab === 'reforge') this.reforge.fitPager();
+  }
+
+  /** The Reforge badge (shown on the Settings button, where Reforge now lives). */
+  reforgeBadge(): string { return this.reforge.badge(); }
+
+  closePage(): void {
+    this.tab = null;
+    document.getElementById('panel')!.hidden = true;
+    for (const t of document.querySelectorAll<HTMLElement>('#dock [data-tab]')) t.setAttribute('aria-pressed', 'false');
   }
 
   private setBadge(tab: Exclude<Tab, 'upgrades'>, text: string): void {
@@ -345,6 +337,7 @@ export class Hud {
     if (this.tab === 'forge') { this.forge.refresh(); return; }
     if (this.tab === 'quests') { this.quests.refresh(); return; }
     if (this.tab === 'reforge') { this.reforge.refresh(); return; }
+    if (this.tab !== 'upgrades') return;
     for (const r of this.rows) {
       const def = UPGRADES[r.id];
       const lvl = s.upgrades[r.id];

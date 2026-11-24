@@ -106,6 +106,8 @@ async function boot() {
     },
     install: () => pwa.install(),
     canInstall: () => pwa.canInstall(),
+    openReforge: () => hud?.openPage('reforge'),
+    reforgeBadge: () => hud?.reforgeBadge() ?? '',
   }));
   installCurrencyIcons(); // 3D coin / shard / gem / ember icons for the whole UI
   // Inventory icons from the pack's weapon models (replacing the drawn stand-ins once ready).

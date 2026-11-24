@@ -374,6 +374,9 @@ export class ForgePanel {
     this.renderedAtk = Math.round(this.sim.atk);
   }
 
+  /** Fill the page with weapon rows (call when the page opens or the screen resizes). */
+  fitPager(): void { this.pager.fitRows(6, 2, 8, 6); }
+
   /** Something worth doing in the forge (for the tab badge). */
   badge(): string {
     const s = this.sim.save;

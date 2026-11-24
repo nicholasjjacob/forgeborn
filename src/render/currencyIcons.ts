@@ -2,14 +2,15 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
 /**
- * 3D currency icons: a gold coin, a purple shard crystal, a cut blue gem and a glowing ember,
+ * 3D icons: a gold coin, a purple shard crystal, a cut blue gem and a glowing ember (currencies),
+ * plus the bottom bar's arrow (Upgrades), anvil (Forge) and scroll (Quests),
  * modelled here and rendered once at startup (with studio reflections) into small PNGs. They
  * replace the flat CSS icons everywhere (.coin, .gem, .jewel, .ember) through CSS variables
  * --ico-coin / --ico-gem / --ico-jewel / --ico-ember and the html.icons3d class. If WebGL isn't
  * available the CSS icons simply stay.
  */
 
-type Kind = 'coin' | 'gem' | 'jewel' | 'ember';
+type Kind = 'coin' | 'gem' | 'jewel' | 'ember' | 'up' | 'anvil' | 'scroll';
 
 function coin(): THREE.Object3D {
   const g = new THREE.Group();
@@ -92,7 +93,70 @@ function ember(): THREE.Object3D {
   return g;
 }
 
-const BUILD: Record<Kind, () => THREE.Object3D> = { coin, gem: shard, jewel, ember };
+function bevel(shape: THREE.Shape, depth: number, b: number): THREE.ExtrudeGeometry {
+  const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelThickness: b, bevelSize: b, bevelSegments: 2, curveSegments: 8 });
+  g.translate(0, 0, -depth / 2);
+  return g;
+}
+
+function upArrow(): THREE.Object3D {
+  // A chunky green arrow pointing up (Upgrades).
+  const s = new THREE.Shape();
+  s.moveTo(0, 1); s.lineTo(0.9, 0.05); s.lineTo(0.38, 0.05); s.lineTo(0.38, -0.95); s.lineTo(-0.38, -0.95);
+  s.lineTo(-0.38, 0.05); s.lineTo(-0.9, 0.05); s.lineTo(0, 1);
+  const m = new THREE.Mesh(bevel(s, 0.35, 0.09), new THREE.MeshStandardMaterial({ color: 0x46e04a, emissive: 0x157a18, emissiveIntensity: 0.55, roughness: 0.3, metalness: 0.1 }));
+  const g = new THREE.Group();
+  g.add(m);
+  g.rotation.set(-0.2, 0.45, 0);
+  return g;
+}
+
+function anvil(): THREE.Object3D {
+  // A blacksmith's anvil with a horn, on a stout foot (Forge), and a glowing hot bar on top.
+  const s = new THREE.Shape();
+  s.moveTo(-1.25, 0.55); s.quadraticCurveTo(-0.95, 0.25, -0.55, 0.22); s.lineTo(-0.35, 0.2); s.lineTo(-0.3, -0.2);
+  s.lineTo(-0.62, -0.55); s.lineTo(0.72, -0.55); s.lineTo(0.42, -0.2); s.lineTo(0.48, 0.2); s.lineTo(0.95, 0.24);
+  s.lineTo(0.95, 0.55); s.lineTo(-1.25, 0.55);
+  const metal = new THREE.MeshStandardMaterial({ color: 0x8a94a8, metalness: 0.85, roughness: 0.32, emissive: 0x2a3040, emissiveIntensity: 0.4 });
+  const g = new THREE.Group();
+  g.add(new THREE.Mesh(bevel(s, 0.75, 0.06), metal));
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.14, 0.22), new THREE.MeshStandardMaterial({ color: 0xff8a2a, emissive: 0xff5a10, emissiveIntensity: 1 }));
+  bar.position.set(0.1, 0.62, 0.05); bar.rotation.y = 0.3;
+  g.add(bar);
+  g.rotation.set(0.35, -0.5, 0);
+  return g;
+}
+
+function scroll(): THREE.Object3D {
+  // A parchment scroll with wooden rollers and a red seal (Quests).
+  const g = new THREE.Group();
+  const paper = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.6, 0.06), new THREE.MeshStandardMaterial({ color: 0xf4e2b0, roughness: 0.8, emissive: 0x5a4a20, emissiveIntensity: 0.25 }));
+  g.add(paper);
+  const wood = new THREE.MeshStandardMaterial({ color: 0x9a5a2a, roughness: 0.5, emissive: 0x3a1a08, emissiveIntensity: 0.3 });
+  for (const y of [0.85, -0.85]) {
+    const roll = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 1.45, 14).rotateZ(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xead2a0, roughness: 0.8, emissive: 0x4a3a18, emissiveIntensity: 0.25 }));
+    roll.position.y = y;
+    g.add(roll);
+    for (const x of [0.8, -0.8]) {
+      const knob = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), wood);
+      knob.position.set(x, y, 0);
+      g.add(knob);
+    }
+  }
+  const ink = new THREE.MeshStandardMaterial({ color: 0x8a6a40, roughness: 0.9 });
+  for (const [y, w] of [[0.42, 0.9], [0.18, 0.75], [-0.06, 0.85]] as const) {
+    const line = new THREE.Mesh(new THREE.BoxGeometry(w, 0.07, 0.02), ink);
+    line.position.set(-0.05, y, 0.04);
+    g.add(line);
+  }
+  const seal = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.08, 16).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xe0302a, emissive: 0x7a0a08, emissiveIntensity: 0.5, roughness: 0.4 }));
+  seal.position.set(0.25, -0.42, 0.06);
+  g.add(seal);
+  g.rotation.set(-0.15, 0.4, -0.12);
+  return g;
+}
+
+const BUILD: Record<Kind, () => THREE.Object3D> = { coin, gem: shard, jewel, ember, up: upArrow, anvil, scroll };
 
 /** Render the icons and switch the UI over to them. Resolves true on success. */
 export function installCurrencyIcons(size = 96): boolean {

@@ -9,12 +9,15 @@ export interface SettingsActions {
   /** Present the browser's install prompt if one is available; returns false if not. */
   install(): Promise<boolean>;
   canInstall(): boolean;
+  /** Open the Reforge page (prestige), and its badge text ('' when there's nothing new). */
+  openReforge(): void;
+  reforgeBadge(): string;
 }
 
 const isIos = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const isStandalone = () => matchMedia('(display-mode: standalone)').matches || (navigator as unknown as { standalone?: boolean }).standalone === true;
 
-/** Settings sheet: sound, graphics quality, frame rate, install, reset. Changes apply instantly. */
+/** Settings sheet: sound, graphics quality, frame rate, Reforge, install, reset. Changes apply instantly. */
 export function openSettings(sim: Sim, act: SettingsActions): void {
   const s = sim.save;
   const wrap = document.createElement('div');
@@ -28,6 +31,7 @@ export function openSettings(sim: Sim, act: SettingsActions): void {
       <div class="set-row"><span>Sound</span><div class="seg" data-key="sound"><button data-v="on">On</button><button data-v="off">Off</button></div></div>
       <div class="set-row"><span>Graphics<small>Low: sharper on weak phones, fewer particles, no shake</small></span><div class="seg" data-key="quality"><button data-v="high">High</button><button data-v="low">Low</button></div></div>
       <div class="set-row"><span>Frame rate<small>30 saves battery</small></span><div class="seg" data-key="fps"><button data-v="60">60</button><button data-v="30">30</button></div></div>
+      <div class="set-row"><span>Reforge<small>Restart stronger: trade this run for embers and perks</small></span><button type="button" class="btn small primary" id="open-reforge">Open<span class="badge" id="set-reforge-badge"></span></button></div>
       <div class="set-row install-row" hidden><span>Install<small class="install-note"></small></span><button type="button" class="btn small primary" id="install-btn">Install</button></div>
       <div class="set-actions">
         <button type="button" class="btn ghost" id="reset-progress">Reset progress</button>
@@ -80,6 +84,10 @@ export function openSettings(sim: Sim, act: SettingsActions): void {
   document.addEventListener('keydown', onKey);
   wrap.addEventListener('click', (e) => { if (e.target === wrap) close(); });
   wrap.querySelector('#close-settings')!.addEventListener('click', close);
+  const rb = wrap.querySelector<HTMLElement>('#set-reforge-badge')!;
+  rb.textContent = act.reforgeBadge();
+  rb.classList.toggle('show', rb.textContent !== '');
+  wrap.querySelector('#open-reforge')!.addEventListener('click', () => { close(); act.openReforge(); });
   wrap.querySelector('#reset-progress')!.addEventListener('click', async () => {
     const ok = await confirmDialog({
       title: 'Reset all progress?',

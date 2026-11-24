@@ -14,7 +14,7 @@ export class Pager {
   private pages = 1;
   private swiped = 0;
 
-  constructor(private readonly list: HTMLElement, private readonly size: number, private readonly onChange?: () => void) {
+  constructor(private readonly list: HTMLElement, private size: number, private readonly onChange?: () => void) {
     this.el = document.createElement('div');
     this.el.className = 'pager';
     this.el.innerHTML = '<button type="button" class="pg-btn" aria-label="Previous page">‹</button><span class="pg-label"></span><button type="button" class="pg-btn" aria-label="Next page">›</button>';
@@ -53,6 +53,23 @@ export class Pager {
   reveal(i: number): void {
     const p = Math.floor(i / this.size);
     if (p !== this.page) { this.page = p; this.update(); }
+  }
+
+  /**
+   * Show as many rows (of `cols` items) as fit between the list's top and the bottom of its page,
+   * less `reserve` px for anything below it; between `min` and `max` rows. Call when the page opens
+   * or the screen resizes (the page must be visible to be measured).
+   */
+  fitRows(cols: number, min: number, max: number, reserve = 0): void {
+    const page = this.list.closest<HTMLElement>('.tab-page');
+    const item = [...this.list.children].find((c) => !(c as HTMLElement).hidden) as HTMLElement | undefined;
+    if (!page || page.hidden || !item || page.clientHeight === 0) return;
+    const gap = parseFloat(getComputedStyle(this.list).rowGap) || 0;
+    const room = page.getBoundingClientRect().bottom - this.list.getBoundingClientRect().top - reserve;
+    const rowH = item.getBoundingClientRect().height + gap;
+    if (rowH <= gap) return;
+    const rows = Math.max(min, Math.min(max, Math.floor((room + gap) / rowH)));
+    if (rows * cols !== this.size) { this.size = rows * cols; this.update(); }
   }
 
   /** Re-apply after the list's children change. */

@@ -18,6 +18,7 @@ export class ReforgePanel {
   private readonly cache = new Map<HTMLElement, string>();
   private readonly el: Record<string, HTMLElement>;
   private readonly rows: { id: PerkId; lvl: HTMLElement; eff: HTMLElement; btn: HTMLButtonElement; cost: HTMLElement }[] = [];
+  private pager: Pager | null = null;
 
   constructor(root: HTMLElement, private readonly sim: Sim, private readonly toast: (m: string) => void) {
     root.innerHTML = `
@@ -33,7 +34,7 @@ export class ReforgePanel {
         <p class="rf-keep">Reforging resets stage, gold, shards, upgrades, weapons and forge level. You keep embers, perks, achievements and lifetime stats.</p>
       </div>
       <div data-seg-page="p" hidden><ul class="perk-list paged"></ul><div class="page-foot"><span class="perk-embers"></span></div></div>`;
-    bindSegments(root, () => this.refresh());
+    bindSegments(root, () => { this.refresh(); this.fitPager(); });
     const $ = (sel: string) => root.querySelector<HTMLElement>(sel)!;
     this.el = { balance: $('#rf-balance'), glow: $('#rf-glow'), text: $('#rf-text'), btn: $('#rf-btn') };
     this.el.btn.addEventListener('click', () => this.doReforge());
@@ -52,7 +53,7 @@ export class ReforgePanel {
       list.appendChild(li);
       this.rows.push({ id, lvl: li.querySelector('.lvl')!, eff: li.querySelector('.value')!, btn, cost: li.querySelector('.cost')! });
     }
-    const pager = new Pager(list, 4);
+    const pager = this.pager = new Pager(list, 4);
     $('.page-foot').append(pager.el);
     pager.update();
     this.el.perkEmbers = $('.perk-embers');
@@ -113,6 +114,9 @@ export class ReforgePanel {
       if (r.btn.disabled === can) r.btn.disabled = !can;
     }
   }
+
+  /** Fill the page with perk rows (call when the page opens or the screen resizes). */
+  fitPager(): void { this.pager?.fitRows(1, 3, 10, 56); }
 
   badge(): string {
     const s = this.sim.save;
