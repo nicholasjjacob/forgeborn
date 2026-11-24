@@ -1,4 +1,4 @@
-import { fitToPage } from './pager';
+import { autoFit } from './pager';
 import { gi } from './icons';
 import { HeroesUI } from './heroes';
 import { fmt } from '../core/format';
@@ -141,6 +141,8 @@ export class Hud {
     let saved = false;
     try { saved = localStorage.getItem('fb-panel-collapsed') === '1'; } catch { /* storage blocked */ }
     this.setCollapsed(saved);
+    // The open menu page never scrolls: on a very short screen its content shrinks to fit.
+    this.fitAll = autoFit(document.getElementById('panel')!, () => performance.now() < this.animUntil);
     this.refresh();
   }
 
@@ -196,10 +198,16 @@ export class Hud {
 
   private collapsed = false;
   private swipedAt = -1e9;
-  private fitAt = 0;
+  /** The menu's open/close animation is running until then (page heights are in flux). */
+  private animUntil = 0;
+  private fitAll: () => void = () => {};
 
   /** Hide the menu down to its tab bar (the battlefield grows to fill the room), or show it. */
   setCollapsed(c: boolean): void {
+    if (c !== this.collapsed) {
+      this.animUntil = performance.now() + 300;
+      window.setTimeout(() => this.fitAll(), 320); // in case the animation never reports its end
+    }
     this.collapsed = c;
     const panel = document.getElementById('panel')!;
     panel.classList.toggle('collapsed', c);
@@ -213,7 +221,6 @@ export class Hud {
     this.tab = tab;
     for (const t of document.querySelectorAll<HTMLElement>('[data-tab]')) t.setAttribute('aria-selected', String(t.dataset.tab === tab));
     for (const p of document.querySelectorAll<HTMLElement>('[data-page]')) p.hidden = p.dataset.page !== tab;
-    this.fitAt = 0;
     this.refresh();
   }
 
@@ -260,13 +267,6 @@ export class Hud {
 
   /** Called ~10× per second. */
   refresh(): void {
-    // The open menu page never scrolls: on a very short screen its content shrinks to fit.
-    const tNow = performance.now();
-    if (tNow - this.fitAt > 400 && !this.collapsed) {
-      this.fitAt = tNow;
-      const page = document.querySelector<HTMLElement>(`[data-page="${this.tab}"]`);
-      if (page) fitToPage(page, page.firstElementChild as HTMLElement | null);
-    }
     const sim = this.sim;
     const s = sim.save;
     this.set(this.el.stage, zoneName(s.zone));

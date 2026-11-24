@@ -79,11 +79,27 @@ export class Pager {
  * than the page on a very short screen, shrink it to fit rather than letting it scroll.
  */
 export function fitToPage(page: HTMLElement, inner: HTMLElement | null): void {
-  if (!inner || page.hidden) return;
+  if (!inner || page.hidden || page.offsetParent === null) return;
   const room = page.clientHeight, need = inner.scrollHeight;
-  const k = room > 0 && need > room + 1 ? Math.max(0.7, room / need) : 1;
+  if (room <= 0) return;
+  const k = need > room + 1 ? Math.max(0.7, room / need) : 1;
   const t = k < 1 ? `scale(${k.toFixed(3)})` : '';
   if (inner.style.transform !== t) inner.style.transform = t;
+}
+
+/**
+ * Keeps every panel page fitted: refits the moment a page or its content changes size (a tab or
+ * sub-tab switch, a new page of items), before the frame is drawn, so nothing visibly jumps.
+ * While the menu is opening or closing the page height is mid-animation: `held()` skips those
+ * measurements and `panel`'s transitionend refits at the final size.
+ */
+export function autoFit(panel: HTMLElement, held: () => boolean): () => void {
+  const pages = [...panel.querySelectorAll<HTMLElement>('.tab-page')];
+  const fitAll = (): void => { for (const p of pages) fitToPage(p, p.firstElementChild as HTMLElement | null); };
+  const ro = new ResizeObserver(() => { if (!held()) fitAll(); });
+  for (const p of pages) { ro.observe(p); if (p.firstElementChild) ro.observe(p.firstElementChild); }
+  panel.addEventListener('transitionend', (e) => { if (e.target === panel) fitAll(); });
+  return fitAll;
 }
 
 /**
