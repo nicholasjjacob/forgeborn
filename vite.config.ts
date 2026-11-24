@@ -7,7 +7,7 @@ export default defineConfig({
   define: { __BUILD__: JSON.stringify(new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC') },
   server: { port: 5173, host: true },
   build: {
-    chunkSizeWarningLimit: 450, // PixiJS core lives in the main chunk; renderers load lazily
+    chunkSizeWarningLimit: 1200, // Three.js (3D world) + PixiJS core (overlay) live in the main chunk
     target: 'es2022',
     // (no manualChunks: forcing Pixi into one chunk would defeat its lazy-loaded renderer splits)
   },

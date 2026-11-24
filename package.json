@@ -14,9 +14,11 @@
   },
   "type": "module",
   "dependencies": {
-    "pixi.js": "^8.23.0"
+    "pixi.js": "^8.23.0",
+    "three": "^0.181.0"
   },
   "devDependencies": {
+    "@types/three": "^0.181.0",
     "typescript": "^5.9.3",
     "vite": "^7.3.8",
     "vitest": "^4.1.12"

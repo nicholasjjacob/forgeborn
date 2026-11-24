@@ -7,7 +7,8 @@ import { TICK } from './sim/balance';
 import { Sim } from './sim/sim';
 import { Hud } from './ui/hud';
 import { Input } from './ui/input';
-import { zoneName } from './sim/zones';
+import { zoneArea, zoneName } from './sim/zones';
+import { preloadArea } from './render/world3d';
 import { OFFLINE_CAP_HOURS, applyOfflineReward, hasReward, offlineReward } from './sim/offline';
 import { showWelcome } from './ui/welcome';
 import { openSettings } from './ui/settings';
@@ -28,7 +29,7 @@ async function boot() {
   const app = new Application();
   await app.init({
     resizeTo: host,
-    background: '#1d2b53',
+    backgroundAlpha: 0, // transparent: the 3D world (Three.js) renders underneath
     antialias: false,
     // Cap at 2x: 3x phone screens cost ~2.25x the fill-rate for no visible gain on pixel art.
     resolution: Math.min(window.devicePixelRatio || 1, 2),
@@ -47,6 +48,9 @@ async function boot() {
   // or missing, the code-drawn art is used and swapped out as soon as the sheets arrive.
   await Promise.race([loadRenderedArt(), new Promise((r) => setTimeout(r, 2500))]);
   const loaded = await savePromise;
+  // The 3D models for the hero's zone (a few MB the first time, cached after): wait a little
+  // so the game doesn't open on an empty field; anything slower pops in when it arrives.
+  await Promise.race([preloadArea(zoneArea(loaded.zone ?? 0)), new Promise((r) => setTimeout(r, 6000))]);
   // Offline earnings since the last save (rewards are granted immediately, then shown).
   const bootReward = offlineReward(loaded, (Date.now() - loaded.savedAt) / 1000, OFFLINE_CAP_HOURS + loaded.perks.offline);
   if (hasReward(bootReward)) applyOfflineReward(loaded, bootReward);
@@ -173,7 +177,7 @@ async function boot() {
 
   if (import.meta.env.DEV) {
     // Dev-only debug handle (stripped from production builds).
-    (window as unknown as Record<string, unknown>).__fb = { sim, app, sfx, stopSaving: () => { saving = false; } };
+    (window as unknown as Record<string, unknown>).__fb = { sim, app, sfx, scene, stopSaving: () => { saving = false; } };
   }
 }
 

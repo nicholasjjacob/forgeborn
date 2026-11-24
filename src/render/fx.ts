@@ -70,11 +70,19 @@ class Pool<T extends Container> {
   }
 }
 
+/** Maps a game-space point (x, y on the ground, plus a height) to screen pixels. */
+export type Projector = (x: number, height: number, y: number, out: { x: number; y: number }) => void;
+
+/** Effects live in game coordinates and are projected onto the screen every frame. */
+const FX_H = 7; // most effects float around a monster's middle
+
 export class Fx {
-  /** World-space layer (scaled with the battlefield). */
+  /** Screen-space layer for particles, coins and rings. */
   readonly world = new Container();
   /** Screen-space layer for crisp text. */
   readonly screen = new Container();
+  private readonly pt = { x: 0, y: 0 };
+  proj: Projector = (x, _h, y, out) => { out.x = x; out.y = y; };
 
   private readonly texts: Pool<BitmapText>;
   private readonly coins: Pool<Sprite>;
@@ -84,10 +92,9 @@ export class Fx {
   low = false;
   private readonly parts: Pool<Sprite>;
 
-  // Set by Scene.layout so world → screen mapping stays allocation-free.
-  ox = 0;
-  oy = 0;
+  /** Screen pixels per world unit (set by Scene.layout). */
   scale = 1;
+  /** Screen positions the coins / gems fly to. */
   coinTargetX = 6;
   coinTargetY = 4;
   gemTargetX = 6;
@@ -205,8 +212,10 @@ export class Fx {
 
   private readonly stepRing = (it: Item<Sprite>, p: number): boolean => {
     const e = 1 - (1 - p) * (1 - p);
-    it.obj.position.set(it.x, it.y);
-    it.obj.scale.set(0.2 + e * it.a, (0.2 + e * it.a) * 0.55); // flattened: lies on the ground
+    this.proj(it.x, 0, it.y, this.pt);
+    it.obj.position.set(this.pt.x, this.pt.y);
+    const k = (0.2 + e * it.a) * this.scale;
+    it.obj.scale.set(k, k * 0.62); // flattened: lies on the ground
     it.obj.alpha = 1 - p;
     return true;
   };
@@ -217,7 +226,9 @@ export class Fx {
     it.vy += 120 * dt;
     it.x += it.vx * dt;
     it.y += it.vy * dt;
-    it.obj.position.set(it.x + (this.gemTargetX - it.x) * k, it.y + (this.gemTargetY - it.y) * k);
+    this.proj(it.x, FX_H, it.y, this.pt);
+    it.obj.position.set(this.pt.x + (this.gemTargetX - this.pt.x) * k, this.pt.y + (this.gemTargetY - this.pt.y) * k);
+    it.obj.scale.set(this.scale);
     it.obj.rotation = p * 6;
     return true;
   };
@@ -227,8 +238,9 @@ export class Fx {
     const o = it.obj;
     const s = this.scale;
     const rise = 1 - (1 - p) * (1 - p);
-    o.x = this.ox + it.x * s;
-    o.y = this.oy + (it.y - rise * 14) * s;
+    this.proj(it.x, 12, it.y, this.pt);
+    o.x = this.pt.x;
+    o.y = this.pt.y - rise * 14 * s;
     const pop = p < 0.15 ? 0.6 + (p / 0.15) * 0.6 : 1.2 - Math.min(0.2, (p - 0.15) * 0.5);
     o.scale.set((s * 5.5 * it.a * pop) / FONT_PX);
     o.alpha = p < 0.7 ? 1 : 1 - (p - 0.7) / 0.3;
@@ -240,8 +252,9 @@ export class Fx {
     it.vy += 140 * dt;
     it.x += it.vx * dt;
     it.y += it.vy * dt;
-    it.obj.position.set(it.x, it.y);
-    it.obj.scale.set(it.a * (1 - p * 0.6));
+    this.proj(it.x, FX_H, it.y, this.pt);
+    it.obj.position.set(this.pt.x, this.pt.y);
+    it.obj.scale.set(it.a * (1 - p * 0.6) * this.scale);
     it.obj.alpha = 1 - p * p;
     return true;
   };
@@ -253,8 +266,9 @@ export class Fx {
     it.vy += 120 * dt;
     it.x += it.vx * dt;
     it.y += it.vy * dt;
-    it.obj.position.set(it.x + (this.coinTargetX - it.x) * k, it.y + (this.coinTargetY - it.y) * k);
-    it.obj.scale.set(1 - k * 0.4);
+    this.proj(it.x, FX_H, it.y, this.pt);
+    it.obj.position.set(this.pt.x + (this.coinTargetX - this.pt.x) * k, this.pt.y + (this.coinTargetY - this.pt.y) * k);
+    it.obj.scale.set((1 - k * 0.4) * this.scale);
     return true;
   };
 }

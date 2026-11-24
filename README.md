@@ -1,6 +1,6 @@
 # Forgeborn
 
-An original top-down action/idle RPG for the web (Chrome, Safari on iOS), built with TypeScript, Vite and PixiJS.
+An original top-down action/idle RPG for the web (Chrome, Safari on iOS), built with TypeScript, Vite, Three.js (the 3D world) and PixiJS (the 2D overlay).
 
 **Controls:** drag anywhere on the battlefield for a floating joystick (touch), click or hold to walk (mouse), or WASD / arrow keys. With **Auto** on, the hero hunts on their own whenever you stop steering.
 
@@ -43,7 +43,7 @@ npm run build    # production build in dist/
 | `src/sim/areas.ts` | Area definitions: ground palette, props, monster roster and boss per biome. |
 | `src/sim/weapons.ts` | Weapon model, forms, traits, forge odds, merge rules. Pure functions, fully testable. |
 | `src/sim/map.ts` | Seeded map generation, prop collision grid, obstacle steering. |
-| `src/render/` | PixiJS top-down scene: camera, depth sorting, culling, pooled effects. Art is generated in code in a soft shaded cartoon style at 4× resolution (`sprites.ts`); pre-rendered 3D sprites can replace it without touching game code. Reads sim state only. |
+| `src/render/` | `world3d.ts`: the Three.js battlefield (animated 3D hero and monsters, instanced scenery chunked for culling, sun with soft shadows, per-terrain lighting and fog, ground markers). `scene.ts`: camera follow plus the PixiJS overlay (health bars, level, damage numbers, particles), positioned by projecting 3D points. `models.ts`: GLB loading/caching. Reads sim state only. |
 | `src/audio/sfx.ts` | Procedural sound effects (Web Audio, no files), haptics. |
 | `src/ui/settings.ts` | Settings sheet: sound, graphics quality, frame rate, install, reset. |
 | `src/pwa.ts`, `public/sw.js`, `public/manifest.webmanifest` | Installable app + offline caching. |
@@ -85,9 +85,21 @@ npm run build    # production build in dist/
 5. ~~Polish: audio, juice, PWA install, trim PixiJS imports, low-end device pass~~
 6. Native wrappers via Capacitor (iOS / Android)
 
-## 3D sprites
+## 3D models
 
-Characters, monsters and scenery are pre-rendered from CC0 3D models with Blender:
+The battlefield uses real 3D models (GLB) in `public/models/`, converted from the CC0 source packs with Blender:
+
+```
+blender -b --python scripts/build-models.py
+```
+
+- Keeps only the animations the game plays, drops normal maps, shrinks scenery textures to 256 px (WebP) and keeps character palette textures lossless (WebP turns their tiny colour grids grey). `FB_ONLY=hero|monsters|props` rebuilds one group.
+- `MONSTERS` maps each terrain's roster slot to a model (`m<area>_<slot>.glb`, slot 3 = boss); `PROPS` lists the scenery. Cactus and crystal props and the weapons are built in code (`world3d.ts`); weapon metal colour shows rarity.
+- Only the current terrain's models are loaded (about 1.5-3 MB the first time; the service worker caches them for offline play).
+
+## UI sprites
+
+Codex and menu icons are still pre-rendered from the same CC0 models with Blender:
 
 ```
 blender -b --factory-startup -P tools/blender/render_sprites.py -- tools/blender/sources.json
