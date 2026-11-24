@@ -18,7 +18,7 @@ import { MissionSystem } from './missionSystem';
 import { GameMap, MAP_H, MAP_W } from './map';
 import { Gatherer, freshMaterials, type Materials } from './gather';
 import { MAX_LEVEL, levelBonus, milestoneReward, xpForKill, xpToNext, MILESTONES, type MilestoneReward } from './level';
-import { zoneArea, zoneBossMonster, zoneLevel, zoneName, zoneStage } from './zones';
+import { zoneArea, zoneBossMonster, zoneLevel, zoneName, zoneStage, bossCooldown } from './zones';
 import {
   forgeCost, forgeLevelCap, INVENTORY_SIZE, INVENTORY_STEP, MAX_FORGE_LEVEL, MAX_INVENTORY, inventoryExpandCost, MERGE_COUNT, bonusWeapon, compareWeapons, forgeAtkBonus, forgeUpgradeCost, forgeWeapon, matchingSlots, mergePartners, mergeWeapons,
   salvageValue, starterWeapon, weaponStats, type Weapon,
@@ -94,6 +94,8 @@ export interface SaveData {
   /** Hero look (cosmetic): the selected skin and every skin owned. Kept through Reforge. */
   skin: string;
   skins: string[];
+  /** Zone → wall-clock time (ms) when its beaten boss can be rematched again. */
+  bossReady: Record<string, number>;
   /** Recent earnings per second, used to pay out offline progress. */
   rates: { gold: number; shards: number };
   savedAt: number;
@@ -110,7 +112,7 @@ export function freshSave(): SaveData {
     missions: freshMissions(),
     level: 1, xp: 0, levelClaimed: [], materials: freshMaterials(),
     zone: 0, zoneBosses: 0, zoneBest: 0,
-    skin: DEFAULT_SKIN, skins: [DEFAULT_SKIN],
+    skin: DEFAULT_SKIN, skins: [DEFAULT_SKIN], bossReady: {},
     savedAt: Date.now(),
   };
 }
@@ -344,12 +346,30 @@ export class Sim {
   }
 
   /** Step into the current zone's boss arena. Bosses can be fought (and re-fought) any time. */
-  challengeBoss(): void {
-    if (this.bossActive || this.phase !== 'playing' || this.returnT > 0) return;
+  /**
+   * Fight this zone's boss. A first attempt can be retried freely; a beaten boss can only be
+   * rematched once its cooldown (bossCooldown) has passed, and each rematch starts it again.
+   * Returns false if the fight didn't start. `now` is wall-clock ms (cooldowns survive restarts).
+   */
+  challengeBoss(now = Date.now()): boolean {
+    if (this.bossActive || this.phase !== 'playing' || this.returnT > 0) return false;
     const z = this.save.zone;
+    if (this.zoneBossBeaten) {
+      if (this.bossCooldownLeft(now) > 0) return false;
+      this.save.bossReady[z] = now + bossCooldown(z) * 1000;
+    }
     this.map = new GameMap(zoneArea(z), z, true);
     this.resetField();
     this.startBoss();
+    return true;
+  }
+
+  /** Seconds until this zone's beaten boss can be rematched (0 = now, or not beaten yet). */
+  bossCooldownLeft(now = Date.now()): number {
+    if (!this.zoneBossBeaten) return 0;
+    const at = this.save.bossReady[this.save.zone] ?? 0;
+    // A clock moved backwards can't trap the player: never more than the full cooldown.
+    return Math.min(bossCooldown(this.save.zone), Math.max(0, (at - now) / 1000));
   }
 
   /** Travel to an unlocked zone (not during a boss fight). */
@@ -479,7 +499,7 @@ export class Sim {
       const groups = new Map<number, number[]>(); // key orders by tier, then rarity, then form
       s.weapons.forEach((w, i) => {
         if (!w) return;
-        const key = (w.tier * 4 + w.rarity) * 16 + w.form;
+        const key = w.rarity * 16 + w.form; // lowest rarity first, so results can merge again
         const list = groups.get(key);
         if (list) list.push(i); else groups.set(key, [i]);
       });
@@ -526,7 +546,7 @@ export class Sim {
     const s = this.save;
     const w = s.weapons[slot];
     if (!w) return 0;
-    const value = salvageValue(w);
+    const value = salvageValue(w, s.forgeLevel);
     s.weapons[slot] = null;
     s.shards += value;
     this.invVersion++;
@@ -1306,8 +1326,7 @@ export class Sim {
     if (r.weapon) {
       const slot = s.weapons.indexOf(null);
       if (slot < 0) return 'full';
-      const tier = Math.min(MAX_FORGE_LEVEL, s.forgeLevel + r.weapon.tierBonus);
-      s.weapons[slot] = bonusWeapon(this.rng, s.nextWeaponId++, tier, r.weapon.rarity);
+      s.weapons[slot] = bonusWeapon(this.rng, s.nextWeaponId++, s.forgeLevel, r.weapon.rarity);
       this.invVersion++;
       this.sortInventory();
     }

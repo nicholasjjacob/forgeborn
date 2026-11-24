@@ -2,7 +2,7 @@ import { DEFAULT_SKIN } from '../sim/skins';
 import { zoneLevel, zoneStage } from '../sim/zones';
 import { freshMaterials } from '../sim/gather';
 import { freshSave, type SaveData } from '../sim/sim';
-import { INVENTORY_SIZE, INVENTORY_STEP, MAX_INVENTORY } from '../sim/weapons';
+import { INVENTORY_SIZE, INVENTORY_STEP, MAX_INVENTORY, upgradeOldWeapon } from '../sim/weapons';
 import { freshPerks, freshStats } from '../sim/meta';
 import { freshMissions } from '../sim/missions';
 
@@ -22,7 +22,24 @@ export async function loadSave(): Promise<SaveData> {
   const fromDb = await Promise.race([readDb().catch(() => null), timeout(1500)]);
   const fromLs = readLs();
   const pick = newest(fromDb, fromLs);
-  return pick ? migrate(pick) : freshSave();
+  if (!pick) return freshSave();
+  // Safety net: keep the most advanced save ever loaded, exactly as it was (before any
+  // conversion), under a second key. If an update ever mishandles a save, progress can be
+  // recovered from it, and a reset save never overwrites a better backup.
+  try {
+    const prev = localStorage.getItem(BACKUP_KEY);
+    if (!prev || progressScore(pick) >= progressScore(JSON.parse(prev))) localStorage.setItem(BACKUP_KEY, JSON.stringify(pick));
+  } catch { /* storage full or blocked */ }
+  return migrate(pick);
+}
+
+/** Copy of the most advanced save loaded so far (before migration). */
+export const BACKUP_KEY = 'forgeborn.save.prev';
+
+function progressScore(x: unknown): number {
+  const d = (x ?? {}) as Partial<SaveData>;
+  const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+  return n(d.embersEarned) * 1e6 + Math.max(n(d.zoneBest), n(d.bestEver) / 4) * 1e3 + n(d.level) + n(d.kills) * 1e-9;
 }
 
 export function writeSave(save: SaveData): void {
@@ -166,6 +183,7 @@ export function migrate(input: unknown): SaveData {
   save.zone = Number.isFinite(save.zone) ? Math.max(0, Math.floor(save.zone)) : 0;
   save.zoneBosses = Number.isFinite(save.zoneBosses) ? Math.max(0, Math.floor(save.zoneBosses)) : 0;
   save.zoneBest = Math.max(save.zone, Number.isFinite(save.zoneBest) ? save.zoneBest : 0);
+  save.bossReady = save.bossReady && typeof save.bossReady === 'object' ? save.bossReady : {};
   // Skins: always own the default; the selected skin must be owned.
   save.skins = Array.isArray(save.skins) ? [...new Set([DEFAULT_SKIN, ...save.skins.filter((x) => typeof x === 'string')])] : [DEFAULT_SKIN];
   if (typeof save.skin !== 'string' || !save.skins.includes(save.skin)) save.skin = DEFAULT_SKIN;
@@ -174,7 +192,8 @@ export function migrate(input: unknown): SaveData {
   const raw = Array.isArray(save.weapons) ? save.weapons : [];
   const rows = Math.ceil(Math.max(0, raw.length - INVENTORY_SIZE) / INVENTORY_STEP);
   const size = Math.min(MAX_INVENTORY, INVENTORY_SIZE + rows * INVENTORY_STEP);
-  const inv = raw.slice(0, size);
+  const inv = raw.slice(0, size).map((w) => (w ? upgradeOldWeapon(w) : null));
+  if (save.equipped) save.equipped = upgradeOldWeapon(save.equipped);
   while (inv.length < size) inv.push(null);
   save.weapons = inv;
   // Keep weapon ids unique even if the counter was lost.

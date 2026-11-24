@@ -77,7 +77,11 @@ export class Hud {
       list: $('#upgrade-list'),
     };
 
-    this.el.challenge.addEventListener('click', () => sim.challengeBoss());
+    this.el.challenge.addEventListener('click', () => {
+      if (sim.challengeBoss()) return;
+      const left = sim.bossCooldownLeft();
+      if (left > 0) { sfx.play('tick'); this.toast(`${zoneBossName(sim.save.zone)} is recovering: rematch in ${clock(left)}`); }
+    });
     this.el.settings.addEventListener('click', () => onSettings());
     // UI click sound for every panel button.
     $('#panel').addEventListener('click', (e) => { if ((e.target as HTMLElement).closest('button:not(:disabled)')) sfx.play('tick'); });
@@ -312,9 +316,11 @@ export class Hud {
     const fresh = !sim.zoneBossBeaten;
     this.toggle(this.el.challenge, 'show', !sim.isBossStage && sim.phase === 'playing');
     this.toggle(this.el.challenge, 'ready', fresh);
+    const cool = fresh ? 0 : sim.bossCooldownLeft();
+    this.toggle(this.el.challenge, 'cooling', cool > 0);
     const cbHtml = fresh
       ? `<span class="cb-main">${gi('skull-crossed-bones', 'white')} Fight Boss!</span><span class="cb-sub">${zoneBossName(s.zone)}</span>`
-      : 'Rematch Boss';
+      : cool > 0 ? `<span class="cb-main">Rematch</span><span class="cb-sub">in ${clock(cool)}</span>` : 'Rematch Boss';
     if (cbHtml !== this.challengeHtml) { this.challengeHtml = cbHtml; this.el.challenge.innerHTML = cbHtml; }
     if (fresh && !sim.isBossStage && this.bossAnnounced !== s.zone && performance.now() > this.toastUntil) {
       this.bossAnnounced = s.zone;
@@ -343,4 +349,11 @@ export class Hud {
       if (r.btn.disabled === can) r.btn.disabled = !can;
     }
   }
+}
+
+/** 125 → "2:05", 3725 → "1:02:05". */
+function clock(sec: number): string {
+  const t = Math.ceil(sec);
+  const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), x = t % 60;
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${String(x).padStart(2, '0')}` : `${m}:${String(x).padStart(2, '0')}`;
 }

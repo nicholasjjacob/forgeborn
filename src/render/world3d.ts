@@ -23,6 +23,8 @@ const VIEW_H = 90;                     // …and at least this many vertically
 const CHUNK = 160;                     // props are instanced per chunk so off-screen chunks are culled
 const HERO_H = 17;
 const HERO_LAYER = 1;
+/** Where the attack clip (KayKit "Throw") reaches the top of its wind-up; the strike follows. */
+const ATTACK_FROM = 0.55;
 /** Weapon orientation in the hero's hand slot (blade along the holder's +y). */
 const HAND_ROT: [number, number, number] = [0, 0, 0];
 
@@ -687,8 +689,10 @@ export class World3D {
         if (!this.heroDead) this.heroPlay(this.heroAct.death, 0.1, true);
       } else if (h.swingT > this.heroSwing + 0.01) {
         // A new swing started: play the slash, sped up to fit the swing.
-        this.heroPlay(this.heroAct.attack, 0.05, true);
-        if (this.heroAct.attack) this.heroAct.attack.timeScale = 2.6;
+        // The sim lands the hit the moment the swing starts, so skip the clip's slow wind-up:
+        // start at the top of the raise and the blade comes down ~0.07 s later, with the hit.
+        this.heroPlay(this.heroAct.attack, 0.04, true);
+        if (this.heroAct.attack) { this.heroAct.attack.time = ATTACK_FROM; this.heroAct.attack.timeScale = 2.6; }
       } else if (this.heroCur === this.heroAct.attack && this.heroAct.attack && this.heroAct.attack.time < this.heroAct.attack.getClip().duration * 0.75) {
         // let the slash finish
       } else {

@@ -1,4 +1,4 @@
-import { gi } from './icons';
+import { gi, terrainIcon } from './icons';
 import { zoneName } from '../sim/zones';
 import { haptic, sfx } from '../audio/sfx';
 import { rewardSpill, starBurst } from './rewardFx';
@@ -87,6 +87,7 @@ export class MissionsUI {
 
   open(tab: MissionTab = 'daily'): void {
     this.tab = tab;
+    if (tab === 'codex') this.codexArea = null;
     if (this.wrap && !this.wrap.isConnected) this.close(); // removed from the page externally
     if (!this.wrap) {
       const wrap = document.createElement('div');
@@ -141,6 +142,7 @@ export class MissionsUI {
         break;
       case 'login': reward = m.claimAttendance(now); break;
       case 'codex': reward = m.claimCodex(Number(a), Number(b)); break;
+      case 'carea': this.codexArea = a === 'back' ? null : Number(a); sfx.play('tick'); this.scrollTop = true; break;
       case 'buy': reward = m.buy(a); if (!reward) this.toast('Not enough gems'); break;
     }
     if (reward) {
@@ -159,7 +161,7 @@ export class MissionsUI {
     const now = new Date();
     const m = this.sim.missions;
     const s = this.sim.save;
-    const sig = JSON.stringify([this.tab, this.journeyDaySel, s.missions, s.kills, s.stats, s.bestEver, Math.floor(now.getTime() / 30000)]);
+    const sig = JSON.stringify([this.tab, this.journeyDaySel, this.codexArea, s.missions, s.kills, s.stats, s.bestEver, Math.floor(now.getTime() / 30000)]);
     if (sig === this.sig) return;
     this.sig = sig;
 
@@ -175,7 +177,8 @@ export class MissionsUI {
     const body = this.wrap.querySelector<HTMLElement>('.sheet-body')!;
     // The login calendar stretches to fill the (fixed-height) sheet instead of leaving a gap.
     body.classList.toggle('fill', this.tab === 'login');
-    const scroll = body.scrollTop;
+    const scroll = this.scrollTop ? 0 : body.scrollTop;
+    this.scrollTop = false;
     body.innerHTML =
       this.tab === 'login' ? this.renderLogin(now)
       : this.tab === 'daily' ? this.renderBoard('daily', now)
@@ -291,36 +294,72 @@ export class MissionsUI {
       <div class="task-list">${JOURNEY_TASKS[sel].map((t) => this.taskRow('journey', t, now)).join('')}</div>`;
   }
 
-  private renderCodex(): string {
+  /** Codex: which terrain is open (null = the terrain list). */
+  private codexArea: number | null = null;
+  /** Jump to the top on the next render (after switching codex pages). */
+  private scrollTop = false;
+
+  /** Stars earned / available for one terrain's four monsters, and whether any can be claimed. */
+  private codexProgress(area: number): { stars: number; total: number; ready: boolean } {
     const m = this.sim.missions;
-    const areas = m.codexAreas();
-    const nextArea = areas.length;
-    return `<p class="sheet-note">Defeat monsters to fill the codex. Every ★ milestone pays gems.</p>` +
-      areas.slice().reverse().map((area) => {
+    let stars = 0, total = 0, ready = false;
+    for (let slot = 0; slot < 4; slot++) {
+      stars += Math.min(m.codexClaimed(area, slot), codexTiers(slot).length);
+      total += codexTiers(slot).length;
+      if (m.canClaimCodex(area, slot)) ready = true;
+    }
+    return { stars, total, ready };
+  }
+
+  private renderCodex(): string {
+    const areas = this.sim.missions.codexAreas();
+    if (this.codexArea !== null && areas.includes(this.codexArea)) return this.renderCodexArea(this.codexArea);
+    this.codexArea = null;
+    // Terrain list: one big card per discovered terrain, painted in its ground colours.
+    return `<p class="sheet-note">Pick a land to see its monsters. Every ★ milestone pays gems.</p>
+      <div class="codex-lands">${areas.map((area) => {
         const { def } = areaFor(area);
-        const mons = [...def.monsters, def.boss];
-        let stars = 0, total = 0;
-        for (let slot = 0; slot < 4; slot++) { stars += Math.min(m.codexClaimed(area, slot), codexTiers(slot).length); total += codexTiers(slot).length; }
-        return `<div class="codex-head"><h3 class="codex-area">${areaName(area)}</h3><span class="codex-stars">★ ${stars}/${total}</span></div>
-          <div class="codex-grid">${mons.map((mon, slot) => {
-          const kills = m.codexKills(area, slot), tier = m.codexClaimed(area, slot), tiers = codexTiers(slot);
-          const maxed = tier >= tiers.length, goal = maxed ? tiers[tiers.length - 1] : tiers[tier];
-          const ready = m.canClaimCodex(area, slot), seen = kills > 0;
-          const reward = maxed ? null : codexReward(slot, tier);
-          return `<div class="codex-card ${slot === 3 ? 'boss' : ''} ${ready ? 'ready' : ''} ${maxed ? 'maxed' : ''}">
-            ${slot === 3 ? '<span class="boss-tag">BOSS</span>' : ''}
-            <div class="codex-portrait"><img alt="" src="${this.codexIcon(area, slot)}" class="${seen ? '' : 'unseen'}" /></div>
-            <div class="codex-name">${seen ? mon.name : '???'}</div>
-            <div class="stars">${tiers.map((_, i) => `<i class="${i < tier ? 'on' : ''}">★</i>`).join('')}</div>
-            <div class="bar thin"><div class="bar-fill" style="transform:scaleX(${Math.min(1, kills / goal)})"></div></div>
-            <div class="codex-count">${count(Math.min(kills, goal))}/${count(goal)}</div>
-            ${ready ? `<button type="button" class="btn tiny green" data-act="codex:${area}:${slot}">Claim</button>`
-              : maxed ? '<div class="codex-next done">Complete!</div>'
-              : `<div class="codex-next">Next ${chips(reward!)}</div>`}
-          </div>`;
-        }).join('')}</div>`;
-      }).join('') +
-      `<div class="codex-teaser">${gi('padlock', 'grey')} <b>Next area</b> · unlock ${zoneName(nextArea * 3)} on the 🗺 Map to discover new monsters</div>`;
+        const g = def.ground;
+        const p = this.codexProgress(area);
+        return `<button type="button" class="codex-land ${p.ready ? 'ready' : ''}" data-act="carea:${area}" style="--g1:${g.light};--g2:${g.base};--g3:${g.dark}">
+          <span class="cl-ico">${terrainIcon(area)}</span>
+          <span class="cl-main"><b>${areaName(area)}</b>
+            <span class="bar thin"><span class="bar-fill" style="transform:scaleX(${p.stars / p.total})"></span></span>
+            <small>★ ${p.stars}/${p.total}</small></span>
+          <span class="cl-mons">${[0, 1, 2, 3].map((slot) => `<img alt="" src="${this.codexIcon(area, slot)}" class="${this.sim.missions.codexKills(area, slot) > 0 ? '' : 'unseen'}" />`).join('')}</span>
+          ${p.ready ? '<b class="dot">!</b>' : ''}
+        </button>`;
+      }).join('')}</div>
+      <div class="codex-teaser">${gi('padlock', 'grey')} <b>Next land</b> · unlock ${zoneName(areas.length * 3)} on the Map to discover new monsters</div>`;
+  }
+
+  /** One terrain's monsters as big cards. */
+  private renderCodexArea(area: number): string {
+    const m = this.sim.missions;
+    const { def } = areaFor(area);
+    const mons = [...def.monsters, def.boss];
+    const p = this.codexProgress(area);
+    return `<div class="codex-top">
+        <button type="button" class="btn small grey" data-act="carea:back">‹ Lands</button>
+        <h3 class="codex-area">${terrainIcon(area)} ${areaName(area)}</h3><span class="codex-stars">★ ${p.stars}/${p.total}</span>
+      </div>
+      <div class="codex-grid big">${mons.map((mon, slot) => {
+        const kills = m.codexKills(area, slot), tier = m.codexClaimed(area, slot), tiers = codexTiers(slot);
+        const maxed = tier >= tiers.length, goal = maxed ? tiers[tiers.length - 1] : tiers[tier];
+        const ready = m.canClaimCodex(area, slot), seen = kills > 0;
+        const reward = maxed ? null : codexReward(slot, tier);
+        return `<div class="codex-card ${slot === 3 ? 'boss' : ''} ${ready ? 'ready' : ''} ${maxed ? 'maxed' : ''}">
+          ${slot === 3 ? '<span class="boss-tag">BOSS</span>' : ''}
+          <div class="codex-portrait"><img alt="" src="${this.codexIcon(area, slot)}" class="${seen ? '' : 'unseen'}" /></div>
+          <div class="codex-name">${seen ? mon.name : '???'}</div>
+          <div class="stars">${tiers.map((_, i) => `<i class="${i < tier ? 'on' : ''}">★</i>`).join('')}</div>
+          <div class="bar thin"><div class="bar-fill" style="transform:scaleX(${Math.min(1, kills / goal)})"></div></div>
+          <div class="codex-count">${count(Math.min(kills, goal))}/${count(goal)} defeated</div>
+          ${ready ? `<button type="button" class="btn small green" data-act="codex:${area}:${slot}">Claim</button>`
+            : maxed ? '<div class="codex-next done">Complete!</div>'
+            : `<div class="codex-next">Next ${chips(reward!)}</div>`}
+        </div>`;
+      }).join('')}</div>`;
   }
 
   private renderShop(): string {

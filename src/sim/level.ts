@@ -50,8 +50,8 @@ export function levelTier(level: number): { name: string; color: number; css: st
 }
 
 export interface MilestoneReward extends Reward {
-  /** A bonus weapon: forged at (current forge level + `tierBonus`) with at least `rarity`. */
-  weapon?: { tierBonus: number; rarity: Rarity };
+  /** A bonus weapon: forged at the current forge level with at least `rarity`. */
+  weapon?: { rarity: Rarity };
 }
 
 /**
@@ -73,8 +73,9 @@ export function milestoneReward(level: number, bestStage: number): MilestoneRewa
   if (level % 10 === 0) r.gems = 20 + level;
   if (level % 25 === 0) r.embers = level === 100 ? 25 : level / 5;
   if (level % 20 === 0) {
-    const rarity: Rarity = level >= 100 ? 3 : level >= 60 ? 2 : 1;
-    r.weapon = { tierBonus: level >= 80 ? 2 : 1, rarity };
+    // Rare, Epic from 60, Legendary at 100.
+    const rarity: Rarity = level >= 100 ? 4 : level >= 60 ? 3 : 2;
+    r.weapon = { rarity };
   }
   if (level === 100) r.gems = 500;
   return r;

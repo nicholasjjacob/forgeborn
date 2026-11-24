@@ -60,6 +60,15 @@ export function zoneBossMonster(zone: number): number {
   return i === 0 ? 0 : i === 1 ? 1 : 3;
 }
 
+/**
+ * Seconds a beaten zone boss needs before a rematch: longer for tougher bosses, and half as long
+ * again for a terrain's own boss. Stops endless rematches farming boss rewards (missions, codex).
+ * 2 min in the first zone, ~5 min by the third terrain, ~29 min at the Caldera's heart.
+ */
+export function bossCooldown(zone: number): number {
+  return Math.round((120 + 60 * Math.max(0, zone)) * (isTerrainBossZone(zone) ? 1.5 : 1));
+}
+
 export function zoneBossName(zone: number): string {
   const { def } = areaFor(zoneArea(zone));
   const m = zoneBossMonster(zone);

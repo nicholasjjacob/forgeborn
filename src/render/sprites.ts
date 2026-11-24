@@ -183,11 +183,15 @@ function drawHero(c: Ctx): void {
   ball(c, 11.6, 13.2, 1.3, 1.2, '#9aa4b8');
 }
 
+/** One palette per rarity: Common, Uncommon, Rare, Epic, Legendary, Mythic, Divine. */
 const WEAPON_PALS = [
   { m: '#c4cede', l: '#ffffff', d: '#6d7a8c', a: '#9a7448', glow: '' },
+  { m: '#6ad84a', l: '#e4ffd8', d: '#2a8a24', a: '#9a7448', glow: '' },
   { m: '#5aa8ff', l: '#dff0ff', d: '#2156a8', a: '#e8b33c', glow: '' },
   { m: '#b07cff', l: '#f2e2ff', d: '#5a2aa8', a: '#ff6ad0', glow: 'rgba(190,120,255,0.9)' },
   { m: '#ffc94a', l: '#fff8d8', d: '#c0780a', a: '#ff5a3a', glow: 'rgba(255,200,80,0.95)' },
+  { m: '#ff5a72', l: '#ffe0e6', d: '#a81a34', a: '#ffd23f', glow: 'rgba(255,90,110,0.95)' },
+  { m: '#8af4ff', l: '#ffffff', d: '#2a9ab8', a: '#ffffff', glow: 'rgba(140,240,255,1)' },
 ];
 const WOOD = '#7a4a28';
 

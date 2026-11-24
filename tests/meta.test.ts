@@ -17,7 +17,7 @@ describe('reforge', () => {
     const save = freshSave();
     Object.assign(save, { stage: 47, highestStage: 50, bestEver: 50, gold: 1e6, shards: 300, forgeLevel: 6, kills: 5000 });
     save.upgrades.atk = 80;
-    save.weapons[0] = { id: 77, tier: 9, rarity: 2, form: 1, traits: [] };
+    save.weapons[0] = { id: 77, rarity: 2, form: 1, traits: [] };
     save.perks.might = 3;
     save.achievements.slayer = 2;
     const sim = new Sim(save, 1);
@@ -31,7 +31,7 @@ describe('reforge', () => {
     expect(save.shards).toBe(0);
     expect(save.upgrades.atk).toBe(0);
     expect(save.weapons.every((w) => w === null)).toBe(true);
-    expect(save.equipped?.tier).toBe(1);
+    expect(save.equipped?.rarity).toBe(0);
     expect(save.forgeLevel).toBe(1);
     expect(save.perks.might).toBe(3);
     expect(save.achievements.slayer).toBeGreaterThanOrEqual(2);

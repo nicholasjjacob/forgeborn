@@ -4,7 +4,7 @@ import { zoneName } from '../sim/zones';
 import { haptic, sfx } from '../audio/sfx';
 import { fmt } from '../core/format';
 import type { Sim } from '../sim/sim';
-import { FORGE_ATK_PER_LEVEL, MAX_FORGE_LEVEL, forgeCost, forgeLevelCap, forgeOdds, forgeTiers, forgeUpgradeCost } from '../sim/weapons';
+import { FORGE_ATK_PER_LEVEL, MAX_FORGE_LEVEL, forgeCost, forgeLevelCap, forgeOdds, forgeUpgradeCost } from '../sim/weapons';
 
 /**
  * The forge's own window: what the forge does at this level, what the next level adds, and the
@@ -82,17 +82,16 @@ export class ForgeLevelUI {
 
     const row = (label: string, now: string, next: string) =>
       `<div class="flc-row"><span>${label}</span><b>${now}</b>${maxed ? '' : `<i>→</i><b class="next">${next}</b>`}</div>`;
-    const tiers = (l: number) => { const [lo, hi] = forgeTiers(l); return lo === hi ? `T${hi}` : `T${lo}–${hi}`; };
     const odds = (l: number, i: number) => pct(forgeOdds(l)[i]);
     const bonus = (l: number) => `+${Math.round(FORGE_ATK_PER_LEVEL * 100 * (l - 1))}%`;
     this.wrap.querySelector('.flc-body')!.innerHTML = `
       <div class="flc-level"><small>Level</small>${lv}<small>${maxed ? 'MAX' : `/ ${MAX_FORGE_LEVEL}`}</small></div>
-      <p>Higher forge levels forge stronger weapons and make every weapon you wield hit harder.</p>
+      <p>Higher forge levels forge rarer weapons and make every weapon you wield hit harder.</p>
       <div class="flc-table">
-        ${row('New weapons', tiers(lv), tiers(lv + 1))}
-        ${row('Rare chance', odds(lv, 0), odds(lv + 1, 0))}
-        ${row('Epic chance', odds(lv, 1), odds(lv + 1, 1))}
-        ${row('Legendary chance', odds(lv, 2), odds(lv + 1, 2))}
+        ${row('Uncommon chance', odds(lv, 0), odds(lv + 1, 0))}
+        ${row('Rare chance', odds(lv, 1), odds(lv + 1, 1))}
+        ${row('Epic chance', odds(lv, 2), odds(lv + 1, 2))}
+        ${row('Legendary chance', odds(lv, 3), odds(lv + 1, 3))}
         ${row('Weapon attack', bonus(lv), bonus(lv + 1))}
         ${row('Shards per forge', String(forgeCost(lv)), String(forgeCost(lv + 1)))}
       </div>`;

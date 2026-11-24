@@ -32,9 +32,9 @@ describe('hero level curve', () => {
     expect(late.gold!).toBeGreaterThan(early.gold! * 100);
     expect(milestoneReward(10, 1).gems).toBeGreaterThan(0);
     expect(milestoneReward(5, 1).gems).toBeUndefined();
-    expect(milestoneReward(20, 1).weapon?.rarity).toBe(1);
-    expect(milestoneReward(60, 1).weapon?.rarity).toBe(2);
-    expect(milestoneReward(100, 1).weapon?.rarity).toBe(3);
+    expect(milestoneReward(20, 1).weapon?.rarity).toBe(2); // Rare
+    expect(milestoneReward(60, 1).weapon?.rarity).toBe(3); // Epic
+    expect(milestoneReward(100, 1).weapon?.rarity).toBe(4); // Legendary
     expect(milestoneReward(25, 1).embers).toBeGreaterThan(0);
   });
 });
@@ -75,13 +75,13 @@ describe('levelling in the sim', () => {
   it('needs a free slot for weapon rewards', () => {
     const save = freshSave();
     save.level = 20;
-    save.weapons = save.weapons.map((_, i) => ({ id: 100 + i, tier: 1, rarity: 0, form: 0, traits: [] }));
+    save.weapons = save.weapons.map((_, i) => ({ id: 100 + i, rarity: 0, form: 0, traits: [] }));
     const sim = new Sim(save, 1);
     expect(sim.claimLevelReward(20)).toBe('full');
     save.weapons[3] = null;
     expect(sim.claimLevelReward(20)).not.toBe('full');
     const reward = save.weapons.find((x) => x?.id === save.nextWeaponId - 1);
-    expect(reward!.rarity).toBeGreaterThanOrEqual(1);
+    expect(reward!.rarity).toBeGreaterThanOrEqual(2);
   });
 
   it('Reforge restarts the hero level but keeps claimed rewards; old saves migrate to level 1', () => {

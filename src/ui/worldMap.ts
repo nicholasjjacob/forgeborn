@@ -1,4 +1,4 @@
-import { gi } from './icons';
+import { gi, terrainIcon } from './icons';
 import { sfx } from '../audio/sfx';
 import { fmt } from '../core/format';
 import { areaFor, areaName } from '../sim/areas';
@@ -9,10 +9,6 @@ import {
 } from '../sim/zones';
 import { bindSheetTaps } from './tap';
 
-/** Icon per terrain on the world map. */
-const TERRAIN_ICONS: [string, Parameters<typeof gi>[1]][] = [
-  ['grass', 'green'], ['mushroom', 'red'], ['cactus', 'green'], ['crystal-growth', 'purple'], ['snowflake-1', 'cyan'], ['volcano', 'orange'],
-];
 
 /**
  * The world map: every terrain discovered so far as a card painted in its own ground colours,
@@ -143,7 +139,7 @@ export class WorldMapUI {
     }
     return `
       <div class="map-area ${discovered ? '' : 'undiscovered'}" style="--g1:${g.light};--g2:${g.base};--g3:${g.dark}">
-        <div class="map-area-head"><span class="map-ico">${gi(TERRAIN_ICONS[a % TERRAIN_ICONS.length][0], TERRAIN_ICONS[a % TERRAIN_ICONS.length][1])}</span><b>${discovered ? areaName(a) : 'Unknown land'}</b>
+        <div class="map-area-head"><span class="map-ico">${terrainIcon(a)}</span><b>${discovered ? areaName(a) : 'Unknown land'}</b>
           <span class="map-mons">${mons}</span></div>
         <div class="zone-trail">${zones.join('')}</div>
       </div>`;

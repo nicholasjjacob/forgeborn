@@ -39,6 +39,12 @@ function installDefs(): void {
   document.body.prepend(svg);
 }
 
+/** Icon per terrain (area index): Meadow, Mirewood, Dunes, Hollow, Frostveil, Caldera. */
+export const TERRAIN_ICONS: [string, IconColor][] = [
+  ['grass', 'green'], ['mushroom', 'red'], ['cactus', 'green'], ['crystal-growth', 'purple'], ['snowflake-1', 'cyan'], ['volcano', 'orange'],
+];
+export const terrainIcon = (area: number) => gi(...TERRAIN_ICONS[area % TERRAIN_ICONS.length]);
+
 /** Inline SVG icon. Size it with CSS (it is 1em square by default). */
 export function gi(name: string, color: IconColor = 'white', cls = ''): string {
   installDefs();

@@ -130,8 +130,8 @@ export class BagUI {
       <h3 class="bag-title">Weapons</h3>
       <div class="bag-weapons">
         <div class="bag-wline">⚔ <b>${weapons.length}/${s.weapons.length}</b> weapon slots used</div>
-        ${eq ? `<div class="bag-wline">Equipped: <b>${RARITY_NAMES[eq.rarity]} ${weaponName(eq)}</b> T${eq.tier}</div>` : ''}
-        ${best ? `<div class="bag-wline">Best in bag: <b>${RARITY_NAMES[best.rarity]} ${weaponName(best)}</b> T${best.tier}</div>` : ''}
+        ${eq ? `<div class="bag-wline">Equipped: <b>${RARITY_NAMES[eq.rarity]} ${weaponName(eq)}</b></div>` : ''}
+        ${best ? `<div class="bag-wline">Best in bag: <b>${RARITY_NAMES[best.rarity]} ${weaponName(best)}</b></div>` : ''}
         <button type="button" class="btn small primary" data-act="forge:">Open Forge ›</button>
       </div>`;
   }

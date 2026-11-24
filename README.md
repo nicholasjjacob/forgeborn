@@ -8,7 +8,7 @@ A 3D top-down action idle RPG that runs in the browser and installs as an app.
 
 - **Fight:** drag to move, or turn on **Auto** and let the hero hunt.
 - **Explore:** 18 zones across six terrains on the 🗺 world map. New zones open with hero level and zone bosses.
-- **Forge:** turn monster shards into swords, axes, spears and hammers, then merge them into higher tiers and rarities.
+- **Forge:** turn monster shards into swords, axes, spears and hammers, then merge three of a kind into the next rarity (Common → Uncommon → Rare → Epic → Legendary → Mythic → Divine).
 - **Grow:** upgrades, the Level Road, quests, achievements and daily missions.
 - **Reforge:** restart for embers that buy permanent perks.
 - **Keep earning:** progress saves automatically, and the hero earns while you're away.

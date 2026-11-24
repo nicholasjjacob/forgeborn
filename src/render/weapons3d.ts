@@ -9,11 +9,12 @@ import * as THREE from 'three';
 
 export interface WeaponView { group: THREE.Group; tip: THREE.Object3D; base: THREE.Object3D; glow: THREE.MeshPhongMaterial[] }
 
-const METAL = [0xc4cad6, 0x7cc0ff, 0xc08cff, 0xffcf5a];
-const GEM = [0xffffff, 0x3aa0ff, 0xb44cff, 0xff6a2a];
+/** Per rarity: Common, Uncommon, Rare, Epic, Legendary, Mythic, Divine. */
+const METAL = [0xc4cad6, 0x8ae06a, 0x7cc0ff, 0xc08cff, 0xffcf5a, 0xff6a80, 0x9af6ff];
+const GEM = [0xffffff, 0x3ac83a, 0x3aa0ff, 0xb44cff, 0xff6a2a, 0xff2a4a, 0xffffff];
 
 export function weaponTrailColor(rarity: number): number {
-  return [0xffffff, 0x8ad0ff, 0xd0a0ff, 0xffd870][rarity] ?? 0xffffff;
+  return [0xffffff, 0x9cff7a, 0x8ad0ff, 0xd0a0ff, 0xffd870, 0xff8aa0, 0xb8faff][rarity] ?? 0xffffff;
 }
 
 export function buildWeapon(form: number, rarity: number): WeaponView {
@@ -21,13 +22,13 @@ export function buildWeapon(form: number, rarity: number): WeaponView {
   const glow: THREE.MeshPhongMaterial[] = [];
   const metal = new THREE.MeshPhongMaterial({
     color: METAL[rarity], specular: 0xffffff, shininess: 90, flatShading: true,
-    emissive: new THREE.Color(METAL[rarity]).multiplyScalar(rarity >= 2 ? 0.28 : rarity ? 0.1 : 0),
+    emissive: new THREE.Color(METAL[rarity]).multiplyScalar(rarity >= 3 ? 0.28 + 0.06 * (rarity - 3) : rarity ? 0.1 : 0),
   });
-  if (rarity >= 2) glow.push(metal);
+  if (rarity >= 3) glow.push(metal);
   const dark = new THREE.MeshPhongMaterial({ color: 0x4a4250, specular: 0x666666, shininess: 40, flatShading: true });
   const leather = new THREE.MeshLambertMaterial({ color: 0x5a3420, flatShading: true });
   const wood = new THREE.MeshLambertMaterial({ color: 0x7a4e2c, flatShading: true });
-  const trim = new THREE.MeshPhongMaterial({ color: rarity === 3 ? 0xfff0b0 : 0xd8a040, specular: 0xffffff, shininess: 80, flatShading: true });
+  const trim = new THREE.MeshPhongMaterial({ color: rarity >= 4 ? 0xfff0b0 : 0xd8a040, specular: 0xffffff, shininess: 80, flatShading: true });
   const gem = new THREE.MeshPhongMaterial({ color: GEM[rarity], emissive: new THREE.Color(GEM[rarity]).multiplyScalar(0.6), shininess: 100, flatShading: true });
   if (rarity >= 1) glow.push(gem);
 

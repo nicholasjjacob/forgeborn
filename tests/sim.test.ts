@@ -1,3 +1,4 @@
+import { bossCooldown } from '../src/sim/zones';
 import { describe, expect, it } from 'vitest';
 import { Sim, freshSave, type Enemy } from '../src/sim/sim';
 import { UPGRADES, UPGRADE_IDS, maxAffordable, upgradeCost } from '../src/sim/balance';
@@ -289,5 +290,29 @@ describe('monster skills', () => {
     expect(s.enemies[1].maxHp).toBeCloseTo(s.enemies[0].maxHp * 3);
     expect(s.enemies[1].gold).toBeCloseTo(s.enemies[0].gold * 4);
     expect(sim).toBeTruthy();
+  });
+});
+
+describe('boss rematch cooldown', () => {
+  it('lets a beaten boss be rematched only after a cooldown that grows with the zone', () => {
+    expect(bossCooldown(0)).toBe(120);
+    expect(bossCooldown(2)).toBeGreaterThan(bossCooldown(1) * 1.4); // terrain boss: +50%
+    expect(bossCooldown(17)).toBeGreaterThan(bossCooldown(5));
+    const save = freshSave();
+    save.zoneBosses = 1; // zone 0's boss already beaten
+    const sim = new Sim(save, 3);
+    const t0 = 1_000_000;
+    expect(sim.challengeBoss(t0)).toBe(true);           // no cooldown recorded yet
+    sim.bossActive = false;                              // pretend the fight ended
+    expect(sim.challengeBoss(t0 + 1000)).toBe(false);    // recovering
+    expect(sim.bossCooldownLeft(t0 + 1000)).toBeCloseTo(119, 0);
+    expect(sim.challengeBoss(t0 + 121_000)).toBe(true);  // ready again
+  });
+
+  it('never blocks a boss that has not been beaten yet', () => {
+    const sim = new Sim(freshSave(), 4);
+    expect(sim.challengeBoss(0)).toBe(true);
+    sim.bossActive = false;
+    expect(sim.challengeBoss(1)).toBe(true);
   });
 });

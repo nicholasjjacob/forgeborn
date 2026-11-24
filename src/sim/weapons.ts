@@ -2,9 +2,11 @@ import type { Rng } from '../core/rng';
 import { fmt } from '../core/format';
 
 /**
- * Weapons: forged from shards, merged two-of-a-tier into the next tier, one equipped at a time.
- * Tier drives the attack multiplier; rarity multiplies it further and sets how many bonus
- * traits the weapon carries; form changes how the hero swings.
+ * Weapons: forged from shards, one equipped at a time. Rarity is the whole ladder: three of
+ * the same type and rarity merge into one of the next rarity (Common → Uncommon → … → Divine).
+ * Rarity sets the attack multiplier and how many bonus traits a weapon carries; form (type)
+ * changes how the hero swings. The forge's level makes rarer forges likelier and adds attack
+ * to whatever is wielded.
  */
 
 export const INVENTORY_SIZE = 20;      // starting slots
@@ -14,18 +16,18 @@ export const MAX_INVENTORY = 60;
 export function inventoryExpandCost(size: number): number {
   return Math.round(1500 * Math.pow(3, Math.max(0, size - INVENTORY_SIZE) / INVENTORY_STEP));
 }
-export const MAX_TIER = 30;
 /** Shards per forge at the base forge level (see forgeCost: it grows as the forge levels up). */
 export const FORGE_COST = 10;
 export const MAX_FORGE_LEVEL = 25;
-export const RARITY_UP_CHANCE = 0.1;   // chance a merge bumps rarity
-/** Weapons consumed per merge: this many of the same type, tier and rarity make one of the next tier. */
+/** Weapons consumed per merge: this many of the same type and rarity make one of the next rarity. */
 export const MERGE_COUNT = 3;
 
-export type Rarity = 0 | 1 | 2 | 3;
-export const RARITY_NAMES = ['Common', 'Rare', 'Epic', 'Legendary'] as const;
-export const RARITY_COLORS = ['#c8ccd8', '#4fa8ff', '#b06cff', '#ffb52e'] as const;
-const RARITY_MULT = [1, 1.25, 1.55, 2.0];
+export type Rarity = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+export const MAX_RARITY: Rarity = 6;
+export const RARITY_NAMES = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary', 'Mythic', 'Divine'] as const;
+export const RARITY_COLORS = ['#c8ccd8', '#5ad83a', '#4fa8ff', '#b06cff', '#ffb52e', '#ff4a6a', '#7af0ff'] as const;
+/** Attack multiplier per rarity: each merge (three weapons into one) roughly doubles it. */
+const RARITY_MULT = [1, 1.9, 3.6, 6.8, 13, 25, 48];
 
 export type Form = 0 | 1 | 2 | 3;
 export interface FormDef { name: string; range: number; arc: number; speed: number; dmg: number; knockback: number; blurb: string }
@@ -36,7 +38,8 @@ export const FORMS: readonly FormDef[] = [
   { name: 'Hammer', range: 20, arc: 1.25, speed: 0.75, dmg: 1.5,  knockback: 2.2, blurb: 'Slow, heavy hits' },
 ];
 
-const TIER_NAMES = ['Rusty', 'Iron', 'Steel', 'Silver', 'Runed', 'Mythril', 'Starforged', 'Voidsteel', 'Celestial'];
+/** Material per rarity, for weapon names ("Runed Axe"). */
+const MATERIALS = ['Iron', 'Steel', 'Silver', 'Runed', 'Mythril', 'Starforged', 'Celestial'];
 
 export type TraitId = 'crit' | 'critDmg' | 'speed' | 'lifesteal' | 'gold' | 'shock' | 'reach';
 export const TRAIT_IDS: readonly TraitId[] = ['crit', 'critDmg', 'speed', 'lifesteal', 'gold', 'shock', 'reach'];
@@ -57,16 +60,14 @@ export interface Trait { t: TraitId; v: number }
 
 export interface Weapon {
   id: number;
-  tier: number;
   rarity: Rarity;
   form: Form;
   traits: Trait[];
 }
 
-/** Attack multiplier from tier and rarity (form damage is applied separately). */
-export function weaponMult(w: Pick<Weapon, 'tier' | 'rarity'>): number {
-  const t = w.tier - 1;
-  return (1 + 0.12 * t) * Math.pow(1.12, t) * RARITY_MULT[w.rarity];
+/** Attack multiplier from rarity (form damage is applied separately). */
+export function weaponMult(w: Pick<Weapon, 'rarity'>): number {
+  return RARITY_MULT[w.rarity] ?? RARITY_MULT[MAX_RARITY];
 }
 
 /** Shards to forge one weapon at `level`: better forges make better weapons for more shards. */
@@ -84,39 +85,43 @@ export function forgeLevelCap(maxZone: number): number {
 }
 
 export function weaponName(w: Weapon): string {
-  const prefix = w.tier <= TIER_NAMES.length ? TIER_NAMES[w.tier - 1] : `Ascended ${w.tier - TIER_NAMES.length}`;
-  return `${prefix} ${FORMS[w.form].name}`;
+  return `${MATERIALS[w.rarity] ?? MATERIALS[MATERIALS.length - 1]} ${FORMS[w.form].name}`;
 }
 
 export function weaponSummary(w: Weapon): string {
   return `ATK x${fmt(weaponMult(w) * FORMS[w.form].dmg)} · ${FORMS[w.form].blurb}`;
 }
 
-const traitScale = (tier: number) => 1 + 0.12 * (tier - 1);
+/** Trait strength grows with rarity. */
+const traitScale = (rarity: number) => 1 + 0.25 * rarity;
 
-function rollTrait(rng: Rng, tier: number, exclude: readonly Trait[]): Trait {
+function rollTrait(rng: Rng, rarity: number, exclude: readonly Trait[]): Trait {
   const pool = TRAIT_IDS.filter((id) => !exclude.some((x) => x.t === id));
   const t = pool[rng.int(pool.length)];
   const d = TRAITS[t];
-  return { t, v: Math.min(d.cap, d.base * rng.range(0.8, 1.2) * traitScale(tier)) };
+  return { t, v: Math.min(d.cap, d.base * rng.range(0.8, 1.2) * traitScale(rarity)) };
 }
 
+/** One bonus trait per rarity step (Common none, Uncommon one, … Divine six). */
 function fillTraits(rng: Rng, w: Weapon): void {
-  while (w.traits.length < w.rarity) w.traits.push(rollTrait(rng, w.tier, w.traits));
+  while (w.traits.length < Math.min(w.rarity, TRAIT_IDS.length)) w.traits.push(rollTrait(rng, w.rarity, w.traits));
 }
 
-/** Rarity odds improve with forge level. Returns [rare, epic, legendary] probabilities. */
-export function forgeOdds(level: number): [number, number, number] {
-  return [Math.min(0.4, 0.15 + 0.02 * level), Math.min(0.2, 0.03 + 0.012 * level), Math.min(0.06, 0.004 + 0.003 * level)];
-}
-
-/** Tier range a forge level produces: mostly `level`, sometimes one lower. */
-export function forgeTiers(level: number): [number, number] {
-  return [Math.max(1, level - 1), level];
+/**
+ * Chance a forge comes out Uncommon, Rare, Epic or Legendary (the rest are Common); better
+ * with forge level. Mythic and Divine only come from merging.
+ */
+export function forgeOdds(level: number): [number, number, number, number] {
+  return [
+    Math.min(0.45, 0.22 + 0.02 * level),
+    Math.min(0.22, 0.04 + 0.012 * level),
+    Math.min(0.08, 0.004 + 0.004 * level),
+    Math.min(0.02, 0.0005 + 0.0008 * level),
+  ];
 }
 
 /** Forge mastery: every forge level past 1 adds this much weapon attack (to whatever you wield). */
-export const FORGE_ATK_PER_LEVEL = 0.03;
+export const FORGE_ATK_PER_LEVEL = 0.12;
 export const forgeAtkBonus = (level: number) => 1 + FORGE_ATK_PER_LEVEL * Math.max(0, level - 1);
 
 export function forgeUpgradeCost(level: number): number {
@@ -124,12 +129,10 @@ export function forgeUpgradeCost(level: number): number {
 }
 
 export function forgeWeapon(rng: Rng, id: number, level: number): Weapon {
-  const [lo, hi] = forgeTiers(level);
-  const tier = lo === hi || rng.chance(0.4) ? hi : lo;
-  const [pr, pe, pl] = forgeOdds(level);
+  const [pu, pr, pe, pl] = forgeOdds(level);
   const r = rng.next();
-  const rarity: Rarity = r < pl ? 3 : r < pl + pe ? 2 : r < pl + pe + pr ? 1 : 0;
-  const w: Weapon = { id, tier, rarity, form: rng.int(4) as Form, traits: [] };
+  const rarity: Rarity = r < pl ? 4 : r < pl + pe ? 3 : r < pl + pe + pr ? 2 : r < pl + pe + pr + pu ? 1 : 0;
+  const w: Weapon = { id, rarity, form: rng.int(4) as Form, traits: [] };
   fillTraits(rng, w);
   return w;
 }
@@ -142,26 +145,26 @@ export function bonusWeapon(rng: Rng, id: number, level: number, minRarity: Rari
 }
 
 /**
- * Can `a` and `b` go into the same merge? They must match in type (form), tier and rarity:
- * MERGE_COUNT matching weapons (e.g. three Rare T3 Swords) make one weapon of the next tier.
+ * Can `a` and `b` go into the same merge? They must match in type (form) and rarity:
+ * MERGE_COUNT matching weapons (e.g. three Common Swords) make one of the next rarity.
  */
 export function canMerge(a: Weapon, b: Weapon): boolean {
-  return a.id !== b.id && a.form === b.form && a.tier === b.tier && a.rarity === b.rarity && a.tier < MAX_TIER;
+  return a.id !== b.id && a.form === b.form && a.rarity === b.rarity && a.rarity < MAX_RARITY;
 }
 
-/** What merging `w` gives before the random rarity roll: next tier, same traits rescaled. */
+/** What merging `w` gives (before the new trait is rolled): next rarity, traits rescaled. */
 export function mergePreview(w: Weapon): Weapon {
-  const tier = Math.min(MAX_TIER, w.tier + 1);
-  const k = traitScale(tier) / traitScale(w.tier);
-  return { ...w, tier, traits: w.traits.map((tr) => ({ t: tr.t, v: Math.min(TRAITS[tr.t].cap, tr.v * k) })) };
+  const rarity = Math.min(MAX_RARITY, w.rarity + 1) as Rarity;
+  const k = traitScale(rarity) / traitScale(w.rarity);
+  return { ...w, rarity, traits: w.traits.map((tr) => ({ t: tr.t, v: Math.min(TRAITS[tr.t].cap, tr.v * k) })) };
 }
 
 /**
- * Inventory order: by type (Sword, Axe, Spear, Hammer), then highest tier, then best rarity,
- * empty slots last. Identical weapons end up side by side, which makes merges easy to spot.
+ * Inventory order: by type (Sword, Axe, Spear, Hammer), then best rarity, empty slots last.
+ * Identical weapons end up side by side, which makes merges easy to spot.
  */
 export function compareWeapons(a: Weapon, b: Weapon): number {
-  return a.form - b.form || b.tier - a.tier || b.rarity - a.rarity || a.id - b.id;
+  return a.form - b.form || b.rarity - a.rarity || a.id - b.id;
 }
 
 /** Inventory slots holding weapons that can merge with `w` (which may be the equipped one). */
@@ -182,31 +185,42 @@ export function mergePartners(inv: readonly (Weapon | null)[], slot: number): nu
 
 /**
  * Merge `keep` with matching weapons (`others`, MERGE_COUNT - 1 of them) into one of the next
- * tier. `keep` (the weapon the player chose) passes on its trait types, rescaled to the new
- * tier; a rarity bump adds a fresh trait.
+ * rarity. `keep` (the weapon the player chose) passes on its traits, strengthened for the new
+ * rarity, and gains one fresh trait.
  */
 export function mergeWeapons(rng: Rng, id: number, keep: Weapon, others: readonly Weapon[]): Weapon {
   if (others.length !== MERGE_COUNT - 1 || others.some((o) => !canMerge(keep, o))) throw new Error('invalid merge');
-  const tier = keep.tier + 1;
-  let rarity = keep.rarity;
-  if (rarity < 3 && rng.chance(RARITY_UP_CHANCE)) rarity = (rarity + 1) as Rarity;
-  const k = traitScale(tier) / traitScale(keep.tier);
-  const traits = keep.traits.map((tr) => ({ t: tr.t, v: Math.min(TRAITS[tr.t].cap, tr.v * k) }));
-  const w: Weapon = { id, tier, rarity, form: keep.form, traits };
+  const w: Weapon = { ...mergePreview(keep), id };
   fillTraits(rng, w);
   return w;
 }
 
 /**
- * Shards back from melting a weapon: a quarter of what forging one of its tier costs (more for
- * rarer ones). Always less than the forge price, so forging just to salvage never pays.
+ * Shards back from melting a weapon: a quarter of a forge at the current forge level, doubling
+ * per rarity. Making a weapon of a rarity costs about 3^rarity forges, so forging just to
+ * salvage never pays.
  */
-export function salvageValue(w: Weapon): number {
-  return Math.max(1, Math.round(0.25 * forgeCost(w.tier) * (1 + 0.5 * w.rarity)));
+export function salvageValue(w: Weapon, forgeLevel = 1): number {
+  return Math.max(1, Math.round(0.25 * forgeCost(forgeLevel) * Math.pow(2, w.rarity)));
 }
 
 export function starterWeapon(): Weapon {
-  return { id: 1, tier: 1, rarity: 0, form: 0, traits: [] };
+  return { id: 1, rarity: 0, form: 0, traits: [] };
+}
+
+/**
+ * Pre-rarity-ladder saves stored a tier (1-30) and four rarities. Map them onto the ladder:
+ * old Rare/Epic/Legendary become Rare/Epic/Legendary, and every 5 tiers above 1 adds a step.
+ */
+export function upgradeOldWeapon(w: Weapon & { tier?: number }): Weapon {
+  if (w.tier === undefined) return w;
+  const old = Math.max(0, Math.min(3, w.rarity));
+  const base = old === 0 ? 0 : old + 1;
+  const rarity = Math.min(MAX_RARITY, base + Math.floor(Math.max(0, w.tier - 1) / 5)) as Rarity;
+  const { tier: _t, ...rest } = w;
+  void _t;
+  const traits = rest.traits.slice(0, rarity);
+  return { ...rest, rarity, traits };
 }
 
 /** Rough "power" for comparing weapons (used for the better-than-equipped marker). */
