@@ -192,6 +192,9 @@ export function migrate(input: unknown): SaveData {
   const looks: Record<string, string> = {};
   for (const [k, v] of Object.entries(save.looks && typeof save.looks === 'object' ? save.looks : {})) if (typeof v === 'string') looks[k] = v;
   save.looks = looks;
+  const palettes: Record<string, number> = {};
+  for (const [k, v] of Object.entries(save.palettes && typeof save.palettes === 'object' ? save.palettes : {})) if (Number.isInteger(v) && v >= 0 && v <= 3) palettes[k] = v;
+  save.palettes = palettes;
   // Normalise the inventory size: at least the starting size, whole rows, at most the maximum
   // (it grows when the player buys expansions).
   const raw = Array.isArray(save.weapons) ? save.weapons : [];

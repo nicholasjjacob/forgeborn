@@ -57,25 +57,36 @@ describe('hero classes', () => {
     expect(rogue.aspd).toBeGreaterThan(knight.aspd);
   });
 
-  it.each(['ranger', 'mage', 'rogue', 'barbarian', 'rogue_hooded'])('a %s fights and kills monsters', (skin) => {
+  it('the Warlord needs hero level 40 as well as gems', () => {
+    const save = freshSave();
+    save.missions.gems = 99999;
+    const sim = new Sim(save, 1);
+    expect(sim.buySkin('barbarian_large')).toBe(false);
+    save.level = 40;
+    expect(sim.buySkin('barbarian_large')).toBe(true);
+    expect(save.skin).toBe('barbarian_large');
+  });
+
+  it('the Engineer finds more gold and shards; the Druid regenerates', () => {
+    const knight = new Sim(heroSave('knight'), 1);
+    const eng = new Sim(heroSave('engineer'), 1);
+    expect(eng.goldMult).toBeGreaterThan(knight.goldMult);
+    expect(eng.shardMult).toBeGreaterThan(knight.shardMult);
+    expect(new Sim(heroSave('druid'), 1).cls.regen).toBeGreaterThan(0);
+  });
+
+  it('a shotgun blast fires a spread of pellets', () => {
+    const sim = new Sim(heroSave('engineer'), 2);
+    let most = 0;
+    for (let i = 0; i < 30 * 20; i++) { sim.tick(); sim.events.clear(); most = Math.max(most, sim.heroShots.filter((s) => s.alive).length); }
+    expect(most).toBeGreaterThanOrEqual(5);
+  });
+
+  it.each(['ranger', 'mage', 'rogue', 'barbarian', 'rogue_hooded', 'druid', 'engineer', 'barbarian_large'])('a %s fights and kills monsters', (skin) => {
     const save = heroSave(skin);
     const sim = new Sim(save, 5);
     for (let i = 0; i < 30 * 60; i++) { sim.tick(); sim.events.clear(); }
     expect(save.kills).toBeGreaterThan(5);
-  });
-});
-
-describe('save clean-up', () => {
-  it('weapons of a removed type (the old Sword & Shield) become Swords', () => {
-    const save = { ...freshSave() } as unknown as Record<string, unknown>;
-    save.equipped = { id: 5, rarity: 3, form: 10, traits: [] };
-    const weapons = Array(20).fill(null);
-    weapons[0] = { id: 6, rarity: 2, form: 10, traits: [] };
-    save.weapons = weapons;
-    const s = migrate(save);
-    expect(s.equipped?.form).toBe(0);
-    expect(s.equipped?.rarity).toBe(3);
-    expect(s.weapons[0]?.form).toBe(0);
   });
 });
 

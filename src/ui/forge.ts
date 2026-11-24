@@ -5,6 +5,7 @@ import type { Sim } from '../sim/sim';
 import { ForgeLevelUI } from './forgeLevel';
 import { InventoryUI } from './inventoryUI';
 import { Pager } from './pager';
+import { paintMonsterPortraits } from './monsterPreview';
 import { skinDef, wieldersOf } from '../sim/skins';
 import {
   forgeCost, forgeLevelCap, FORMS, MAX_FORGE_LEVEL, MAX_RARITY, mergeCount, RARITY_COLORS, RARITY_NAMES, TRAITS, forgeOdds,
@@ -37,7 +38,7 @@ export class ForgePanel {
   constructor(root: HTMLElement, private readonly sim: Sim, private readonly icons: string[][], private readonly toast: (msg: string) => void) {
     root.innerHTML = `
       <div class="weapon-card" id="weapon-card">
-        <div class="wc-icon"><img alt="" /></div>
+        <div class="wc-icon"><img alt="" /><canvas class="wpn3d"></canvas></div>
         <div class="wc-body">
           <div class="wc-title"><span class="wc-tag"></span><span class="wc-name"></span></div>
           <div class="wc-atk"></div>
@@ -173,7 +174,7 @@ export class ForgePanel {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'slot';
-      b.innerHTML = '<img alt="" /><span class="tier"></span><span class="better">▲</span><span class="rar"></span>';
+      b.innerHTML = '<img alt="" /><span class="tier"></span><span class="better">▲</span><span class="rar"></span><canvas class="wpn3d"></canvas>';
       b.addEventListener('click', () => { this.tap(i); this.refresh(); });
       this.el.grid.appendChild(b);
       this.slots.push(b);
@@ -252,7 +253,10 @@ export class ForgePanel {
     s.weapons.forEach((w, i) => {
       const b = this.slots[i];
       const img = b.firstElementChild as HTMLImageElement;
-      b.className = 'slot';
+      const cv = b.lastElementChild as HTMLCanvasElement;
+      // (The live 3D icon's "has3d" survives the redraw so the drawn stand-in doesn't flash.)
+      b.className = b.classList.contains('has3d') && w ? 'slot has3d' : 'slot';
+      setWeaponCanvas(cv, w);
       if (!w) {
         b.classList.add('empty');
         img.removeAttribute('src');
@@ -291,6 +295,7 @@ export class ForgePanel {
     if (w) {
       const img = this.el.icon as HTMLImageElement;
       img.src = this.icons[w.form][w.rarity];
+      setWeaponCanvas(img.nextElementSibling as HTMLCanvasElement, w);
       card.style.setProperty('--rc', RARITY_COLORS[w.rarity]);
       this.el.tag.textContent = sel ? '' : 'Equipped';
       this.el.name.textContent = `${RARITY_NAMES[w.rarity]} ${weaponName(w)}`;
@@ -371,6 +376,7 @@ export class ForgePanel {
     }
     this.renderedVersion = this.sim.invVersion;
     this.renderedSelected = this.selected;
+    paintMonsterPortraits(); // live 3D weapon icons (shared with the Codex's monsters)
     this.renderedAtk = Math.round(this.sim.atk);
   }
 
@@ -414,4 +420,11 @@ function heroNames(form: number): string {
 /** "Staffs & Wands": the weapon types the forge makes for hero `skin`. */
 function forgeKinds(skin: string): string {
   return skinDef(skin).forms.map((f) => `${FORMS[f].name}s`).join(' & ');
+}
+
+/** Point a live 3D icon canvas at a weapon (or clear it for an empty slot). */
+function setWeaponCanvas(c: HTMLCanvasElement, w: { form: number; rarity: number } | null): void {
+  const f = w ? String(w.form) : '', r = w ? String(w.rarity) : '';
+  if (c.dataset.form !== f) c.dataset.form = f;
+  if (c.dataset.rarity !== r) c.dataset.rarity = r;
 }

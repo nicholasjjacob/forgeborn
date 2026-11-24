@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { cloneActor, findClip, measure, model } from '../render/models';
 import { areaFor } from '../sim/areas';
+import { buildKitWeapon } from '../render/weapons3d';
 
 /**
  * Live 3D portraits: any `<canvas class="mon3d" data-model="m0_1">` on the page shows that
@@ -67,9 +68,41 @@ function build(key: string, fly: boolean): Portrait | null | undefined {
   return p;
 }
 
+// --- Weapons (forge inventory and weapon card) ---------------------------------------------
+
+interface WeaponPortrait { obj: THREE.Group; phase: number }
+const weapons = new Map<string, WeaponPortrait>();
+let wcam: THREE.OrthographicCamera | null = null;
+
+/** A weapon model, laid along the icon's diagonal and centred in a 2×2 box. Null while loading. */
+function buildWeapon(form: number, rarity: number): WeaponPortrait | null {
+  const key = `${form}|${rarity}`;
+  const have = weapons.get(key);
+  if (have) return have;
+  const kit = buildKitWeapon(form, rarity);
+  if (!kit) return null;
+  const pose = new THREE.Group();
+  pose.add(kit.group);
+  const s0 = new THREE.Box3().setFromObject(kit.group).getSize(new THREE.Vector3());
+  if (s0.z > s0.y && s0.z > s0.x) kit.group.rotation.x = -Math.PI / 2; // bows and crossbows point along z
+  else if (s0.x > s0.y) kit.group.rotation.z = Math.PI / 2;
+  if (kit.off) { kit.off.position.set(-0.3, -0.25, -0.2); pose.add(kit.off); }
+  pose.rotation.z = -0.72;
+  const outer = new THREE.Group();
+  outer.add(pose);
+  const box = new THREE.Box3().setFromObject(outer);
+  const c = box.getCenter(new THREE.Vector3());
+  const half = Math.max(box.max.x - box.min.x, box.max.y - box.min.y) / 2;
+  pose.position.sub(c);
+  outer.scale.setScalar(0.92 / Math.max(0.001, half));
+  const w = { obj: new THREE.Group().add(outer) as THREE.Group, phase: Math.random() * 6 };
+  weapons.set(key, w);
+  return w;
+}
+
 /** Draw every live portrait now (call right after the cards are re-rendered so they never blink). */
 export function paintMonsterPortraits(): void {
-  const canvases = document.querySelectorAll<HTMLCanvasElement>('canvas.mon3d');
+  const canvases = document.querySelectorAll<HTMLCanvasElement>('canvas.mon3d, canvas.wpn3d');
   if (!canvases.length) { cancelAnimationFrame(raf); raf = 0; return; }
   if (!setup()) return;
   const now = performance.now();
@@ -79,14 +112,15 @@ export function paintMonsterPortraits(): void {
   const r = renderer!, sc = scene!, cam = camera!;
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   for (const c of canvases) {
-    const key = c.dataset.model!;
-    const p = build(key, c.dataset.fly === '1');
-    if (!p) continue;
     const w = Math.round(c.clientWidth * dpr), h = Math.round(c.clientHeight * dpr);
     if (!w || !h) continue;
     // Scrolled out of view (long lists): leave it until it comes back.
     const rect = c.getBoundingClientRect();
     if (rect.bottom < 0 || rect.top > innerHeight) continue;
+    if (c.classList.contains('wpn3d')) { paintWeapon(c, w, h, now); continue; }
+    const key = c.dataset.model!;
+    const p = build(key, c.dataset.fly === '1');
+    if (!p) continue;
     if (!ticked.has(key)) { ticked.add(key); p.mixer.update(dt); }
     if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
     const size = r.getSize(new THREE.Vector2());
@@ -107,6 +141,34 @@ export function paintMonsterPortraits(): void {
     c.parentElement?.classList.add('has3d');
   }
   if (!raf) { last = now; raf = requestAnimationFrame(loop); }
+}
+
+function paintWeapon(c: HTMLCanvasElement, w: number, h: number, now: number): void {
+  const form = Number(c.dataset.form), rarity = Number(c.dataset.rarity);
+  const p = Number.isFinite(form) && Number.isFinite(rarity) ? buildWeapon(form, rarity) : null;
+  const ctx = c.getContext('2d');
+  if (!p || !ctx) {
+    // Not ready (or the slot emptied): show the drawn stand-in underneath.
+    c.parentElement?.classList.remove('has3d');
+    if (ctx && c.width) ctx.clearRect(0, 0, c.width, c.height);
+    return;
+  }
+  const r = renderer!, sc = scene!;
+  if (!wcam) { wcam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 50); wcam.position.set(0, 0, 10); }
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  const size = r.getSize(new THREE.Vector2());
+  if (size.x !== w || size.y !== h) r.setSize(w, h, false);
+  const a = w / h;
+  wcam.left = -a; wcam.right = a; wcam.top = 1; wcam.bottom = -1;
+  wcam.updateProjectionMatrix();
+  // A slow sway so the model reads as 3D without going edge-on.
+  p.obj.rotation.y = Math.sin(now / 1000 * 0.9 + p.phase) * 0.55;
+  sc.add(p.obj);
+  r.render(sc, wcam);
+  sc.remove(p.obj);
+  ctx.clearRect(0, 0, w, h);
+  ctx.drawImage(r.domElement, 0, 0);
+  c.parentElement?.classList.add('has3d');
 }
 
 function loop(now: number): void {

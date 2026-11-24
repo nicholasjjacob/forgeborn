@@ -39,7 +39,11 @@ const RARITY_MULT = [1, 1.9, 3.6, 6.8, 13, 25, 48];
 /** Weapon type: an index into FORMS. Each hero class wields its own types (see skins.ts). */
 export type Form = number;
 /** How a ranged weapon's projectile flies: speed (units/s), extra enemies it passes through, splash radius. */
-export interface RangedDef { speed: number; pierce: number; splash: number; kind: 'arrow' | 'bolt' | 'magic' }
+export interface RangedDef {
+  speed: number; pierce: number; splash: number; kind: 'arrow' | 'bolt' | 'magic' | 'pellet';
+  /** Shots per attack, fanned across `spread` radians (a shotgun blast); each deals dmg / pellets * 2. */
+  pellets?: number; spread?: number;
+}
 export interface FormDef {
   name: string; range: number; arc: number; speed: number; dmg: number; knockback: number; blurb: string;
   ranged?: RangedDef;
@@ -52,14 +56,23 @@ export const FORMS: readonly FormDef[] = [
   /* 4 */ { name: 'Dagger',   range: 17, arc: 0.9,  speed: 1.45, dmg: 0.72, knockback: 0.5, blurb: 'Very fast, close in' },
   /* 5 */ { name: 'Crossbow', range: 80, arc: 0.3,  speed: 0.7,  dmg: 1.15, knockback: 0.9, blurb: 'Ranged, heavy bolts',
             ranged: { speed: 330, pierce: 0, splash: 0, kind: 'bolt' } },
-  /* 6 */ { name: 'Bow',      range: 95, arc: 0.3,  speed: 1.1,  dmg: 0.66, knockback: 0.5, blurb: 'Ranged, quick arrows',
+  /* 6 */ { name: 'Bow',      range: 95, arc: 0.3,  speed: 1.1,  dmg: 0.72, knockback: 0.5, blurb: 'Ranged, quick arrows',
             ranged: { speed: 300, pierce: 0, splash: 0, kind: 'arrow' } },
   /* 7 */ { name: 'Longbow',  range: 120, arc: 0.3, speed: 0.75, dmg: 1.0,  knockback: 0.8, blurb: 'Ranged, arrows pierce',
             ranged: { speed: 380, pierce: 1, splash: 0, kind: 'arrow' } },
-  /* 8 */ { name: 'Staff',    range: 85, arc: 0.3,  speed: 0.75, dmg: 0.95, knockback: 1.0, blurb: 'Ranged, exploding orbs',
+  /* 8 */ { name: 'Staff',    range: 85, arc: 0.3,  speed: 0.75, dmg: 1.02, knockback: 1.0, blurb: 'Ranged, exploding orbs',
             ranged: { speed: 210, pierce: 0, splash: 22, kind: 'magic' } },
-  /* 9 */ { name: 'Wand',     range: 80, arc: 0.3,  speed: 1.25, dmg: 0.64, knockback: 0.4, blurb: 'Ranged, rapid sparks',
+  /* 9 */ { name: 'Wand',     range: 80, arc: 0.3,  speed: 1.25, dmg: 0.7,  knockback: 0.4, blurb: 'Ranged, rapid sparks',
             ranged: { speed: 260, pierce: 0, splash: 0, kind: 'magic' } },
+  /* 10 */ { name: 'Katana',  range: 23, arc: 1.4,  speed: 1.1,  dmg: 0.92,  knockback: 0.8, blurb: 'Swift, clean cuts' },
+  /* 11 */ { name: 'Claws',   range: 16, arc: 1.1,  speed: 1.55, dmg: 0.68, knockback: 0.4, blurb: 'A flurry of slashes' },
+  /* 12 */ { name: 'Nature Staff', range: 85, arc: 0.3, speed: 0.95, dmg: 1.0, knockback: 0.6, blurb: 'Ranged, piercing thorns',
+            ranged: { speed: 240, pierce: 1, splash: 0, kind: 'magic' } },
+  /* 13 */ { name: 'Shotgun', range: 62, arc: 0.3,  speed: 0.65, dmg: 1.35, knockback: 1.6, blurb: 'Ranged, a spread of pellets',
+            ranged: { speed: 320, pierce: 0, splash: 0, kind: 'pellet', pellets: 5, spread: 0.55 } },
+  /* 14 */ { name: 'Wrench',  range: 20, arc: 1.3,  speed: 0.95, dmg: 1.05, knockback: 1.4, blurb: 'Solid, reliable bonks' },
+  /* 15 */ { name: 'Warhammer', range: 27, arc: 2.0, speed: 0.6, dmg: 1.9, knockback: 2.6, blurb: 'Crushing, wide blows' },
+  /* 16 */ { name: 'Polearm', range: 36, arc: 1.15, speed: 0.8,  dmg: 1.45, knockback: 1.3, blurb: 'Huge reach' },
 ];
 
 /** Material per rarity, for weapon names ("Runed Axe"). */

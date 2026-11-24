@@ -114,6 +114,8 @@ export interface SaveData {
   skins: string[];
   /** Chosen style per hero (e.g. the Knight's visor), by skin id. Cosmetic. */
   looks: Record<string, string>;
+  /** Chosen colour scheme per hero (0 = default, 1-3 = alternates), by skin id. Cosmetic. */
+  palettes: Record<string, number>;
   /** Zone → wall-clock time (ms) when its beaten boss can be rematched again. */
   bossReady: Record<string, number>;
   /** Recent earnings per second, used to pay out offline progress. */
@@ -132,7 +134,7 @@ export function freshSave(): SaveData {
     missions: freshMissions(),
     level: 1, xp: 0, levelClaimed: [], materials: freshMaterials(),
     zone: 0, zoneBosses: 0, zoneBest: 0,
-    skin: DEFAULT_SKIN, skins: [DEFAULT_SKIN], looks: {}, bossReady: {},
+    skin: DEFAULT_SKIN, skins: [DEFAULT_SKIN], looks: {}, palettes: {}, bossReady: {},
     savedAt: Date.now(),
   };
 }
@@ -429,10 +431,10 @@ export class Sim {
     this.hero.maxHp = UPGRADES.hp.value(u.hp) * (1 + 0.25 * p.vigor) * (1 + GLOW_HP * glow) * lb.hp * (c.hp ?? 1);
     this.aspd = UPGRADES.aspd.value(u.aspd) * w.form.speed * (1 + w.speed) * swift * (c.aspd ?? 1);
     this.moveSpeed = HERO_SPEED * swift * (c.move ?? 1);
-    this.shardMult = 1 + 0.15 * p.shards;
+    this.shardMult = (1 + 0.15 * p.shards) * (1 + (c.shards ?? 0));
     this.crit = Math.min(0.9, UPGRADES.crit.value(u.crit) + w.crit + (c.crit ?? 0));
     this.critMult = CRIT_MULT + w.critDmg + (c.critDmg ?? 0);
-    this.goldMult = UPGRADES.gold.value(u.gold) * (1 + w.gold) * (1 + 0.2 * p.fortune) * this.achBonus * lb.gold;
+    this.goldMult = UPGRADES.gold.value(u.gold) * (1 + w.gold + (c.gold ?? 0)) * (1 + 0.2 * p.fortune) * this.achBonus * lb.gold;
     this.range = w.form.range * (1 + w.reach);
     this.arc = w.form.arc * (c.arc ?? 1);
     this.knockback = w.form.knockback;
@@ -448,7 +450,7 @@ export class Sim {
     for (const id in s.achievements) tiers += s.achievements[id];
     const ach = 1 + tiers * ACH_BONUS_PER_TIER;
     return UPGRADES.atk.value(s.upgrades.atk) * w.mult * w.form.dmg * (1 + 0.25 * p.might) * ach
-      * (1 + GLOW_DMG * s.embersEarned) * levelBonus(s.level).atk * forgeAtkBonus(s.forgeLevel);
+      * (1 + GLOW_DMG * s.embersEarned) * levelBonus(s.level).atk * forgeAtkBonus(s.forgeLevel) * (skinDef(s.skin).mods.dmg ?? 1);
   }
 
   // --- Forge ---------------------------------------------------------------
@@ -643,7 +645,7 @@ export class Sim {
       return;
     }
 
-    h.hp = Math.min(h.maxHp, h.hp + h.maxHp * HERO_REGEN * dt);
+    h.hp = Math.min(h.maxHp, h.hp + h.maxHp * (HERO_REGEN + (this.cls.regen ?? 0)) * dt);
     this.moveHero(dt);
     this.updateEnemies(dt);
     this.updateShots(dt);
@@ -764,11 +766,18 @@ export class Sim {
   buySkin(id: string): boolean {
     const def = SKINS.find((s) => s.id === id);
     const m = this.save.missions;
-    if (!def || this.ownsSkin(id) || m.gems < def.cost) return false;
+    if (!def || this.ownsSkin(id) || m.gems < def.cost || this.save.level < (def.minLevel ?? 0)) return false;
     m.gems -= def.cost;
     this.save.skins.push(id);
     this.save.gear[id] = starterWeapon(def.forms[0], this.save.nextWeaponId++);
     this.selectSkin(id);
+    return true;
+  }
+
+  /** Choose a colour scheme for an owned hero: 0 = its own, 1-3 = the alternates (cosmetic). */
+  setPalette(skin: string, n: number): boolean {
+    if (!this.ownsSkin(skin) || !skinDef(skin).palette || !Number.isInteger(n) || n < 0 || n > 3) return false;
+    this.save.palettes[skin] = n;
     return true;
   }
 
@@ -957,7 +966,12 @@ export class Sim {
     const isCrit = this.rng.chance(this.crit);
     const dmg = this.atk * this.rageMult() * (isCrit ? this.critMult : 1);
 
-    if (this.ranged) { this.fire(ang, dmg, isCrit, this.ranged); return; }
+    if (this.ranged) {
+      const r = this.ranged, n = r.pellets ?? 1;
+      // A shotgun blast fans its pellets out; together they hit harder than one shot (up close).
+      for (let k = 0; k < n; k++) this.fire(ang + (n > 1 ? (k / (n - 1) - 0.5) * (r.spread ?? 0) : 0), n > 1 ? (dmg / n) * 2 : dmg, isCrit, r);
+      return;
+    }
 
     let dealt = 0;
     // Cone sweep: everything in reach and within the arc gets hit.

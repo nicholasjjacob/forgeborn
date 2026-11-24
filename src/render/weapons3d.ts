@@ -178,35 +178,65 @@ export function buildWeapon(form: number, rarity: number): WeaponView {
 // --- KayKit weapon models -----------------------------------------------------------------
 
 /**
- * Which pack model each weapon type uses (see scripts/build-weapons.mjs): `main` goes in the
- * right hand slot, `off` in the left; `gold` replaces `main` from Legendary up.
+ * Which pack model each weapon type uses, by rarity tier: Common/Uncommon, Rare/Epic,
+ * Legendary/Mythic, Divine (the best-looking model of its family). Files from
+ * scripts/build-weapons.mjs: w_* from KayKit Adventurers, fw_* from KayKit Fantasy Weapons Bits.
+ * `pair`: worn on both hands (claws); `scale`: size in hand.
  */
-const KIT: Record<number, { main: string; gold?: string; off?: string; scale?: number }> = {
-  0: { main: 'sword_1handed' },
-  1: { main: 'axe_1handed' },
-  2: { main: 'axe_2handed' },
-  3: { main: 'sword_2handed', gold: 'sword_2handed_color' },
-  4: { main: 'dagger' },
-  5: { main: 'crossbow_1handed' },
-  6: { main: 'bow_withString' },
-  7: { main: 'bow_withString', scale: 1.25 },
-  8: { main: 'staff' },
-  9: { main: 'wand' },
+interface KitDef { tiers: readonly [string, string, string, string]; pair?: boolean; scale?: number }
+const KIT: Record<number, KitDef> = {
+  0: { tiers: ['fw_sword_A', 'fw_sword_B', 'w_sword_1handed', 'fw_sword_F'] },               // Sword → flame sword
+  1: { tiers: ['fw_axe_A', 'w_axe_1handed', 'fw_axe_C', 'fw_axe_D'] },                         // Axe → crescent axe
+  2: { tiers: ['w_axe_2handed', 'fw_axe_B', 'w_axe_2handed_Large', 'fw_axe_D'], scale: 1.15 }, // Greataxe
+  3: { tiers: ['w_sword_2handed', 'fw_sword_E', 'w_sword_2handed_color', 'fw_sword_G'] },     // Greatsword → ice blade
+  4: { tiers: ['w_dagger', 'fw_dagger_A', 'fw_dagger_B', 'fw_dagger_C'] },                     // Dagger → poison blade
+  5: { tiers: ['w_crossbow_1handed', 'w_crossbow_1handed', 'w_crossbow_2handed', 'w_crossbow_2handed'] },
+  6: { tiers: ['fw_bow_A_withString', 'w_bow_withString', 'fw_bow_B_withString', 'fw_bow_C_withString'] }, // → bone bow
+  7: { tiers: ['w_bow_withString', 'fw_bow_B_withString', 'fw_bow_C_withString', 'fw_bow_C_withString'], scale: 1.15 },
+  8: { tiers: ['fw_staff_A', 'w_staff', 'fw_staff_B', 'fw_staff_D'] },                         // Staff → sun staff
+  9: { tiers: ['w_wand', 'fw_wand_A', 'fw_wand_A', 'fw_wand_B'] },                             // Wand → void orb
+  10: { tiers: ['fw_sword_C', 'fw_sword_C', 'fw_sword_D', 'fw_scythe'] },                      // Katana → reaper's scythe
+  11: { tiers: ['fw_fistweapon_A', 'fw_fistweapon_B', 'fw_fistweapon_B', 'fw_fistweapon_C_right'], pair: true }, // Claws
+  12: { tiers: ['fw_staff_A', 'w_druid_staff', 'w_druid_staff', 'fw_staff_C'] },               // Nature staff → living staff
+  13: { tiers: ['w_shotgun', 'w_shotgun', 'w_shotgun', 'w_shotgun'] },
+  14: { tiers: ['w_engineer_Wrench', 'w_engineer_Wrench', 'fw_hammer_D', 'fw_hammer_A'] },      // Wrench → warhammer
+  15: { tiers: ['fw_hammer_C', 'fw_hammer_D', 'fw_hammer_A', 'fw_hammer_B'] },                 // Warhammer → morningstar
+  16: { tiers: ['fw_spear_A', 'fw_spear_A', 'fw_halberd', 'fw_spear_B'] },                     // Polearm → golden trident
+};
+/** Left-hand models for weapons worn as a pair (the right-hand model mirrored if not listed). */
+const LEFT: Record<string, string> = { fw_fistweapon_C_right: 'fw_fistweapon_C_left' };
+/** Per-model fixes so everything is held like the Adventurers' weapons (blade up the hand slot's y). */
+const ROT: Record<string, [number, number, number]> = {
+  fw_bow_A_withString: [0, -Math.PI / 2, 0], fw_bow_B_withString: [0, -Math.PI / 2, 0], fw_bow_C_withString: [0, -Math.PI / 2, 0],
 };
 
-/** Every weapon model file (to preload). */
-export const KIT_MODELS = [...new Set(Object.values(KIT).flatMap((k) => [k.main, k.gold, k.off].filter((x): x is string => !!x)))]
-  .concat(['arrow_bow', 'arrow_crossbow']).map((n) => `w_${n}`);
+/** Rarity tier (0-3) for the model ladder. */
+export const kitTier = (rarity: number) => (rarity >= 6 ? 3 : rarity >= 4 ? 2 : rarity >= 2 ? 1 : 0);
+
+/** The model files weapon type `form` at `rarity` needs. */
+export function kitModels(form: number, rarity: number): string[] {
+  const k = KIT[form];
+  if (!k) return [];
+  const main = k.tiers[kitTier(rarity)];
+  return k.pair && LEFT[main] ? [main, LEFT[main]] : [main];
+}
+
+/** Ranger arrows by rarity tier (golden from Divine), crossbow bolts. */
+export const arrowModel = (rarity: number) => (rarity >= 6 ? 'fw_arrow_C' : rarity >= 4 ? 'fw_arrow_B' : 'fw_arrow_A');
+export const BOLT_MODEL = 'w_arrow_crossbow';
 
 /** Rarity glow strength on the pack models (Common … Divine): rarity tints the whole weapon. */
 const KIT_GLOW = [0, 0.1, 0.16, 0.26, 0.34, 0.4, 0.46];
 
 export interface KitWeaponView extends WeaponView { off: THREE.Object3D | null }
 
-function kitPiece(name: string, rarity: number, glow: THREE.MeshLambertMaterial[]): THREE.Object3D | null {
-  const g = model(`w_${name}`);
-  if (!g) { void loadModel(`w_${name}`).catch(() => {}); return null; }
+function kitPiece(name: string, rarity: number, glow: THREE.MeshLambertMaterial[], mirror = false): THREE.Object3D | null {
+  const g = model(name);
+  if (!g) { void loadModel(name).catch(() => {}); return null; }
   const o = cloneActor(g);
+  const r = ROT[name];
+  if (r) o.rotation.set(r[0], r[1], r[2]);
+  if (mirror) o.scale.x = -1;
   const c = new THREE.Color(weaponTrailColor(rarity));
   o.traverse((x) => {
     const m = x as THREE.Mesh;
@@ -215,6 +245,8 @@ function kitPiece(name: string, rarity: number, glow: THREE.MeshLambertMaterial[
     for (const mat of Array.isArray(m.material) ? m.material : [m.material]) {
       const l = mat as THREE.MeshLambertMaterial;
       if (!l.emissive) continue;
+      // Models with their own glow (flame blade, sun staff, void orb) keep it; the rest take the rarity's.
+      if (l.emissive.r + l.emissive.g + l.emissive.b > 0.01) { if (rarity >= 3) glow.push(l); continue; }
       l.emissive.copy(c).multiplyScalar(KIT_GLOW[rarity] ?? 0);
       if (rarity >= 3) glow.push(l);
     }
@@ -224,18 +256,19 @@ function kitPiece(name: string, rarity: number, glow: THREE.MeshLambertMaterial[
 
 /**
  * The pack model for weapon type `form` at `rarity`, in the model's own units (it goes straight
- * into the character's hand slot bones). Null while the model is still loading.
+ * into the character's hand slot bones). Null while a model is still loading (it starts loading).
  */
 export function buildKitWeapon(form: number, rarity: number): KitWeaponView | null {
   const k = KIT[form];
   if (!k) return null;
   const glow: THREE.MeshLambertMaterial[] = [];
-  const main = kitPiece(rarity >= 4 && k.gold ? k.gold : k.main, rarity, glow);
-  const off = k.off ? kitPiece(k.off, rarity, glow) : null;
-  if (!main || (k.off && !off)) return null;
+  const name = k.tiers[kitTier(rarity)];
+  const main = kitPiece(name, rarity, glow);
+  const off = k.pair ? kitPiece(LEFT[name] ?? name, rarity, glow, !LEFT[name]) : null;
+  if (!main || (k.pair && !off)) return null;
   const group = new THREE.Group();
   group.add(main);
-  if (k.scale) group.scale.setScalar(k.scale);
+  if (k.scale) { group.scale.setScalar(k.scale); off?.scale.multiplyScalar(k.scale); }
   // Swing-trail markers: from a third of the way up the weapon to its far end.
   const box = new THREE.Box3().setFromObject(main);
   const tip = new THREE.Object3D(), base = new THREE.Object3D();

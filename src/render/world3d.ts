@@ -7,8 +7,9 @@ import { ELITE, MAX_ENEMIES, MAX_HERO_SHOTS, MAX_SHOTS, SLAM_RADIUS, SLAM_WIND, 
 import { MAX_PICKUPS } from '../sim/gather';
 import { cloneActor, findClip, loadModel, measure, model } from './models';
 import { Fx3D } from './fx3d';
-import { KIT_MODELS, buildKitWeapon, buildWeapon, weaponTrailColor, type WeaponView } from './weapons3d';
-import { applyLook } from './heroLook';
+import { BOLT_MODEL, arrowModel, buildKitWeapon, buildWeapon, weaponTrailColor, type WeaponView } from './weapons3d';
+import { applyLook, applyPalette } from './heroLook';
+import { heroAnimFiles, heroScale, heroWeaponScale, loadHeroAnims, type HeroAnims } from './heroRig';
 import { lookOf } from '../sim/skins';
 
 /**
@@ -69,7 +70,7 @@ const LOOKS: AreaLook[] = [
 
 /** Start loading everything a terrain needs (hero, its monsters, scenery); resolves when done. */
 export function preloadArea(area: number, skin = 'knight'): Promise<unknown> {
-  const names = new Set<string>([`hero_${skin}`, 'hero_anims']);
+  const names = new Set<string>([`hero_${skin}`, ...heroAnimFiles(skin)]);
   for (let i = 0; i < 4; i++) names.add(`m${area % 6}_${i}`);
   for (const p of areaFor(area).def.props) for (const n of PROP_SPECS[p.kind].models) if (!n.startsWith('@')) names.add(n);
   for (const [n] of COVER[area % COVER.length]) names.add(n);
@@ -177,15 +178,16 @@ export class World3D {
   private readonly shotMeshes: THREE.Mesh[] = [];
   /** Which model + style the hero's look was last applied to. */
   private heroLookOn = '';
+  /** Which hero the shown model is (it lags the save's skin while a new hero loads). */
+  private heroModelSkin = '';
   /** Hero projectiles: an arrow, a crossbow bolt and a magic orb per slot (one shown at a time). */
-  private readonly heroShotViews: { root: THREE.Group; arrow: THREE.Group; bolt: THREE.Group; magic: THREE.Mesh; core: THREE.Mesh; kit?: boolean }[] = [];
+  private readonly heroShotViews: { root: THREE.Group; arrow: THREE.Group; bolt: THREE.Group; magic: THREE.Mesh; core: THREE.Mesh; kit?: string }[] = [];
   private readonly pickupMeshes: { wood: THREE.Mesh; stone: THREE.Mesh }[] = [];
   private area = -1;
 
   private low = false;
 
   constructor(host: HTMLElement) {
-    for (const n of KIT_MODELS) void loadModel(n).catch(() => {}); // weapons (pack models)
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     this.canvas = this.renderer.domElement;
     host.prepend(this.canvas);
@@ -551,27 +553,29 @@ export class World3D {
   // --- Actors ------------------------------------------------------------------------------
 
   /** Swap a projectile's stand-in arrow and bolt for the pack's models once they've loaded. */
-  private kitArrows(v: { arrow: THREE.Group; bolt: THREE.Group; kit?: boolean }): void {
-    const a = model('w_arrow_bow'), b = model('w_arrow_crossbow');
-    if (!a || !b) return;
+  private kitArrows(v: { arrow: THREE.Group; bolt: THREE.Group; kit?: string }, rarity: number): void {
+    const an = arrowModel(rarity);
+    const a = model(an), b = model(BOLT_MODEL);
+    if (!a || !b) { void loadModel(an).catch(() => {}); void loadModel(BOLT_MODEL).catch(() => {}); return; }
     for (const [group, g, scale] of [[v.arrow, a, 7], [v.bolt, b, 7.5]] as const) {
       group.clear();
       const o = g.scene.clone(true);
       o.scale.setScalar(scale);
       group.add(o);
     }
-    v.kit = true;
+    v.kit = an;
   }
 
   /** Show the given skin: load its model and the shared animations, then swap it in. */
   private loadHero(id: string): void {
     this.heroSkin = id;
-    void Promise.all([loadModel(`hero_${id}`), loadModel('hero_anims')])
-      .then(([g, anims]) => { if (this.heroSkin === id) this.setupHero(g, anims); })
+    void Promise.all([loadModel(`hero_${id}`), loadHeroAnims(id)])
+      .then(([g, anims]) => { if (this.heroSkin === id) { this.setupHero(g, anims, heroScale(id)); this.heroModelSkin = id; } })
       .catch(() => {});
   }
 
-  private setupHero(g: GLTF, anims: GLTF): void {
+  private setupHero(g: GLTF, rig: HeroAnims, size: number): void {
+    const anims = rig.anims;
     // Take down the previous skin (its weapon holder moves to the new hand).
     if (this.heroModel) { this.heroMixer?.stopAllAction(); this.heroModel.removeFromParent(); }
     this.heroMats = [];
@@ -580,7 +584,7 @@ export class World3D {
     m.position.set(0, 0, 0);
     m.scale.setScalar(1);
     const dims = measure(m);
-    const k = HERO_H / dims.h;
+    const k = (HERO_H * size) / dims.h;
     m.scale.setScalar(k);
     m.position.set(-dims.cx * k, -dims.minY * k, -dims.cz * k);
     m.traverse((o) => {
@@ -599,7 +603,7 @@ export class World3D {
     this.heroAct = {
       idle: act(['Idle_A']),
       run: act(['Running_A']),
-      attack: act(['Throw', 'Use_Item']),
+      attack: rig.attack ? mixer.clipAction(rig.attack) : null,
       death: act(['Death_A']),
       walk: act(['Walking_A']),
     };
@@ -613,6 +617,8 @@ export class World3D {
     if (bone) {
       bone.add(this.hand);
       bone.add(this.kitHand);
+      this.kitHand.scale.setScalar(heroWeaponScale(this.heroSkin));
+      this.kitOff.scale.setScalar(heroWeaponScale(this.heroSkin));
       m.updateMatrixWorld(true);
       const s = new THREE.Vector3();
       bone.getWorldScale(s);
@@ -748,9 +754,12 @@ export class World3D {
     // Hero
     if (sim.save.skin !== this.heroSkin) this.loadHero(sim.save.skin);
     const look = lookOf(sim.save.skin, sim.save.looks);
-    if (this.heroModel && this.heroLookOn !== this.heroModel.uuid + look) {
+    const pal = sim.save.palettes[sim.save.skin] ?? 0;
+    // Only once the loaded model is this hero's (while a new hero loads, the old model is still up).
+    if (this.heroModel && this.heroModelSkin === sim.save.skin && this.heroLookOn !== `${this.heroModel.uuid}${look}${pal}`) {
       applyLook(this.heroModel, this.heroSkin, look);
-      this.heroLookOn = this.heroModel.uuid + look;
+      applyPalette(this.heroModel, this.heroSkin, pal);
+      this.heroLookOn = `${this.heroModel.uuid}${look}${pal}`;
     }
     this.heroRoot.position.set(hx, 0, hy);
     const mvx = h.x - h.prevX, mvy = h.y - h.prevY;
@@ -906,12 +915,17 @@ export class World3D {
       v.root.visible = true;
       v.root.position.set(s.prevX + (s.x - s.prevX) * alpha, 9, s.prevY + (s.y - s.prevY) * alpha);
       v.root.rotation.y = Math.atan2(s.vx, s.vy);
-      const magic = s.kind === 'magic';
-      if (!magic && !v.kit) this.kitArrows(v);
+      const magic = s.kind === 'magic', pellet = s.kind === 'pellet';
+      if ((s.kind === 'arrow' || s.kind === 'bolt') && v.kit !== arrowModel(s.rarity)) this.kitArrows(v, s.rarity);
       v.arrow.visible = s.kind === 'arrow';
       v.bolt.visible = s.kind === 'bolt';
-      v.magic.visible = v.core.visible = magic;
-      if (magic) {
+      v.magic.visible = v.core.visible = magic || pellet;
+      if (pellet) {
+        // Shotgun pellets: small hot sparks.
+        (v.magic.material as THREE.MeshBasicMaterial).color.setHex(0xffc060);
+        v.magic.scale.setScalar(0.32);
+        v.core.scale.setScalar(0.3);
+      } else if (magic) {
         const c = weaponTrailColor(s.rarity);
         (v.magic.material as THREE.MeshBasicMaterial).color.setHex(c);
         v.magic.scale.setScalar((s.splash > 0 ? 1.15 : 0.7) * (1 + Math.sin(t * 40 + i) * 0.15));

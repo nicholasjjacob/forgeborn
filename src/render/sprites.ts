@@ -196,6 +196,9 @@ const WEAPON_PALS = [
 ];
 const WOOD = '#7a4a28';
 
+/** Drawn icon used for weapon types beyond the first ten (see weaponRegions). */
+const STAND_IN: Record<number, number> = { 10: 0, 11: 4, 12: 8, 13: 5, 14: 1, 15: 2, 16: 2 };
+
 /** 9×16, grip centred at x=4.5, y≈13 (anchor 0.5, 0.82). */
 function drawWeapon(c: Ctx, form: number, p: (typeof WEAPON_PALS)[number]): void {
   if (p.glow) { c.shadowColor = p.glow; c.shadowBlur = 2.5 * RES; }
@@ -424,7 +427,10 @@ export interface Art {
 
 export function buildArt(): Art {
   const a = new Atlas(160);
-  const weaponRegions = FORMS.map((_, form) => WEAPON_PALS.map((pal) => a.draw(9, 16, (c) => drawWeapon(c, form, pal))));
+  // Drawn icons for the first ten weapon types; newer types borrow the closest one (they only show
+  // until the live 3D icon is ready, and the atlas has no room for more).
+  const drawn = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((form) => WEAPON_PALS.map((pal) => a.draw(9, 16, (c) => drawWeapon(c, form, pal))));
+  const weaponRegions = FORMS.map((_, form) => drawn[STAND_IN[form] ?? form] ?? drawn[0]);
   const r = {
     hero: a.draw(16, 20, drawHero),
     crown: a.draw(12, 7, (c) => {
