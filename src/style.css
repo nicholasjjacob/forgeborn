@@ -1181,3 +1181,14 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 /* Weapon icons are square renders of the pack models (tall drawn stand-ins until they're ready) */
 .slot img { width: 86%; height: 86%; object-fit: contain; filter: drop-shadow(0 0 1px #000b) drop-shadow(0 2px 1px #0007); }
 .wc-icon img { width: 88%; height: 88%; object-fit: contain; filter: drop-shadow(0 0 1px #000b) drop-shadow(0 2px 1px #0007); }
+/* 3D currency icons (rendered at startup, see render/currencyIcons.ts) replace the CSS shapes. */
+html.icons3d :is(.coin, .gem, .jewel, .ember) {
+  background: center / contain no-repeat; box-shadow: none; clip-path: none; rotate: none; border-radius: 0;
+  filter: drop-shadow(0 1px 1px #0007);
+}
+html.icons3d .coin { background-image: var(--ico-coin); }
+html.icons3d .gem { background-image: var(--ico-gem); scale: 1.45; }
+html.icons3d .jewel { background-image: var(--ico-jewel); scale: 1.15; }
+html.icons3d .ember { background-image: var(--ico-ember); aspect-ratio: auto; }
+html.icons3d .ditem :is(.coin, .gem, .jewel, .ember) { width: 40px; height: 40px; scale: 1; margin: 0; }
+html.icons3d .day-cell.grand .ditem :is(.coin, .gem, .jewel, .ember) { width: 52px; height: 52px; }

@@ -9,6 +9,7 @@ import { areaArt, buildArt, ensureAreaSprites, loadRenderedArt } from './render/
 import { TICK } from './sim/balance';
 import { Sim } from './sim/sim';
 import { renderKitIcons } from './render/weaponIcons';
+import { installCurrencyIcons } from './render/currencyIcons';
 import { Hud } from './ui/hud';
 import { Input } from './ui/input';
 import { zoneArea, zoneName } from './sim/zones';
@@ -106,6 +107,7 @@ async function boot() {
     install: () => pwa.install(),
     canInstall: () => pwa.canInstall(),
   }));
+  installCurrencyIcons(); // 3D coin / shard / gem / ember icons for the whole UI
   // Inventory icons from the pack's weapon models (replacing the drawn stand-ins once ready).
   setTimeout(() => { void renderKitIcons(art.weaponIcons).then((ok) => { if (ok) sim.invVersion++; }); }, 1200);
   applyFps();
