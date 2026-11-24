@@ -1,3 +1,4 @@
+import { gi } from './icons';
 import { zoneName } from '../sim/zones';
 import { haptic, sfx } from '../audio/sfx';
 import { rewardSpill, starBurst } from './rewardFx';
@@ -226,7 +227,7 @@ export class MissionsUI {
               // chest animations running smoothly instead of restarting on every re-render.
               return `<button type="button" class="chest ${open ? 'open' : ''} ${ready ? 'ready' : ''}" style="left:${(p / max) * 100}%;--t:-${Math.round(performance.now())}ms"
                 data-act="chest:${kind}:${i}" aria-label="Gift at ${p} points">
-                <span class="chest-ico">${open ? '✔' : '🎁'}</span><span class="chest-pts">${p}</span></button>`;
+                <span class="chest-ico">${open ? gi('open-chest', 'gold') : gi('locked-chest', 'gold')}</span><span class="chest-pts">${p}</span></button>`;
             }).join('')}
           </div>
           <div class="ptrack-hint">${next ? `Next gift at <b>${next} ★</b> · tap a gift to see inside` : 'All gifts reached!'}</div>
@@ -243,7 +244,7 @@ export class MissionsUI {
     const pct = Math.floor((p / t.target) * 100);
     const right = claimed ? '<div class="task-end done">✔</div>'
       : ready ? `<button type="button" class="btn small green" data-act="task:${kind}:${t.id}">Claim</button>`
-      : locked ? '<div class="task-end">🔒</div>'
+      : locked ? `<div class="task-end">${gi('padlock', 'grey')}</div>`
       : `<div class="task-end pct">${pct}%</div>`;
     return `
       <div class="task ${claimed ? 'claimed' : ''} ${ready ? 'ready' : ''} ${locked ? 'locked' : ''}">
@@ -278,7 +279,7 @@ export class MissionsUI {
       const ready = !locked && JOURNEY_TASKS[d].some((t) => m.canClaimTask('journey', t, now));
       const done = !locked && JOURNEY_TASKS[d].every((t) => m.board('journey').claimed.includes(t.id));
       return `<button type="button" class="jday ${d === sel ? 'sel' : ''} ${locked ? 'locked' : ''} ${done ? 'done' : ''}" data-act="jday:${d}">
-        <small>Day</small>${d + 1}${locked ? '<i class="jlock">🔒</i>' : done ? '<i class="jlock">✔</i>' : ''}${ready ? '<b class="dot">!</b>' : ''}</button>`;
+        <small>Day</small>${d + 1}${locked ? `<i class="jlock">${gi('padlock', 'grey')}</i>` : done ? `<i class="jlock">${gi('check-mark', 'green')}</i>` : ''}${ready ? '<b class="dot">!</b>' : ''}</button>`;
     }).join('');
     const left = Math.max(0, 14 - m.journeyDay(now));
     const unlockIn = sel > today ? msUntilNextDay(now) + (sel - today - 1) * 86400000 : 0;
@@ -286,7 +287,7 @@ export class MissionsUI {
       <div class="timer">⏱ Event ends in ${left} day${left === 1 ? '' : 's'}</div>
       ${this.track('journey')}
       <div class="jdays">${dayTabs}</div>
-      ${sel > today ? `<p class="sheet-note jnote">🔒 Day ${sel + 1} unlocks in ${formatCountdown(unlockIn)}</p>` : ''}
+      ${sel > today ? `<p class="sheet-note jnote">${gi('padlock', 'grey')} Day ${sel + 1} unlocks in ${formatCountdown(unlockIn)}</p>` : ''}
       <div class="task-list">${JOURNEY_TASKS[sel].map((t) => this.taskRow('journey', t, now)).join('')}</div>`;
   }
 
@@ -319,13 +320,13 @@ export class MissionsUI {
           </div>`;
         }).join('')}</div>`;
       }).join('') +
-      `<div class="codex-teaser">🔒 <b>Next area</b> · unlock ${zoneName(nextArea * 3)} on the 🗺 Map to discover new monsters</div>`;
+      `<div class="codex-teaser">${gi('padlock', 'grey')} <b>Next area</b> · unlock ${zoneName(nextArea * 3)} on the 🗺 Map to discover new monsters</div>`;
   }
 
   private renderShop(): string {
     const g = this.sim.save.missions.gems;
     const icon: Record<string, string> = {
-      gold: '<i class="coin big"></i>', shards: '<i class="gem big"></i>', warp: '⏳', xp: '📜', embers: '<i class="ember big"></i>',
+      gold: '<i class="coin big"></i>', shards: '<i class="gem big"></i>', warp: gi('hourglass', 'cyan'), xp: gi('book-cover', 'blue'), embers: '<i class="ember big"></i>',
       mats: '<span class="mats-ico"><i class="log"></i><i class="rock"></i></span>',
     };
     return `
@@ -335,7 +336,7 @@ export class MissionsUI {
         const can = g >= o.cost;
         return `
         <div class="offer ${can ? '' : 'cant'}">
-          <div class="offer-ico">${icon[o.id] ?? '🎁'}</div>
+          <div class="offer-ico">${icon[o.id] ?? gi('present', 'pink')}</div>
           <div class="offer-name">${o.name}</div>
           <div class="offer-desc">${o.desc}</div>
           <div class="offer-gets">${chips(this.sim.missions.offerReward(o.id))}</div>

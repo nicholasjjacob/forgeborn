@@ -20,6 +20,7 @@
     "three": "^0.181.0"
   },
   "devDependencies": {
+    "@iconify-json/game-icons": "^1.2.4",
     "@types/three": "^0.181.0",
     "typescript": "^5.9.3",
     "vite": "^7.3.8",

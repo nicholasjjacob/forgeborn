@@ -1,3 +1,9 @@
+import { gi } from './icons';
+/** Icon per Reforge perk. */
+const PERK_ICONS: Record<string, string> = {
+  might: 'broadsword', vigor: 'hearts', fortune: 'two-coins', shards: 'crystal-cluster', swift: 'sprint',
+  forgemaster: 'anvil-impact', headstart: 'fast-forward-button', offline: 'night-sleep',
+};
 import { fmt } from '../core/format';
 import { sfx } from '../audio/sfx';
 import { GLOW_DMG, GLOW_HP, PERKS, PERK_IDS, REFORGE_MIN_STAGE, embersFor, type PerkId } from '../sim/meta';
@@ -32,7 +38,7 @@ export class ReforgePanel {
       const li = document.createElement('li');
       li.className = 'upgrade';
       li.innerHTML = `
-        <span class="icon" style="--c:${def.color}">${def.icon}</span>
+        <span class="icon" style="--c:${def.color}">${gi(PERK_ICONS[id] ?? 'crown')}</span>
         <span class="info"><span class="name">${def.name} <span class="lvl"></span></span><span class="value"></span></span>
         <button class="buy ember-buy" type="button"><span class="count">+1</span><span class="cost"></span></button>`;
       const btn = li.querySelector<HTMLButtonElement>('.buy')!;

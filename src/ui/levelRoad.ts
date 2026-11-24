@@ -1,3 +1,4 @@
+import { gi } from './icons';
 import { haptic, sfx } from '../audio/sfx';
 import { fmt } from '../core/format';
 import { MAX_LEVEL, MILESTONES, levelBonus, levelTier, type MilestoneReward } from '../sim/level';
@@ -111,7 +112,7 @@ export class LevelRoad {
     const big = m % 25 === 0;
     const btn = claimed ? '<div class="task-done">✔</div>'
       : reached ? `<button type="button" class="btn small green" data-act="lvclaim:${m}" ${r.weapon && invFull ? 'title="Inventory full"' : ''}>Claim</button>`
-      : `<div class="lv-lock">🔒</div>`;
+      : `<div class="lv-lock">${gi('padlock', 'grey')}</div>`;
     return `
       <div class="lv-row ${claimed ? 'claimed' : ''} ${reached && !claimed ? 'ready' : ''} ${big ? 'big' : ''}" data-lv="${m}">
         <div class="lv-medal" style="--tier:${levelTier(m).css}">${m}</div>

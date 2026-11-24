@@ -1,3 +1,4 @@
+import { gi } from './icons';
 import { fmt } from '../core/format';
 import { WorldMapUI } from './worldMap';
 import { zoneBossName, zoneLevel, zoneName, zoneTerrain } from '../sim/zones';
@@ -14,7 +15,14 @@ import { MAX_LEVEL, levelTier } from '../sim/level';
 
 type Tab = 'upgrades' | 'forge' | 'quests' | 'reforge';
 
-const ICONS: Record<UpgradeId, string> = { atk: '⚔', hp: '♥', aspd: '»', crit: '◎', gold: '◆' };
+const ICONS: Record<UpgradeId, string> = {
+  atk: gi('crossed-swords'), hp: gi('hearts'), aspd: gi('sprint'), crit: gi('bullseye'), gold: gi('two-coins'),
+};
+/** Side column and top bar icons (the HTML ships emoji placeholders; these replace them). */
+const SIDE_ICONS: [string, string, Parameters<typeof gi>[1]][] = [
+  ['#side-map', 'treasure-map', 'gold'], ['#side-missions', 'checklist', 'white'], ['#side-journey', 'present', 'pink'],
+  ['#side-codex', 'spell-book', 'purple'], ['#side-bag', 'knapsack', 'orange'],
+];
 
 interface Row {
   id: UpgradeId;
@@ -96,6 +104,8 @@ export class Hud {
     this.lv = { chip: $('#level-chip'), num: $('#level-num'), fill: $('#xp-fill'), dot: $('#level-dot') };
     this.lv.chip.addEventListener('click', () => { sfx.play('tick'); this.levelRoad.open(); });
     this.badges = { forge: $('#forge-badge'), quests: $('#quests-badge'), reforge: $('#reforge-badge') };
+    for (const [sel, name, color] of SIDE_ICONS) $(`${sel} .side-ico`).innerHTML = gi(name, color);
+    $('#settings-btn').innerHTML = gi('cog');
 
     for (const t of root.querySelectorAll<HTMLButtonElement>('[data-tab]')) {
       t.addEventListener('click', () => {

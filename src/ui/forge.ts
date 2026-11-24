@@ -1,3 +1,4 @@
+import { gi } from './icons';
 import { fmt } from '../core/format';
 import { haptic, sfx } from '../audio/sfx';
 import type { Sim } from '../sim/sim';
@@ -54,12 +55,12 @@ export class ForgePanel {
       </div>
       <div class="forge-meta">
         <button type="button" class="forge-level-btn" id="forge-level-btn" aria-label="Forge level and upgrades">
-          <span class="flb-ico">🔨</span>
+          <span class="flb-ico">${gi('anvil-impact', 'grey')}</span>
           <span class="flb-text"><b id="fl-level"></b><small id="fl-odds"></small></span>
           <b class="dot" id="fl-dot" hidden>!</b>
         </button>
         <button type="button" class="forge-level-btn" id="inv-btn" aria-label="Inventory size">
-          <span class="flb-ico">⚔</span>
+          <span class="flb-ico">${gi('crossed-swords', 'white')}</span>
           <span class="flb-text"><b id="inv-count"></b><small id="inv-sub"></small></span>
           <b class="dot" id="inv-dot" hidden>!</b>
         </button>

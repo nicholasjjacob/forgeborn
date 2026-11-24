@@ -1,10 +1,15 @@
+import { gi } from './icons';
+/** Icon per terrain on the world map. */
+const TERRAIN_ICONS: [string, Parameters<typeof gi>[1]][] = [
+  ['grass', 'green'], ['mushroom', 'red'], ['cactus', 'green'], ['crystal-growth', 'purple'], ['snowflake-1', 'cyan'], ['volcano', 'orange'],
+];
 import { sfx } from '../audio/sfx';
 import { fmt } from '../core/format';
 import { areaFor, areaName } from '../sim/areas';
 import { xpForKill } from '../sim/level';
 import type { Sim } from '../sim/sim';
 import {
-  AREA_ICONS, ZONES_PER_AREA, isTerrainBossZone, zoneArea, zoneBossName, zoneLevel, zoneName, zoneStage,
+  ZONES_PER_AREA, isTerrainBossZone, zoneArea, zoneBossName, zoneLevel, zoneName, zoneStage,
 } from '../sim/zones';
 import { bindSheetTaps } from './tap';
 
@@ -95,7 +100,7 @@ export class WorldMapUI {
     const lastArea = zoneArea(nextLocked);
     const cards: string[] = [];
     for (let a = 0; a <= lastArea; a++) cards.push(this.areaCard(a, max));
-    cards.push(`<div class="map-area mystery"><div class="map-area-head"><span class="map-ico">❓</span><b>Undiscovered lands</b></div>
+    cards.push(`<div class="map-area mystery"><div class="map-area-head"><span class="map-ico">${gi('compass', 'gold')}</span><b>Undiscovered lands</b></div>
       <p>Push further to reveal what lies beyond.</p></div>`);
 
     this.wrap.querySelector('.sheet-body')!.innerHTML = `
@@ -119,7 +124,7 @@ export class WorldMapUI {
       const here = z === s.zone;
       const beaten = z < s.zoneBosses;
       const xp = xpForKill(zoneStage(z), false);
-      const node = here ? '📍' : !open ? '🔒' : beaten ? '✔' : String(z + 1);
+      const node = here ? gi('position-marker', 'red') : !open ? gi('padlock', 'grey') : beaten ? gi('check-mark', 'white') : String(z + 1);
       const end = here
         ? '<span class="zone-tag here">Here</span>'
         : open
@@ -130,14 +135,14 @@ export class WorldMapUI {
           <span class="zone-node">${node}</span>
           <div class="zone-main">
             <div class="zone-name">${open ? zoneName(z) : discovered ? zoneName(z) : '???'}</div>
-            <div class="zone-sub">XP <b>${fmt(xp)}</b>/kill · ${isTerrainBossZone(z) ? '👑' : '☠'} ${open || discovered ? zoneBossName(z) : '???'}${beaten ? ' ✓' : ''}</div>
+            <div class="zone-sub">XP <b>${fmt(xp)}</b>/kill · ${isTerrainBossZone(z) ? gi('crown', 'gold') : gi('skull-crossed-bones', 'white')} ${open || discovered ? zoneBossName(z) : '???'}${beaten ? ' ✓' : ''}</div>
           </div>
           ${end}
         </div>`);
     }
     return `
       <div class="map-area ${discovered ? '' : 'undiscovered'}" style="--g1:${g.light};--g2:${g.base};--g3:${g.dark}">
-        <div class="map-area-head"><span class="map-ico">${AREA_ICONS[a % AREA_ICONS.length]}</span><b>${discovered ? areaName(a) : 'Unknown land'}</b>
+        <div class="map-area-head"><span class="map-ico">${gi(TERRAIN_ICONS[a % TERRAIN_ICONS.length][0], TERRAIN_ICONS[a % TERRAIN_ICONS.length][1])}</span><b>${discovered ? areaName(a) : 'Unknown land'}</b>
           <span class="map-mons">${mons}</span></div>
         <div class="zone-trail">${zones.join('')}</div>
       </div>`;

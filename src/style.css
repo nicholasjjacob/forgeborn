@@ -896,3 +896,22 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 }
 .name, .q-text, .ach-name, .task-text, .wc-name, .offer-name, .bag-detail-name, .zone-name { text-shadow: var(--outline); }
 .icon { box-shadow: inset 0 0 0 2.5px var(--wood), inset 0 4px 0 #ffffff40, 0 3px 0 var(--wood-dark); }
+
+/* --- Icons (ui/icons.ts: game-icons.net, CC BY 3.0) ------------------------------------------ */
+.gi { width: 1em; height: 1em; display: inline-block; vertical-align: -0.15em; overflow: visible; filter: drop-shadow(0 1.5px 0 #0a1035b0); }
+.side-ico { display: block; line-height: 0; filter: none; }
+.side-ico .gi { width: 30px; height: 30px; }
+#settings-btn .gi { width: 20px; height: 20px; vertical-align: -4px; }
+.icon .gi { width: 28px; height: 28px; }
+.flb-ico { line-height: 0; }
+.flb-ico .gi { width: 24px; height: 24px; }
+.offer-ico .gi { width: 38px; height: 38px; }
+.chest-ico { line-height: 0; }
+.chest-ico .gi { width: 24px; height: 24px; }
+.chest.ready .chest-ico .gi { width: 28px; height: 28px; }
+.lv-lock .gi, .task-end .gi { width: 22px; height: 22px; }
+.jday .jlock .gi { width: 10px; height: 10px; filter: none; }
+.zone-node .gi { width: 18px; height: 18px; }
+.map-ico { line-height: 0; }
+.map-ico .gi { width: 24px; height: 24px; }
+.h-ico { width: 26px; height: 26px; vertical-align: -5px; }

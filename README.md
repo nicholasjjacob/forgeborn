@@ -36,3 +36,4 @@ The 3D models in `public/models/` are converted from the source packs with `blen
 ## Credits
 
 3D models by [Quaternius](https://quaternius.com) (CC0): Ultimate Monsters, Stylized Nature MegaKit, Knight Character.
+UI icons from [game-icons.net](https://game-icons.net) by Lorc, Delapouite and contributors (CC BY 3.0), restyled in code. Fonts: Lilita One and Fredoka (SIL OFL).

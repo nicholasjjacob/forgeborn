@@ -1,3 +1,4 @@
+import { gi } from './icons';
 import { areaName } from '../sim/areas';
 import { zoneName } from '../sim/zones';
 import { haptic, sfx } from '../audio/sfx';
@@ -27,7 +28,7 @@ export class ForgeLevelUI {
     wrap.setAttribute('aria-label', 'Forge level');
     wrap.innerHTML = `
       <div class="modal-card forge-level-card">
-        <h2>🔨 Forge</h2>
+        <h2>${gi('anvil-impact', 'grey', 'h-ico')} Forge</h2>
         <div class="flc-body"></div>
         <div class="set-actions">
           <button type="button" class="btn ghost" data-close>Close</button>
@@ -97,7 +98,7 @@ export class ForgeLevelUI {
       </div>`;
     const btn = this.wrap.querySelector<HTMLButtonElement>('#flc-upgrade')!;
     btn.disabled = maxed || locked || s.gold < cost;
-    btn.innerHTML = maxed ? 'Max level' : locked ? `🔒 ${areaName(lv)}` : `Upgrade <span class="coin-dot"></span>${fmt(cost)}`;
+    btn.innerHTML = maxed ? 'Max level' : locked ? `${gi('padlock', 'grey')} ${areaName(lv)}` : `Upgrade <span class="coin-dot"></span>${fmt(cost)}`;
     const p = this.wrap.querySelector<HTMLElement>('.flc-body p')!;
     if (locked) p.textContent = `The forge grows with your journey: unlock ${zoneName(lv * 3)} in ${areaName(lv)} this run to reach level ${lv + 1}.`;
     else if (!maxed && s.gold < cost) p.textContent = `Need ${fmt(cost - s.gold)} more gold to reach level ${lv + 1}.`;
