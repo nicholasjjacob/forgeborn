@@ -41,7 +41,7 @@ export async function renderKitIcons(icons: string[][], size = 96): Promise<bool
       if (s0.z > s0.y && s0.z > s0.x) kit.group.rotation.x = -Math.PI / 2; // bows and crossbows point along z
       pose.rotation.z = -0.72;
       if (kit.off) {
-        // Sword & Shield: the shield behind, lower left.
+        // An off-hand piece (e.g. a shield): behind, lower left.
         kit.off.position.set(-0.35, -0.35, -0.3);
         kit.off.rotation.z = 0.72;
         pose.add(kit.off);

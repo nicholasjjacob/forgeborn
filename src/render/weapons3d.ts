@@ -20,7 +20,6 @@ export function weaponTrailColor(rarity: number): number {
 }
 
 export function buildWeapon(form: number, rarity: number): WeaponView {
-  if (form === 10) form = 0; // Sword & Shield: the sword (the shield only exists as a pack model)
   const g = new THREE.Group();
   const glow: THREE.MeshPhongMaterial[] = [];
   const metal = new THREE.MeshPhongMaterial({
@@ -193,7 +192,6 @@ const KIT: Record<number, { main: string; gold?: string; off?: string; scale?: n
   7: { main: 'bow_withString', scale: 1.25 },
   8: { main: 'staff' },
   9: { main: 'wand' },
-  10: { main: 'sword_1handed', off: 'shield_badge_color' },
 };
 
 /** Every weapon model file (to preload). */

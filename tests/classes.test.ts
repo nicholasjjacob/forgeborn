@@ -50,14 +50,6 @@ describe('hero classes', () => {
     expect(sim.ranged).toBeNull();
   });
 
-  it("the Knight's Sword & Shield blocks a quarter of incoming damage", () => {
-    const save = heroSave('knight');
-    save.equipped = starterWeapon(10);
-    const sim = new Sim(save, 1);
-    expect(skinDef('knight').forms).toContain(10);
-    expect(sim.block).toBe(0.25);
-  });
-
   it('class perks change the hero: the Knight is tougher than the Rogue', () => {
     const knight = new Sim(heroSave('knight'), 1);
     const rogue = new Sim(heroSave('rogue'), 1);
@@ -70,6 +62,20 @@ describe('hero classes', () => {
     const sim = new Sim(save, 5);
     for (let i = 0; i < 30 * 60; i++) { sim.tick(); sim.events.clear(); }
     expect(save.kills).toBeGreaterThan(5);
+  });
+});
+
+describe('save clean-up', () => {
+  it('weapons of a removed type (the old Sword & Shield) become Swords', () => {
+    const save = { ...freshSave() } as unknown as Record<string, unknown>;
+    save.equipped = { id: 5, rarity: 3, form: 10, traits: [] };
+    const weapons = Array(20).fill(null);
+    weapons[0] = { id: 6, rarity: 2, form: 10, traits: [] };
+    save.weapons = weapons;
+    const s = migrate(save);
+    expect(s.equipped?.form).toBe(0);
+    expect(s.equipped?.rarity).toBe(3);
+    expect(s.weapons[0]?.form).toBe(0);
   });
 });
 

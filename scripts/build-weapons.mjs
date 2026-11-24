@@ -1,4 +1,4 @@
-// Copies the KayKit Adventurers weapon, shield and projectile models (CC0, Kay Lousberg) into
+// Copies the KayKit Adventurers weapon and projectile models (CC0, Kay Lousberg) into
 // public/models/w_<name>.glb (one file each, texture embedded, unused data pruned).
 // Run: node scripts/build-weapons.mjs [path to KayKit_Adventurers_2.0_FREE folder]
 import { existsSync, statSync } from 'node:fs';
@@ -14,7 +14,7 @@ if (!existsSync(DIR)) throw new Error(`KayKit folder not found: ${SRC}`);
 
 const MODELS = [
   'sword_1handed', 'sword_2handed', 'sword_2handed_color', 'axe_1handed', 'axe_2handed', 'dagger',
-  'crossbow_1handed', 'bow_withString', 'staff', 'wand', 'shield_badge_color',
+  'crossbow_1handed', 'bow_withString', 'staff', 'wand',
   'arrow_bow', 'arrow_crossbow',
 ];
 const io = new NodeIO();

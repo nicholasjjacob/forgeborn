@@ -198,7 +198,6 @@ const WOOD = '#7a4a28';
 
 /** 9×16, grip centred at x=4.5, y≈13 (anchor 0.5, 0.82). */
 function drawWeapon(c: Ctx, form: number, p: (typeof WEAPON_PALS)[number]): void {
-  if (form === 10) form = 0; // Sword & Shield (fallback icon; the real one is rendered from the models)
   if (p.glow) { c.shadowColor = p.glow; c.shadowBlur = 2.5 * RES; }
   const metal = (x0: number, x1: number) => {
     const g = c.createLinearGradient(x0, 0, x1, 0);

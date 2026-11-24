@@ -42,7 +42,7 @@ export interface SkinDef {
 
 export const SKINS: readonly SkinDef[] = [
   { id: 'knight', name: 'Knight', role: 'Guardian', blurb: 'Plate armour, a crested helm and a red cape.', cost: 0,
-    forms: [0, 3, 10], perk: '+40% HP and takes 20% less damage', mods: { hp: 1.4, dmgTaken: 0.8 },
+    forms: [0, 3], perk: '+40% HP and takes 20% less damage', mods: { hp: 1.4, dmgTaken: 0.8 },
     looks: [{ id: 'open', name: 'Visor up' }, { id: 'visor', name: 'Visor down' }, { id: 'bare', name: 'No helmet' }] },
   { id: 'barbarian', name: 'Barbarian', role: 'Berserker', blurb: 'Bear-skin hat, bare arms, big attitude.', cost: 150,
     forms: [1, 2], perk: 'Rage: up to +60% damage as HP drops · wider swings', mods: { rage: 0.6, arc: 1.2, hp: 1.1 } },
