@@ -65,9 +65,18 @@ export class Pager {
     const item = [...this.list.children].find((c) => !(c as HTMLElement).hidden) as HTMLElement | undefined;
     if (!page || page.hidden || !item || page.clientHeight === 0) return;
     const gap = parseFloat(getComputedStyle(this.list).rowGap) || 0;
-    const room = page.getBoundingClientRect().bottom - this.list.getBoundingClientRect().top - reserve;
     const rowH = item.getBoundingClientRect().height + gap;
     if (rowH <= gap) return;
+    let room: number;
+    const panel = this.list.closest<HTMLElement>('#panel');
+    const maxH = panel ? parseFloat(getComputedStyle(panel).maxHeight) : NaN;
+    if (panel && Number.isFinite(maxH)) {
+      // The page sizes to its content up to a maximum height: the list may use whatever that
+      // maximum leaves after everything else on the page.
+      room = maxH - (panel.getBoundingClientRect().height - this.list.getBoundingClientRect().height);
+    } else {
+      room = page.getBoundingClientRect().bottom - this.list.getBoundingClientRect().top - reserve;
+    }
     const rows = Math.max(min, Math.min(max, Math.floor((room + gap) / rowH)));
     if (rows * cols !== this.size) { this.size = rows * cols; this.update(); }
   }

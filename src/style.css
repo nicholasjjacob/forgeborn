@@ -1257,3 +1257,12 @@ html.icons3d .chest.ready .chest-ico { width: 38px; height: 38px; filter: drop-s
 .jday { overflow: visible; }
 .jdays { padding: 8px 5px 0; }
 .jday .dot { z-index: 1; }
+
+/* Pages hug their content: anchored just above the bottom icons and only as tall as they need,
+   up to the full height below the top bar (no empty space under short pages). */
+#panel {
+  top: auto;
+  max-height: calc(100dvh - var(--safe-top) - 50px - var(--dock-h) - var(--safe-bottom) + 6px);
+}
+#panel .tab-page { flex: 0 1 auto; }
+#panel .page-pad, #panel .page-fit, #forge-root { padding-bottom: 10px; }
