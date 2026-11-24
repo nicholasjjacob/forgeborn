@@ -3,6 +3,7 @@ import { sfx } from '../audio/sfx';
 import { ACHIEVEMENTS, ACH_BONUS_PER_TIER, ROMAN, achGoal, questText } from '../sim/meta';
 import type { Sim } from '../sim/sim';
 import { rewardSpill } from './rewardFx';
+import { Pager, bindSegments } from './pager';
 
 /** Quests tab: three rolling quests with Claim buttons, then the achievement list. */
 export class QuestPanel {
@@ -10,13 +11,17 @@ export class QuestPanel {
   private readonly questRows: { root: HTMLElement; text: HTMLElement; fill: HTMLElement; prog: HTMLElement; reward: HTMLElement; btn: HTMLButtonElement }[] = [];
   private readonly achRows: { name: HTMLElement; goal: HTMLElement; fill: HTMLElement; tier: HTMLElement }[] = [];
   private readonly bonus: HTMLElement;
+  private readonly pager: Pager;
 
   constructor(root: HTMLElement, private readonly sim: Sim) {
     root.innerHTML = `
-      <h3 class="section-title">Quests</h3>
-      <ul class="quest-list"></ul>
-      <h3 class="section-title">Achievements <span class="ach-bonus"></span></h3>
-      <ul class="ach-list"></ul>`;
+      <div class="seg" role="tablist">
+        <button type="button" role="tab" data-seg="q" class="on" aria-selected="true">Quests</button>
+        <button type="button" role="tab" data-seg="a" aria-selected="false">Achievements</button>
+      </div>
+      <div data-seg-page="q"><ul class="quest-list"></ul></div>
+      <div data-seg-page="a" hidden><ul class="ach-list paged"></ul><div class="page-foot"><span class="ach-bonus"></span></div></div>`;
+    bindSegments(root, () => this.refresh());
     this.bonus = root.querySelector('.ach-bonus')!;
     const ql = root.querySelector('.quest-list')!;
     for (let i = 0; i < sim.save.quests.length; i++) {
@@ -41,7 +46,7 @@ export class QuestPanel {
         prog: li.querySelector('.bar-text')!, reward: li.querySelector('.q-reward')!, btn,
       });
     }
-    const al = root.querySelector('.ach-list')!;
+    const al = root.querySelector<HTMLElement>('.ach-list')!;
     for (const a of ACHIEVEMENTS) {
       const li = document.createElement('li');
       li.className = 'ach';
@@ -50,6 +55,9 @@ export class QuestPanel {
       al.appendChild(li);
       this.achRows.push({ name: li.querySelector('.ach-name')!, goal: li.querySelector('.ach-goal')!, fill: li.querySelector('.bar-fill')!, tier: li.querySelector('.ach-tier')! });
     }
+    this.pager = new Pager(al, 6);
+    root.querySelector('.page-foot')!.append(this.pager.el);
+    this.pager.update();
   }
 
   private set(el: HTMLElement, text: string): void {
@@ -94,7 +102,7 @@ export class QuestPanel {
       this.set(r.goal, `${achGoal(a, tier)} · ${fmt(Math.min(v, goal))}/${fmt(goal)}`);
       this.bar(r.fill, v / goal);
     });
-    this.set(this.bonus, `+${Math.round(tiers * ACH_BONUS_PER_TIER * 100)}% damage & gold`);
+    this.set(this.bonus, `Bonus: +${Math.round(tiers * ACH_BONUS_PER_TIER * 100)}% damage & gold`);
   }
 
   badge(): string {

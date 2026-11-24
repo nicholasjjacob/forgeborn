@@ -5,6 +5,7 @@ import { GLOW_DMG, GLOW_HP, PERKS, PERK_IDS, REFORGE_MIN_STAGE, embersFor, type 
 import { zoneName, zoneStage } from '../sim/zones';
 import type { Sim } from '../sim/sim';
 import { confirmDialog } from './dialog';
+import { Pager, bindSegments } from './pager';
 
 /** Icon per Reforge perk. */
 const PERK_ICONS: Record<string, string> = {
@@ -20,15 +21,19 @@ export class ReforgePanel {
 
   constructor(root: HTMLElement, private readonly sim: Sim, private readonly toast: (m: string) => void) {
     root.innerHTML = `
-      <div class="reforge-card">
+      <div class="seg" role="tablist">
+        <button type="button" role="tab" data-seg="r" class="on" aria-selected="true">Reforge</button>
+        <button type="button" role="tab" data-seg="p" aria-selected="false">Ember perks</button>
+      </div>
+      <div data-seg-page="r" class="reforge-card">
         <div class="rf-embers"><span class="ember" aria-hidden="true"></span><b id="rf-balance"></b><span>embers</span></div>
         <div class="rf-glow" id="rf-glow"></div>
         <p class="rf-text" id="rf-text"></p>
         <button type="button" class="btn danger" id="rf-btn">Reforge</button>
         <p class="rf-keep">Reforging resets stage, gold, shards, upgrades, weapons and forge level. You keep embers, perks, achievements and lifetime stats.</p>
       </div>
-      <h3 class="section-title">Ember perks</h3>
-      <ul class="perk-list"></ul>`;
+      <div data-seg-page="p" hidden><ul class="perk-list paged"></ul><div class="page-foot"><span class="perk-embers"></span></div></div>`;
+    bindSegments(root, () => this.refresh());
     const $ = (sel: string) => root.querySelector<HTMLElement>(sel)!;
     this.el = { balance: $('#rf-balance'), glow: $('#rf-glow'), text: $('#rf-text'), btn: $('#rf-btn') };
     this.el.btn.addEventListener('click', () => this.doReforge());
@@ -47,6 +52,10 @@ export class ReforgePanel {
       list.appendChild(li);
       this.rows.push({ id, lvl: li.querySelector('.lvl')!, eff: li.querySelector('.value')!, btn, cost: li.querySelector('.cost')! });
     }
+    const pager = new Pager(list, 4);
+    $('.page-foot').append(pager.el);
+    pager.update();
+    this.el.perkEmbers = $('.perk-embers');
   }
 
   private async doReforge(): Promise<void> {
@@ -75,6 +84,7 @@ export class ReforgePanel {
     const s = this.sim.save;
     const gain = this.sim.reforgeGain;
     this.set(this.el.balance, fmt(s.embers));
+    this.set(this.el.perkEmbers, `${fmt(s.embers)} embers to spend`);
     this.set(this.el.glow, s.embersEarned > 0
       ? `Ember Glow: +${fmt(s.embersEarned * GLOW_DMG * 100)}% damage, +${fmt(s.embersEarned * GLOW_HP * 100)}% HP (from ${fmt(s.embersEarned)} embers earned)`
       : `Every ember you earn adds +${GLOW_DMG * 100}% damage and +${GLOW_HP * 100}% HP forever, even after spending it.`);

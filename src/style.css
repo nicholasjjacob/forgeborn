@@ -260,7 +260,8 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 
 #panel {
   flex: 0 0 auto;
-  height: 40dvh;
+  height: calc(clamp(270px, 37dvh, 360px) + var(--safe-bottom));
+  touch-action: none; overscroll-behavior: none;
   transition: height 0.22s ease;
   display: flex; flex-direction: column;
   background: linear-gradient(#26337c, #1a2462 40%);
@@ -310,11 +311,12 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 }
 .badge.show { display: block; }
 
-.tab-page { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.tab-page { flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.tab-page > * { transform-origin: top center; }
 .tab-page[hidden], .buy-modes[hidden] { display: none; }
 .page-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 12px 6px; }
 .page-note { font-size: 11px; color: var(--ink-soft); }
-.page-pad { padding: 2px 10px 12px; }
+.page-pad { padding: 2px 10px 4px; }
 .section-title { margin: 8px 2px 6px; font-size: 15px; color: var(--title); text-shadow: var(--outline); display: flex; justify-content: space-between; align-items: baseline; }
 .ach-bonus { font-size: 12px; color: var(--orange-2); }
 
@@ -1019,3 +1021,84 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 /* "Updated" note after an automatic update reload (pwa.ts). */
 .update-banner.done { pointer-events: none; cursor: default; transition: opacity 0.6s, translate 0.6s; }
 .update-banner.done.gone { opacity: 0; translate: -50% -12px; }
+
+/* --- Locked menu: every tab fits its page; long lists turn pages instead of scrolling ------- */
+.paged > [hidden] { display: none !important; }
+.pager { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.pager.single { visibility: hidden; }
+.pg-btn {
+  width: 30px; height: 26px; padding: 0; border: 0; border-radius: 9px; font: inherit; font-size: 20px; line-height: 1; color: #fff;
+  background: linear-gradient(var(--blue-1), var(--blue-2)); box-shadow: inset 0 0 0 2px var(--blue-edge), 0 3px 0 var(--blue-edge); text-shadow: var(--outline);
+}
+.pg-btn:disabled { background: linear-gradient(var(--grey-1), var(--grey-2)); box-shadow: inset 0 0 0 2px var(--grey-edge), 0 3px 0 var(--grey-edge); color: #fff8; }
+.pg-label { min-width: 34px; text-align: center; font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.page-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 12px; color: var(--ink-soft); }
+.page-foot .pager { margin-left: auto; }
+
+/* Two-way switch at the top of Quests / Reforge */
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 3px; margin: 0 0 6px; border-radius: 11px; background: var(--cream-3); box-shadow: inset 0 0 0 2px var(--wood); }
+.seg button { border: 0; border-radius: 8px; padding: 5px 4px; font: inherit; font-size: 13px; color: var(--ink-soft); background: transparent; }
+.seg button.on { color: #fff; background: linear-gradient(var(--blue-1), var(--blue-2)); text-shadow: var(--outline); box-shadow: inset 0 0 0 2px var(--blue-edge); }
+
+/* Upgrades: slimmer rows so all five fit */
+.page-head { padding: 0 10px 4px; }
+.page-head .buy-modes { padding: 2px; }
+.page-head .buy-modes button { padding: 2px 10px; }
+#upgrade-list { gap: 4px; padding: 0 10px 2px; }
+#upgrade-list .upgrade, .perk-list .upgrade { padding: 3px 6px; gap: 8px; }
+#upgrade-list .icon, .perk-list .icon { width: 34px; height: 34px; }
+#upgrade-list .icon .gi, .perk-list .icon .gi { width: 24px; height: 24px; }
+#upgrade-list .buy, .perk-list .buy { padding: 2px 10px; min-width: 78px; }
+.perk-list { gap: 6px; }
+
+/* Quests: three compact cards; achievements two columns, six per page */
+.quest { padding: 5px 8px; }
+.quest-list { gap: 6px; }
+.q-main { gap: 3px; }
+.q-text { font-size: 13px; }
+.ach-list { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.ach { padding: 5px 7px; gap: 7px; }
+.ach-tier { flex: 0 0 28px; height: 28px; font-size: 11px; }
+.ach-name { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ach-goal { font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Reforge card: tighter */
+.reforge-card { padding: 10px 12px; margin: 0; }
+.rf-embers { font-size: 22px; }
+.rf-glow { margin: 2px 0 6px; font-size: 11px; }
+.rf-text { font-size: 12px; margin: 0 0 8px; }
+.rf-keep { font-size: 10px; margin-top: 6px; }
+.reforge-card .btn { padding: 7px; font-size: 16px; }
+
+/* Forge: fixed-height weapon card, one action bar, two rows of weapons per page */
+#forge-root { gap: 8px; padding-bottom: 4px; }
+.weapon-card { grid-template-columns: 50px 1fr auto; gap: 8px; padding: 5px 8px; height: 88px; overflow: hidden; }
+.wc-icon { width: 50px; height: 50px; }
+.wc-icon img { width: 23px; height: 42px; }
+.wc-body { display: flex; flex-direction: column; gap: 0; max-height: 78px; overflow: hidden; line-height: 1.2; }
+.wc-title, .wc-atk, .wc-merge, .wc-summary { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wc-tag { display: inline; margin-right: 5px; font-size: 9px; }
+.wc-name { font-size: 14px; }
+.wc-atk, .wc-merge { font-size: 12px; }
+.wc-summary { font-size: 11px; }
+.weapon-card.selecting .wc-summary { display: none; }
+.wc-traits { display: flex; flex-wrap: nowrap; gap: 0 8px; margin: 0; font-size: 11px; white-space: nowrap; overflow: hidden; }
+.wc-hint { font-size: 10px; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.wc-actions { gap: 4px; }
+.wc-actions .btn.small { padding: 4px 9px; font-size: 12px; }
+.forge-actions { grid-template-columns: 1.55fr 0.8fr 0.95fr 0.85fr 0.85fr; gap: 5px; height: 42px; }
+.forge-actions .btn { padding: 4px 6px; font-size: 14px; line-height: 1.05; }
+.forge-actions .btn .cost { margin-left: 4px; }
+#auto-merge { font-size: 11px; }
+.forge-level-btn.mini { flex-direction: column; justify-content: center; gap: 1px; padding: 3px 2px; text-align: center; }
+.forge-level-btn.mini .flb-ico .gi { width: 18px; height: 18px; }
+.forge-level-btn.mini b { font-size: 12px; font-variant-numeric: tabular-nums; }
+.inv-wrap { display: grid; grid-template-columns: 24px 1fr 24px; gap: 5px; }
+.inv-wrap .pager { display: contents; }
+.inv-wrap .pg-label { display: none; }
+.inv-wrap .pg-btn { grid-row: 1; width: auto; height: auto; }
+.inv-wrap .pg-btn:first-child { grid-column: 1; }
+.inv-wrap .pg-btn:last-child { grid-column: 3; }
+.inv-grid { grid-column: 2; grid-row: 1; grid-template-columns: repeat(6, 1fr); gap: 5px; }
+.slot { min-height: 0; }
+.wc-tag:empty { display: none; }

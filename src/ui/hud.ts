@@ -1,3 +1,4 @@
+import { fitToPage } from './pager';
 import { gi } from './icons';
 import { HeroesUI } from './heroes';
 import { fmt } from '../core/format';
@@ -195,6 +196,7 @@ export class Hud {
 
   private collapsed = false;
   private swipedAt = -1e9;
+  private fitAt = 0;
 
   /** Hide the menu down to its tab bar (the battlefield grows to fill the room), or show it. */
   setCollapsed(c: boolean): void {
@@ -211,6 +213,7 @@ export class Hud {
     this.tab = tab;
     for (const t of document.querySelectorAll<HTMLElement>('[data-tab]')) t.setAttribute('aria-selected', String(t.dataset.tab === tab));
     for (const p of document.querySelectorAll<HTMLElement>('[data-page]')) p.hidden = p.dataset.page !== tab;
+    this.fitAt = 0;
     this.refresh();
   }
 
@@ -257,6 +260,13 @@ export class Hud {
 
   /** Called ~10× per second. */
   refresh(): void {
+    // The open menu page never scrolls: on a very short screen its content shrinks to fit.
+    const tNow = performance.now();
+    if (tNow - this.fitAt > 400 && !this.collapsed) {
+      this.fitAt = tNow;
+      const page = document.querySelector<HTMLElement>(`[data-page="${this.tab}"]`);
+      if (page) fitToPage(page, page.firstElementChild as HTMLElement | null);
+    }
     const sim = this.sim;
     const s = sim.save;
     this.set(this.el.stage, zoneName(s.zone));

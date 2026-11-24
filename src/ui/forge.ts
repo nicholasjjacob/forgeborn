@@ -4,6 +4,7 @@ import { haptic, sfx } from '../audio/sfx';
 import type { Sim } from '../sim/sim';
 import { ForgeLevelUI } from './forgeLevel';
 import { InventoryUI } from './inventoryUI';
+import { Pager } from './pager';
 import {
   forgeCost, forgeLevelCap, FORMS, MAX_FORGE_LEVEL, MAX_RARITY, MERGE_COUNT, RARITY_COLORS, RARITY_NAMES, TRAITS, forgeOdds,
   forgeUpgradeCost, inventoryExpandCost, MAX_INVENTORY, matchingSlots, mergePartners, mergePreview, salvageValue, weaponName, weaponPower, weaponSummary, type Weapon,
@@ -29,6 +30,8 @@ export class ForgePanel {
   private readonly el: Record<string, HTMLElement>;
   private highlight = new Set<number>();
   private highlightKind: 'new' | 'pop' = 'new';
+  /** The inventory shows two rows at a time; swipe or ‹ › for the rest (the menu never scrolls). */
+  private readonly pager: Pager;
 
   constructor(root: HTMLElement, private readonly sim: Sim, private readonly icons: string[][], private readonly toast: (msg: string) => void) {
     root.innerHTML = `
@@ -51,21 +54,17 @@ export class ForgePanel {
       <div class="forge-actions">
         <button type="button" class="btn primary" id="forge-1">Forge <span class="cost"><i class="gem"></i><b id="forge-cost">10</b></span></button>
         <button type="button" class="btn" id="forge-10">x10</button>
-        <button type="button" class="btn" id="auto-merge">Auto-merge</button>
-      </div>
-      <div class="forge-meta">
-        <button type="button" class="forge-level-btn" id="forge-level-btn" aria-label="Forge level and upgrades">
-          <span class="flb-ico">${gi('anvil-impact', 'grey')}</span>
-          <span class="flb-text"><b id="fl-level"></b><small id="fl-odds"></small></span>
+        <button type="button" class="btn" id="auto-merge">Auto<br>merge</button>
+        <button type="button" class="forge-level-btn mini" id="forge-level-btn" aria-label="Forge level and upgrades">
+          <span class="flb-ico">${gi('anvil-impact', 'grey')}</span><b id="fl-level"></b><small id="fl-odds" hidden></small>
           <b class="dot" id="fl-dot" hidden>!</b>
         </button>
-        <button type="button" class="forge-level-btn" id="inv-btn" aria-label="Inventory size">
-          <span class="flb-ico">${gi('crossed-swords', 'white')}</span>
-          <span class="flb-text"><b id="inv-count"></b><small id="inv-sub"></small></span>
+        <button type="button" class="forge-level-btn mini" id="inv-btn" aria-label="Inventory size">
+          <span class="flb-ico">${gi('crossed-swords', 'white')}</span><b id="inv-count"></b><small id="inv-sub" hidden></small>
           <b class="dot" id="inv-dot" hidden>!</b>
         </button>
       </div>
-      <div class="inv-grid" id="inv-grid" role="grid" aria-label="Weapon inventory"></div>`;
+      <div class="inv-wrap"><div class="inv-grid paged" id="inv-grid" role="grid" aria-label="Weapon inventory"></div></div>`;
 
     const $ = (sel: string) => root.querySelector<HTMLElement>(sel)!;
     this.el = {
@@ -77,6 +76,8 @@ export class ForgePanel {
       invBtn: $('#inv-btn'), invCount: $('#inv-count'), invSub: $('#inv-sub'), invDot: $('#inv-dot'),
       grid: $('#inv-grid'),
     };
+    this.pager = new Pager(this.el.grid, 12);
+    $('.inv-wrap').append(this.pager.el);
 
     this.ensureSlots();
 
@@ -222,7 +223,7 @@ export class ForgePanel {
     const maxed = s.forgeLevel >= MAX_FORGE_LEVEL;
     const capped = s.forgeLevel >= forgeLevelCap(sim.maxZone);
     const [pu, pr, pe, pl] = forgeOdds(s.forgeLevel);
-    this.set(this.el.level, `Forge Lv ${s.forgeLevel}${maxed ? ' (max)' : ''}`);
+    this.set(this.el.level, `Lv ${s.forgeLevel}${maxed ? '★' : ''}`);
     this.set(this.el.odds, `Uncommon+ ${pct(pu + pr + pe + pl)} · Rare+ ${pct(pr + pe + pl)}`);
     // "!" when the next forge level is affordable.
     this.el.levelDot.hidden = capped || s.gold < forgeUpgradeCost(s.forgeLevel);
@@ -230,7 +231,7 @@ export class ForgePanel {
     // Inventory: used / size; "!" when it's (nearly) full and another row is affordable.
     const size = s.weapons.length, used = size - free;
     const invMaxed = size >= MAX_INVENTORY;
-    this.set(this.el.invCount, `Slots ${used}/${size}`);
+    this.set(this.el.invCount, `${used}/${size}`);
     this.set(this.el.invSub, invMaxed ? 'Max size' : `+5 slots · ${fmt(inventoryExpandCost(size))} gold`);
     this.el.invDot.hidden = invMaxed || free > 2 || s.gold < inventoryExpandCost(size);
     this.invUI.refresh();
@@ -269,7 +270,10 @@ export class ForgePanel {
       if (this.highlight.has(i)) b.classList.add(this.highlightKind);
       b.setAttribute('aria-label', `${RARITY_NAMES[w.rarity]} ${weaponName(w)}`);
     });
+    const shown = [...this.highlight][0] ?? (this.selected >= 0 ? this.selected : -1);
     this.highlight.clear();
+    if (shown >= 0) this.pager.reveal(shown);
+    this.pager.update();
 
     // Card: the selected weapon (with actions) or the equipped one.
     const w = sel ?? s.equipped;
@@ -284,7 +288,7 @@ export class ForgePanel {
       const img = this.el.icon as HTMLImageElement;
       img.src = this.icons[w.form][w.rarity];
       card.style.setProperty('--rc', RARITY_COLORS[w.rarity]);
-      this.el.tag.textContent = sel ? RARITY_NAMES[w.rarity] : `Equipped · ${RARITY_NAMES[w.rarity]}`;
+      this.el.tag.textContent = sel ? '' : 'Equipped';
       this.el.name.textContent = `${RARITY_NAMES[w.rarity]} ${weaponName(w)}`;
       this.el.summary.textContent = weaponSummary(w);
       this.el.traits.replaceChildren(...w.traits.map((t) => {
