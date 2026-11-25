@@ -19,7 +19,7 @@ import { MissionSystem } from './missionSystem';
 import { GameMap, MAP_H, MAP_W } from './map';
 import { BIOMES, FOREST_H, FOREST_W, biomeArrival, forestRegion, forestZone, type Territory } from './forest';
 import { MAX_LEVEL, levelBonus, milestoneReward, xpForKill, xpToNext, MILESTONES, type MilestoneReward } from './level';
-import { PLAYABLE_ZONES, stagePower, zoneArea, zoneBoss, zoneBossName, zoneLevel, zoneName, zoneStage, bossCooldown } from './zones';
+import { PLAYABLE_ZONES, outgrownRewards, stagePower, stageZone, zoneArea, zoneBoss, zoneBossName, zoneLevel, zoneName, zoneStage, bossCooldown } from './zones';
 import {
   forgeCost, forgeLevelCap, INVENTORY_SIZE, INVENTORY_STEP, MAX_FORGE_LEVEL, MAX_INVENTORY, inventoryExpandCost, mergeCount, bonusWeapon, compareWeapons, forgeAtkBonus, forgeUpgradeCost, forgeWeapon, matchingSlots, mergePartners, mergeWeapons,
   salvageValue, starterWeapon, weaponStats, type RangedDef, type Weapon,
@@ -1130,6 +1130,17 @@ export class Sim {
     return best;
   }
 
+  /** Say once per zone (per session) that the hero has outgrown it, and where to go next. */
+  private outgrownNoted = new Set<number>();
+  private noteOutgrown(zone: number): void {
+    if (this.outgrownNoted.has(zone)) return;
+    this.outgrownNoted.add(zone);
+    const next = zone + 1;
+    this.notices.push(this.zoneUnlocked(next)
+      ? `You've outgrown ${zoneName(zone)}: less XP and gold here. ${zoneName(next)} awaits!`
+      : `You've outgrown ${zoneName(zone)}: less XP and gold here. Beat the ${zoneBossName(zone)} to move on!`);
+  }
+
   /** Damage multiplier from the Berserker's rage (more as HP drops). */
   private rageMult(): number {
     const r = this.cls.rage ?? 0, h = this.hero;
@@ -1587,7 +1598,10 @@ export class Sim {
 
   private kill(e: Enemy): void {
     e.alive = false;
-    const gold = e.gold * this.goldMult;
+    // A hero who has outgrown this monster's zone earns less from it (bosses pay in full).
+    const out = e.boss ? { xp: 1, gold: 1, over: 0 } : outgrownRewards(stageZone(e.stage), this.save.level);
+    if (out.over > 0) this.noteOutgrown(stageZone(e.stage));
+    const gold = e.gold * this.goldMult * out.gold;
     this.save.gold += gold;
     this.bucketGold += gold;
     this.save.stats.gold += gold;
@@ -1595,7 +1609,7 @@ export class Sim {
     this.events.push(Ev.Kill, e.x, e.y, gold, e.boss ? 1 : 0);
     this.missions.recordKill(e.area, e.monster);
     if (e.elite) this.save.stats.elites++;
-    this.gainXp(xpForKill(e.stage, e.boss));
+    this.gainXp(Math.max(1, Math.round(xpForKill(e.stage, e.boss) * out.xp)));
 
     // Shards for the forge: bosses always drop a bundle, regular monsters sometimes drop one.
     const per = 1 + Math.floor(e.stage / 12);

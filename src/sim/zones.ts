@@ -114,10 +114,27 @@ export function zoneBossName(zone: number): string {
  * is unchanged (more of it would just feed the hero's upgrades). Zones past the table use its end.
  */
 const ZONE_POWER: readonly [number, number][] = [
-  [1, 1], [12, 5.5], [17, 8], [30, 13], [32, 15], [30, 15], [27, 14], [24, 13], [22, 12],
+  [1, 1], [17, 6.5], [22, 9], [30, 13], [32, 15], [30, 15], [27, 14], [24, 13], [22, 12],
 ];
 export function stagePower(stage: number): { hp: number; dmg: number } {
   const z = Math.max(0, Math.min(ZONE_POWER.length - 1, Math.round((stage - 1) / 4)));
   const [hp, dmg] = ZONE_POWER[z];
   return { hp, dmg };
+}
+
+/** The zone a monster of this difficulty (stage) belongs to. */
+export const stageZone = (stage: number) => Math.max(0, Math.round((stage - 1) / 4));
+
+/** Past this hero level a zone stops paying full XP and gold: you've outgrown it. */
+export const zoneOutgrownAt = (zone: number) => zoneLevel(zone + 1) + 1;
+
+/**
+ * Reward multipliers for a hero `level` fighting in `zone`: full up to zoneOutgrownAt, then XP
+ * halves and gold falls by 40% with every level past it (floors 5% / 10%). Lingering in an
+ * easy zone can't make you a powerhouse; moving on pays.
+ */
+export function outgrownRewards(zone: number, level: number): { xp: number; gold: number; over: number } {
+  const over = level - zoneOutgrownAt(zone);
+  if (over <= 0) return { xp: 1, gold: 1, over: 0 };
+  return { xp: Math.max(0.05, Math.pow(0.5, over)), gold: Math.max(0.1, Math.pow(0.6, over)), over };
 }

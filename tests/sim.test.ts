@@ -259,7 +259,7 @@ describe('world map zones', () => {
     const xp0 = lo.save.xp;
     (lo as unknown as { kill(e: Enemy): void }).kill(lo.enemies[0]);
     const loXp = lo.save.xp - xp0 + (lo.save.level - 1) * 0;
-    hiSave.level = 50; hiSave.xp = 0;
+    hiSave.level = 30; hiSave.xp = 0; // within the zone's band (not outgrown)
     (hi as unknown as { kill(e: Enemy): void }).kill(hi.enemies[0]);
     expect(hiSave.xp).toBeGreaterThan(loXp * 3);
   });
