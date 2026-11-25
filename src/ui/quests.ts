@@ -10,7 +10,7 @@ import { PLAYABLE_ZONES, zoneLevel } from '../sim/zones';
 import type { Sim } from '../sim/sim';
 import { chips } from './missions';
 import { rewardSpill } from './rewardFx';
-import { Pager, bindSegments } from './pager';
+import { bindSegments } from './pager';
 
 interface QuestRow { root: HTMLElement; name: HTMLElement; pips: HTMLElement; goal: HTMLElement; fill: HTMLElement; prog: HTMLElement; reward: HTMLElement; btn: HTMLButtonElement }
 interface MileCell { root: HTMLElement; need: HTMLElement; reward: HTMLElement; btn: HTMLButtonElement }
@@ -24,9 +24,8 @@ interface RegionCard { root: HTMLButtonElement; stars: HTMLElement; fill: HTMLEl
  */
 export class QuestPanel {
   private readonly cache = new Map<HTMLElement, string>();
-  private readonly achRows: { name: HTMLElement; goal: HTMLElement; fill: HTMLElement; tier: HTMLElement }[] = [];
+  private readonly achRows: { prog: HTMLElement; goal: HTMLElement; fill: HTMLElement; tier: HTMLElement }[] = [];
   private readonly bonus: HTMLElement;
-  private readonly pager: Pager;
   private readonly board: HTMLElement;
   private readonly detail: HTMLElement;
   private readonly cards: RegionCard[] = [];
@@ -61,7 +60,7 @@ export class QuestPanel {
           <ul class="qb-quests"></ul>
         </div>
       </div>
-      <div data-seg-page="a" hidden><ul class="ach-list paged"></ul><div class="page-foot"><span class="ach-bonus"></span></div></div>`;
+      <div data-seg-page="a" hidden><ul class="ach-list"></ul><div class="page-foot"><span class="ach-bonus"></span></div></div>`;
     bindSegments(root, () => this.refresh());
     this.board = root.querySelector('.qb-board')!;
     this.detail = root.querySelector('.qb-detail')!;
@@ -130,14 +129,12 @@ export class QuestPanel {
       const li = document.createElement('li');
       li.className = 'ach';
       li.innerHTML = `<span class="ach-tier"></span><div class="ach-main"><div class="ach-name"></div><div class="ach-goal"></div><div class="bar thin"><div class="bar-fill"></div></div></div>`;
-      li.querySelector('.ach-name')!.textContent = a.name;
+      li.querySelector('.ach-name')!.innerHTML = '<span></span><small></small>';
+      li.querySelector('.ach-name span')!.textContent = a.name;
       al.appendChild(li);
-      this.achRows.push({ name: li.querySelector('.ach-name')!, goal: li.querySelector('.ach-goal')!, fill: li.querySelector('.bar-fill')!, tier: li.querySelector('.ach-tier')! });
+      this.achRows.push({ prog: li.querySelector('.ach-name small')!, goal: li.querySelector('.ach-goal')!, fill: li.querySelector('.bar-fill')!, tier: li.querySelector('.ach-tier')! });
     }
     this.bonus = root.querySelector('.ach-bonus')!;
-    this.pager = new Pager(al, 8);
-    root.querySelector('[data-seg-page="a"] .page-foot')!.append(this.pager.el);
-    this.pager.update();
   }
 
   /** Show a region's quests (or the board for -1). */
@@ -258,10 +255,11 @@ export class QuestPanel {
       const maxed = tier >= a.tiers.length;
       this.set(r.tier, maxed ? '★' : ROMAN[tier] || '–');
       r.tier.classList.toggle('maxed', maxed);
-      if (maxed) { this.set(r.goal, 'Complete'); this.bar(r.fill, 1); return; }
+      if (maxed) { this.set(r.goal, 'Every tier earned'); this.set(r.prog, 'Complete'); this.bar(r.fill, 1); return; }
       const goal = a.tiers[tier];
       const v = sim.statValue(a.stat);
-      this.set(r.goal, `${achGoal(a, tier)} · ${fmt(Math.min(v, goal))}/${fmt(goal)}`);
+      this.set(r.goal, achGoal(a, tier));
+      this.set(r.prog, `${fmt(Math.min(v, goal))} / ${fmt(goal)}`);
       this.bar(r.fill, v / goal);
     });
     this.set(this.bonus, `Bonus: +${Math.round(tiers * ACH_BONUS_PER_TIER * 100)}% damage & gold`);
