@@ -901,7 +901,9 @@ html.pc #quests-root { --qb-h: min(600px, calc(100dvh - var(--safe-top) - 160px)
 .sheet-body > .sheet-note:first-child { padding: 0 34px; }
 
 /* --- Bag (ui/bag.ts) ----------------------------------------------------------------------- */
-.bag-detail { display: flex; align-items: center; gap: 12px; margin: 4px 0 6px; padding: 10px; border-radius: 14px; background: linear-gradient(var(--card-hi), var(--cream-2)); box-shadow: inset 0 0 0 2px var(--wood), 0 3px 0 var(--wood-dark); }
+.bag-detail { display: grid; margin: 10px 0 0; padding: 10px; border-radius: 14px; background: linear-gradient(var(--card-hi), var(--cream-2)); box-shadow: inset 0 0 0 2px var(--wood), 0 3px 0 var(--wood-dark); }
+.bag-detail-item { grid-area: 1 / 1; display: flex; align-items: center; gap: 12px; min-width: 0; }
+.bag-detail-item[data-on="false"] { visibility: hidden; }
 .bag-detail-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .bag-detail-name { font-size: 16px; }
 .bag-detail-name b { float: right; font-variant-numeric: tabular-nums; }
@@ -926,6 +928,8 @@ html.pc #quests-root { --qb-h: min(600px, calc(100dvh - var(--safe-top) - 160px)
 .bag-weapons { display: flex; flex-direction: column; gap: 5px; padding: 10px 12px; border-radius: 14px; background: linear-gradient(var(--card-hi), var(--cream-2)); box-shadow: inset 0 0 0 2px var(--wood), 0 3px 0 var(--wood-dark); font-size: 13px; }
 .bag-weapons .btn { align-self: flex-end; margin-top: 4px; }
 .sheet.bag-sheet { height: auto; max-height: 100%; } /* no tab bar to keep in place: fit the contents */
+/* The first heading sits level with the close button, with the tiles starting below it. */
+.bag-sheet .sheet-body > .bag-title:first-child { margin: 14px 52px 10px 2px; line-height: 22px; }
 
 /* --- World map (ui/worldMap.ts) ---------------------------------------------------------------- */
 #progress.ready #progress-fill { background: linear-gradient(#ffcf5a, #f0902a); }

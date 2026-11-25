@@ -3,6 +3,11 @@ import { fmt } from '../core/format';
 import type { Sim } from '../sim/sim';
 import { RARITY_NAMES, weaponName, weaponPower } from '../sim/weapons';
 import { bindSheetTaps } from './tap';
+import { REFORGE_MIN_STAGE } from '../sim/meta';
+import { zoneName, zoneStage } from '../sim/zones';
+
+/** Where Reforge opens (the same rule as the Reforge page). */
+const REFORGE_ZONE = (() => { let z = 0; while (zoneStage(z) < REFORGE_MIN_STAGE) z++; return zoneName(z); })();
 
 /**
  * The Bag: everything the hero is carrying. Treasures (gold, shards, gems, embers) as item
@@ -34,7 +39,7 @@ const ITEMS: { title: string; items: ItemDef[] }[] = [
         source: 'Daily login, mission gifts, the codex and Level Road rewards.' },
       { id: 'embers', name: 'Embers', icon: '<i class="ember"></i>', amount: (s) => s.save.embers,
         about: 'Buy permanent perks in the Reforge tab.',
-        source: 'Reforge once you reach the Sunscar Dunes, Level Road rewards and the Gem Shop.' },
+        source: `Reforge once you reach ${REFORGE_ZONE}, Level Road rewards and the Gem Shop.` },
     ],
   },
 ];
@@ -106,21 +111,26 @@ export class BagUI {
     const best = weapons.reduce<typeof weapons[number]>((b, w) => (!b || weaponPower(w!) > weaponPower(b) ? w : b), null);
     const eq = s.equipped;
 
-    this.wrap.querySelector('.sheet-body')!.innerHTML = `
-      <div class="bag-detail">
-        <span class="bag-ico big">${sel.icon}</span>
+    // Every item's details are laid in the same spot and only the chosen one shows, so the box is
+    // always as tall as the longest and the sheet never changes size when another tile is tapped.
+    const detail = (it: ItemDef) => `
+      <div class="bag-detail-item" ${it.id === sel.id ? '' : 'aria-hidden="true"'} data-on="${it.id === sel.id}">
+        <span class="bag-ico big">${it.icon}</span>
         <div class="bag-detail-text">
-          <div class="bag-detail-name">${sel.name} <b>${fmt(sel.amount(sim))}</b></div>
-          <div class="bag-about">${sel.about}</div>
-          <div class="bag-source">📍 ${sel.source}</div>
+          <div class="bag-detail-name">${it.name} <b>${fmt(it.amount(sim))}</b></div>
+          <div class="bag-about">${it.about}</div>
+          <div class="bag-source">📍 ${it.source}</div>
         </div>
-      </div>
+      </div>`;
+    // The tiles come first: only their heading sits beside the close button.
+    this.wrap.querySelector('.sheet-body')!.innerHTML = `
       ${ITEMS.map((g) => `<h3 class="bag-title">${g.title}</h3><div class="bag-grid">${g.items.map(tile).join('')}</div>`).join('')}
+      <div class="bag-detail">${all.map(detail).join('')}</div>
       <h3 class="bag-title">Weapons</h3>
       <div class="bag-weapons">
         <div class="bag-wline">⚔ <b>${weapons.length}/${s.weapons.length}</b> weapon slots used</div>
-        ${eq ? `<div class="bag-wline">Equipped: <b>${RARITY_NAMES[eq.rarity]} ${weaponName(eq)}</b></div>` : ''}
-        ${best ? `<div class="bag-wline">Best in bag: <b>${RARITY_NAMES[best.rarity]} ${weaponName(best)}</b></div>` : ''}
+        <div class="bag-wline">Equipped: <b>${eq ? `${RARITY_NAMES[eq.rarity]} ${weaponName(eq)}` : 'nothing'}</b></div>
+        <div class="bag-wline">Best in bag: <b>${best ? `${RARITY_NAMES[best.rarity]} ${weaponName(best)}` : 'none yet'}</b></div>
         <button type="button" class="btn small primary" data-act="forge:">Open Forge ›</button>
       </div>`;
   }
