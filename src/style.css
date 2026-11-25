@@ -1365,3 +1365,4 @@ html.pc .wm-view { grid-column: 1; grid-row: 2; width: calc(min(70dvh, 820px) * 
 html.pc .wm-info { grid-column: 2; grid-row: 2; align-self: center; }
 html.pc .wm-info .sheet-note { text-align: left; font-size: 13px; }
 html.pc .wm-ri-act .btn { min-width: 100%; }
+.wm-horde { color: #ff7a6a; }

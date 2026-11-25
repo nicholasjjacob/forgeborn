@@ -1,6 +1,6 @@
 import { areaFor } from '../sim/areas';
 import { EXPLORE_CELL, type Explored } from '../sim/explore';
-import { FOREST_PATHS, type ForestInfo } from '../sim/forest';
+import { FOREST_PATHS, regionRaster, type ForestInfo } from '../sim/forest';
 import type { Sim } from '../sim/sim';
 
 /**
@@ -10,7 +10,6 @@ import type { Sim } from '../sim/sim';
  * the hero has been there. Tap it to open the World Map. Hidden off the forest.
  */
 
-const REGION_COL = ['#5fae45', '#b98fb0', '#c08a45']; // Meadow, Bloomwood, Old Mill (south → north)
 const FOG = '#4a505e';
 /** World units from the centre of the minimap to its rim. */
 const VIEW_R = 300;
@@ -68,8 +67,10 @@ export class Minimap {
     g.lineCap = 'round';
     for (const gate of f.gates) {
       if (map.openGates.has(gate.zone) || !seen(gate.x, gate.y)) continue;
-      g.strokeStyle = '#ff3b3b'; g.lineWidth = 4 * dpr;
-      g.beginPath(); g.moveTo((gate.x - 30) * k, gate.y * k); g.lineTo((gate.x + 30) * k, gate.y * k); g.stroke();
+      // A red X over the barricade.
+      const x = gate.x * k, y = gate.y * k, d = 3.5 * dpr;
+      g.strokeStyle = '#ff3b3b'; g.lineWidth = 2.5 * dpr;
+      g.beginPath(); g.moveTo(x - d, y - d); g.lineTo(x + d, y + d); g.moveTo(x + d, y - d); g.lineTo(x - d, y + d); g.stroke();
     }
     // Territories: the monster's colour, once found.
     const mons = areaFor(0).def.monsters;
@@ -111,29 +112,34 @@ export class Minimap {
     g.restore();
   }
 
-  /** Regions, trails, walls and landmarks of the whole map at `k` px per unit: drawn once. */
+  /** Regions (each in its colour), rocky borders, ponds, trails and landmarks of the whole map at `k` px per unit: drawn once. */
   private background(f: ForestInfo, mw: number, mh: number, k: number): HTMLCanvasElement {
     this.bgFor = f; this.bgK = k;
     const c = document.createElement('canvas');
     c.width = Math.ceil(mw * k); c.height = Math.ceil(mh * k);
     const g = c.getContext('2d')!;
-    const bands = [0, ...f.walls, mh];
-    for (let i = 0; i < bands.length - 1; i++) {
-      g.fillStyle = REGION_COL[2 - i] ?? REGION_COL[0];
-      g.fillRect(0, bands[i] * k, c.width, (bands[i + 1] - bands[i]) * k);
+    // The region raster, one pixel per cell, scaled up smoothly.
+    const R = regionRaster();
+    const img = document.createElement('canvas');
+    img.width = R.cols; img.height = R.rows;
+    const ig = img.getContext('2d')!;
+    const px = ig.createImageData(R.cols, R.rows);
+    const rgb = (hex: string) => [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
+    const cols = f.biomes.map((b) => rgb(b.map));
+    for (let i = 0; i < R.data.length; i++) {
+      const v = R.data[i];
+      const col = v < 0 ? [34, 56, 34] : R.border[i] ? [96, 98, 104] : cols[v];
+      px.data[i * 4] = col[0]; px.data[i * 4 + 1] = col[1]; px.data[i * 4 + 2] = col[2]; px.data[i * 4 + 3] = 255;
     }
+    ig.putImageData(px, 0, 0);
+    g.imageSmoothingEnabled = true;
+    g.drawImage(img, 0, 0, R.cols * R.cell * k, R.rows * R.cell * k);
+    g.fillStyle = '#4aa6e0';
+    for (const p of f.ponds) { g.beginPath(); g.arc(p.x * k, p.y * k, p.r * k, 0, Math.PI * 2); g.fill(); }
     g.strokeStyle = 'rgba(244, 222, 170, 0.85)'; g.lineWidth = Math.max(1.5, 14 * k); g.lineCap = 'round';
     g.beginPath();
     for (const [x0, y0, x1, y1] of FOREST_PATHS) { g.moveTo(x0 * k, y0 * k); g.lineTo(x1 * k, y1 * k); }
     g.stroke();
-    g.strokeStyle = '#4a4e5a'; g.lineWidth = Math.max(2, 22 * k);
-    for (const y of f.walls) {
-      const gate = f.gates.find((q) => q.y === y);
-      g.beginPath();
-      if (gate) { g.moveTo(0, y * k); g.lineTo((gate.x - 34) * k, y * k); g.moveTo((gate.x + 34) * k, y * k); g.lineTo(c.width, y * k); }
-      else { g.moveTo(0, y * k); g.lineTo(c.width, y * k); }
-      g.stroke();
-    }
     g.fillStyle = 'rgba(255,255,255,0.8)';
     for (const l of f.landmarks) { g.beginPath(); g.arc(l.x * k, l.y * k, Math.max(2, 9 * k), 0, Math.PI * 2); g.fill(); }
     return c;

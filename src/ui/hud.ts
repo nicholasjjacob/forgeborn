@@ -1,3 +1,4 @@
+import { BIOMES } from '../sim/forest';
 import { autoFit } from './pager';
 import { Minimap } from './minimap';
 import { gi } from './icons';
@@ -249,7 +250,8 @@ export class Hud {
   refresh(): void {
     const sim = this.sim;
     const s = sim.save;
-    this.set(this.el.stage, zoneName(s.zone));
+    // In the forest the title is the region the hero is in; the tier shows below it.
+    this.set(this.el.stage, sim.map.forest && sim.biome >= 0 ? BIOMES[sim.biome].name : zoneName(s.zone));
     this.set(this.el.area, `${zoneTerrain(s.zone)} · Zone ${s.zone + 1}`);
     const boss = sim.isBossStage;
     const max = sim.maxZone;

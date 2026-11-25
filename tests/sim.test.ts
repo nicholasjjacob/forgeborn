@@ -142,10 +142,14 @@ describe('simulation', () => {
 describe('map', () => {
   it('keeps the spawn area clear and resolves movers out of props', () => {
     const map = new GameMap(0);
-    expect(map.blocked(MAP_W / 2, MAP_W / 2, 6)).toBe(false);
-    const solid = map.props.find((p) => p.r > 0 && p.x > 40 && p.x < MAP_W - 40)!;
+    for (const sp of map.forest!.spawns) expect(map.blocked(sp.x, sp.y, 6)).toBe(false); // the forest's arrival points
+    const old = new GameMap(1); // a regular zone map: props stand apart
+    expect(old.blocked(MAP_W / 2, MAP_W / 2, 6)).toBe(false);
+    // A solid prop standing alone (no neighbour to push the mover back into it).
+    const solid = old.props.find((p) => p.r > 0 && p.x > 60 && p.x < MAP_W - 60 && p.y > 60
+      && !old.props.some((q) => q !== p && q.r > 0 && Math.hypot(q.x - p.x, q.y - p.y) < p.r + q.r + 14))!;
     const pos = { x: solid.x + 0.5, y: solid.y };
-    map.resolve(pos, 5);
+    old.resolve(pos, 5);
     expect(Math.hypot(pos.x - solid.x, pos.y - solid.y)).toBeGreaterThanOrEqual(solid.r + 5 - 1e-6);
   });
 });
@@ -184,12 +188,13 @@ describe('zone maps', () => {
     for (let zone = 0; zone < 18; zone++) {
       for (const boss of [false, true]) {
         const map = new GameMap(Math.floor(zone / 3), zone, boss);
-        expect(map.blocked(MAP_W / 2, MAP_W / 2, 7)).toBe(false);
+        const sp = map.forest?.spawns[0] ?? { x: MAP_W / 2, y: MAP_W / 2 }; // the forest starts at its spawn
+        expect(map.blocked(sp.x, sp.y, 7)).toBe(false);
         seen.add(map.props.slice(0, 12).map((p) => `${p.x.toFixed(0)},${p.y.toFixed(0)}`).join('|'));
         expect(map.layout === 'arena').toBe(boss);
       }
     }
-    expect(seen.size).toBe(36);
+    expect(seen.size).toBe(34); // the forest's three zones share one world
     expect(layoutFor(0)).not.toBe(layoutFor(1));
     expect(zoneTint(0)).not.toBe(zoneTint(2));
   });
@@ -330,7 +335,8 @@ describe('boss rematch cooldown', () => {
     enterLair(sim);
     expect(sim.bossActive).toBe(true);                   // the rematch starts the cooldown
     sim.travel(0);                                       // leave (the fight is abandoned)
-    sim.hero.x = sim.hero.prevX = 750; sim.hero.y = sim.hero.prevY = 1570; sim.tick();
+    const sp = sim.map.forest!.spawns[0];
+    sim.hero.x = sim.hero.prevX = sp.x; sim.hero.y = sim.hero.prevY = sp.y; sim.tick();
     expect(sim.bossActive).toBe(false);
     t += 1000;
     expect(sim.challengeBoss()).toBe(false);             // recovering

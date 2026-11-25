@@ -17,7 +17,7 @@ import { OFFLINE_CAP_HOURS } from './offline';
 import { addRewards, freshMissions, type MissionSave } from './missions';
 import { MissionSystem } from './missionSystem';
 import { GameMap, MAP_H, MAP_W } from './map';
-import { FOREST_H, FOREST_W, forestRegion, type Territory } from './forest';
+import { BIOMES, FOREST_H, FOREST_W, biomeArrival, forestRegion, forestZone, type Territory } from './forest';
 import { MAX_LEVEL, levelBonus, milestoneReward, xpForKill, xpToNext, MILESTONES, type MilestoneReward } from './level';
 import { PLAYABLE_ZONES, zoneArea, zoneBossMonster, zoneBossName, zoneLevel, zoneName, zoneStage, bossCooldown } from './zones';
 import {
@@ -25,7 +25,7 @@ import {
   salvageValue, starterWeapon, weaponStats, type RangedDef, type Weapon,
 } from './weapons';
 
-export const MAX_ENEMIES = 40;
+export const MAX_ENEMIES = 64; // room for the forest's hordes
 export const MAX_SHOTS = 32;
 
 /** Fighting style codes stored on each enemy (see MonsterStyle in areas.ts). */
@@ -428,16 +428,40 @@ export class Sim {
     return true;
   }
 
+  /** The forest region (biome) the hero is in: -1 off the forest. */
+  biome = -1;
+
+  /** Fast travel to a forest region (its tier must be open). */
+  travelTo(biome: number): boolean {
+    const f = this.map.forest, b = BIOMES[biome];
+    if (!f || !b || !this.zoneUnlocked(b.zone) || this.bossActive || this.phase !== 'playing') return false;
+    const s = this.save;
+    s.zone = b.zone;
+    s.stage = zoneStage(b.zone);
+    this.returnT = 0;
+    this.resetField();
+    const p = biomeArrival(biome);
+    this.hero.x = this.hero.prevX = p.x;
+    this.hero.y = this.hero.prevY = p.y;
+    this.events.push(Ev.AreaEnter, 0, 0, b.zone);
+    return true;
+  }
+
   /** The forest region the hero stands in (or the current zone on the old maps). */
   private trackRegion(): void {
     const f = this.map.forest;
-    if (!f) return;
-    const z = forestRegion(this.hero.y);
+    if (!f) { this.biome = -1; return; }
+    const b = forestRegion(this.hero.x, this.hero.y);
+    const z = forestZone(this.hero.x, this.hero.y);
     const s = this.save;
+    if (b >= 0 && b !== this.biome) {
+      // Into another region: announced by name (not on the very first look around).
+      if (this.biome >= 0) this.events.push(Ev.RegionEnter, this.hero.x, this.hero.y, b);
+      this.biome = b;
+    }
     if (z !== s.zone) {
       s.zone = z;
       s.stage = zoneStage(z);
-      this.events.push(Ev.RegionEnter, this.hero.x, this.hero.y, z);
     }
     // Passes open once their region is unlocked (level + the previous region's boss).
     for (const g of f.gates) {
@@ -1043,7 +1067,7 @@ export class Sim {
         // only monsters in the hero's own region (not across a cliff); with none about, head for
         // the nearest of the region's territories.
         const f = this.map.forest;
-        const e = this.nearestEnemy(f ? 420 : Infinity, this.ignoreT > 0 ? this.ignore : null, f ? this.save.zone : -1);
+        const e = this.nearestEnemy(f ? 420 : Infinity, this.ignoreT > 0 ? this.ignore : null, f ? this.biome : -1);
         target = e;
         if (e) {
           const dx = e.x - h.x, dy = e.y - h.y;
@@ -1053,7 +1077,7 @@ export class Sim {
         } else if (f) {
           let best: Territory | null = null, bd = Infinity;
           for (const t of f.territories) {
-            if (t.zone !== this.save.zone) continue;
+            if (t.biome !== this.biome) continue; // only this region's (the borders are walls)
             const d = Math.hypot(t.x - h.x, t.y - h.y);
             if (d > t.r * 0.5 && d < bd) { bd = d; best = t; }
           }
@@ -1096,7 +1120,7 @@ export class Sim {
     for (let i = 0; i < MAX_ENEMIES; i++) {
       const e = this.enemies[i];
       if (!e.alive || e.spawnT > 0 || e === skip) continue;
-      if (region >= 0 && forestRegion(e.y) !== region) continue;
+      if (region >= 0 && forestRegion(e.x, e.y) !== region) continue;
       const d = Math.hypot(e.x - h.x, e.y - h.y) - e.radius - HERO_RADIUS;
       if (d < bestD && d <= maxEdgeDist) { bestD = d; best = e; }
     }

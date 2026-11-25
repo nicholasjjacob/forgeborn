@@ -1,3 +1,4 @@
+import { BIOMES } from './sim/forest';
 import { Application, TextureStyle } from 'pixi.js';
 import '@fontsource/lilita-one/400.css';
 import '@fontsource/fredoka/500.css';
@@ -69,7 +70,8 @@ async function boot() {
   const scene = new Scene(app, sim, art, {
     onBossSpawn: () => hud?.toast('BOSS!', 'boss'),
     onBossFail: () => hud?.toast('Boss escaped… farm and try again', 'bad'),
-    onAreaEnter: (zone) => hud?.toast(zoneName(zone), 'boss'),
+    onAreaEnter: (zone) => hud?.toast(sim.map.forest && sim.biome >= 0 ? BIOMES[sim.biome].name : zoneName(zone), 'boss'),
+    onRegionEnter: (biome) => hud?.toast(BIOMES[biome]?.name ?? '', 'boss'),
     onZoneClear: () => hud?.toast('Zone boss defeated! +10 gems', 'boss'),
     onGateOpen: (zone) => hud?.toast(`The way to ${zoneName(zone)} is open!`, 'boss'),
     onLevelUp: (level) => hud?.toast(`Level ${level}!`, 'boss'),
@@ -110,7 +112,7 @@ async function boot() {
     openReforge: () => hud?.openPage('reforge'),
     reforgeBadge: () => hud?.reforgeBadge() ?? '',
   }));
-  hud.worldMap.overview = (w) => scene.world3d.renderOverview(w);
+  hud.worldMap.overview = (w, r) => scene.world3d.renderOverview(w, r);
   installCurrencyIcons(); // 3D coin / shard / gem / ember icons for the whole UI
   applyFps();
   applyQuality();

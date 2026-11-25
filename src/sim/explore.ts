@@ -17,6 +17,9 @@ export class Explored {
     this.cols = Math.ceil(w / EXPLORE_CELL);
     this.rows = Math.ceil(h / EXPLORE_CELL);
     this.bits = new Uint8Array(Math.ceil((this.cols * this.rows) / 8));
+    // Saved as "cols×rows:bits"; a different map size (the world was redesigned) starts fresh.
+    const m = /^(\d+)x(\d+):(.*)$/.exec(saved);
+    saved = m && Number(m[1]) === this.cols && Number(m[2]) === this.rows ? m[3] : '';
     if (saved) {
       try {
         const raw = atob(saved);
@@ -56,6 +59,6 @@ export class Explored {
   toString(): string {
     let s = '';
     for (const b of this.bits) s += String.fromCharCode(b);
-    return btoa(s);
+    return `${this.cols}x${this.rows}:${btoa(s)}`;
   }
 }

@@ -20,6 +20,8 @@ export interface Prop {
   model?: string; size?: number; by?: 'h' | 'w'; rot?: number;
   /** Part of the barricade into this zone: solid until that zone opens (see GameMap.openGates). */
   gate?: number;
+  /** Collision only, never drawn (the forest's water). */
+  invisible?: boolean;
 }
 
 export interface Decal { x: number; y: number; variant: number }
@@ -79,7 +81,7 @@ export class GameMap {
       this.layout = 'groves';
       this.tint = 0xffffff;
       const built = buildForest(rng);
-      for (const fp of built.props) this.props.push({ kind: fp.kind, x: fp.x, y: fp.y, r: fp.r, variant: 0, model: fp.model, size: fp.size, by: fp.by, rot: fp.rot, gate: fp.gate });
+      for (const fp of built.props) this.props.push({ kind: fp.kind, x: fp.x, y: fp.y, r: fp.r, variant: 0, model: fp.model, size: fp.size, by: fp.by, rot: fp.rot, gate: fp.gate, invisible: fp.invisible });
       for (const c of built.cover) this.decals.push({ x: c.x, y: c.y, variant: 0 });
       this.grid = this.buildGrid();
       return;

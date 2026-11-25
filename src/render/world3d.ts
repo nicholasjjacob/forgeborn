@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { areaFor, type PropKind } from '../sim/areas';
 import { MAP_H, MAP_W, type GameMap } from '../sim/map';
-import { FOREST_GRASS, FOREST_MODELS, FOREST_PATHS } from '../sim/forest';
+import { BIOMES, FOREST, FOREST_MODELS, FOREST_PATHS, forestRegion, grassAt } from '../sim/forest';
 import { ELITE, MAX_ENEMIES, MAX_HERO_SHOTS, MAX_SHOTS, SLAM_RADIUS, SLAM_WIND, STYLE_DASHER, type Enemy, type Sim } from '../sim/sim';
 import { cloneActor, findClip, loadModel, measure, model } from './models';
 import { Fx3D } from './fx3d';
@@ -23,7 +23,7 @@ const FOV = 30;
 const PITCH = (47 * Math.PI) / 180;    // camera angle down from the horizon
 const VIEW_W = 108;                    // keep about this many units across the screen…
 const VIEW_H = 90;                     // …and at least this many vertically
-const CHUNK = 160;                     // props are instanced per chunk so off-screen chunks are culled
+const CHUNK = 240;                     // props are instanced per chunk so off-screen chunks are culled
 const HERO_H = 17;
 const HERO_LAYER = 1;
 /** The scenery (ground, trails, props) is also on this layer, so the World Map can draw just it. */
@@ -35,17 +35,25 @@ export const OVERVIEW_ELEV = (58 * Math.PI) / 180;
  * A picture of the whole map from high above (orthographic, tilted by OVERVIEW_ELEV): just the
  * scenery, no monsters, hero or effects. `vTop`/`k` place ground points on it (overviewPoint).
  */
-export interface Overview { canvas: HTMLCanvasElement; k: number; vTop: number; mapW: number; mapH: number }
+export interface Overview {
+  canvas: HTMLCanvasElement; k: number; vTop: number;
+  /** The ground rectangle pictured. */
+  x0: number; y0: number; x1: number; y1: number;
+  /** The whole map's size. */
+  mapW: number; mapH: number;
+}
+/** A ground rectangle (world units). */
+export interface Rect { x0: number; y0: number; x1: number; y1: number }
 
 /** Where the ground point (x, y), raised by `h`, lands on an overview image (image pixels). */
 export function overviewPoint(o: Overview, x: number, y: number, h = 0): { u: number; v: number } {
-  const up = h * Math.cos(OVERVIEW_ELEV) - (y - o.mapH / 2) * Math.sin(OVERVIEW_ELEV);
-  return { u: x * o.k, v: (o.vTop - up) * o.k };
+  const up = h * Math.cos(OVERVIEW_ELEV) - (y - (o.y0 + o.y1) / 2) * Math.sin(OVERVIEW_ELEV);
+  return { u: (x - o.x0) * o.k, v: (o.vTop - up) * o.k };
 }
 
-/** The ground y under an image row (inverse of overviewPoint at h = 0). */
-export function overviewGroundY(o: Overview, v: number): number {
-  return o.mapH / 2 + (v / o.k - o.vTop) / Math.sin(OVERVIEW_ELEV);
+/** The ground point under an image pixel (inverse of overviewPoint at h = 0). */
+export function overviewGround(o: Overview, u: number, v: number): { x: number; y: number } {
+  return { x: o.x0 + u / o.k, y: (o.y0 + o.y1) / 2 + (v / o.k - o.vTop) / Math.sin(OVERVIEW_ELEV) };
 }
 /** Where the attack clip (KayKit "Throw") reaches the top of its wind-up; the strike follows. */
 /** Weapon orientation in the hero's hand slot (blade along the holder's +y). */
@@ -422,7 +430,8 @@ export class World3D {
     this.groundGroup.clear();
     const { def } = areaFor(map.area);
     const look = LOOKS[map.area % LOOKS.length];
-    const tex = groundTexture(def.ground);
+    // The forest's regions colour the ground themselves (vertex colours): a neutral texture keeps their hues.
+    const tex = groundTexture(map.forest ? { base: '#e6e6e6', dark: '#cfcfcf', light: '#f6f6f6', speck: '#bdbdbd' } : def.ground);
     const MW = map.w, MH = map.h;
     tex.repeat.set(MW / 90, MH / 90);
     const tint = new THREE.Color(map.tint);
@@ -438,7 +447,14 @@ export class World3D {
     outer.position.set(MW / 2, -0.2, MH / 2);
     outer.receiveShadow = true;
     this.groundGroup.add(ground, outer);
-    if (map.forest) this.groundGroup.add(trailMesh(MW, MH));
+    if (map.forest) {
+      // Each region's ground in its own shade (vertex colours, blending across the borders),
+      // the deep forest past the edge darker; then the ponds and the dirt trails.
+      tintGround(ground.geometry as THREE.PlaneGeometry, MW, MH);
+      (ground.material as THREE.MeshLambertMaterial).vertexColors = true;
+      (ground.material as THREE.MeshLambertMaterial).color.set(0xffffff);
+      this.groundGroup.add(pondMesh(), trailMesh(MW, MH));
+    }
     for (const c of this.groundGroup.children) c.layers.enable(MAP_LAYER);
 
     // Light: terrain look × the zone's time of day.
@@ -466,6 +482,7 @@ export class World3D {
     };
 
     map.props.forEach((p, i) => {
+      if (p.invisible) return;
       if (p.model) {
         const parts = this.parts(p.model, { models: [], size: p.size ?? 20, by: p.by ?? 'h', shadow: true }, 0xffffff, map.area);
         if (parts) add(p.model, parts, p.kind !== 'bush', i, p.x, p.y, p.rot ?? 0, 1);
@@ -479,14 +496,18 @@ export class World3D {
       add(name, parts, spec.shadow, i, p.x, p.y, h * Math.PI * 2, 0.85 + 0.3 * hash(p.y, p.x));
     });
 
-    const cover = map.forest ? FOREST_GRASS.map((n): [string, number, number] => [n, 1, 6]) : COVER[map.area % COVER.length];
+    const cover = COVER[map.area % COVER.length];
     const total = cover.reduce((s, c) => s + c[1], 0);
     const n = this.low ? Math.floor(map.decals.length * 0.6) : map.decals.length;
     for (let i = 0; i < n; i++) {
       const d = map.decals[i];
       let r = hash(d.x, d.y) * total, pick = cover[0];
-      for (const c of cover) { if ((r -= c[1]) < 0) { pick = c; break; } }
-      const parts = this.parts(pick[0], { models: [], size: pick[2], by: 'h', shadow: false }, look.coverTint, map.area);
+      if (map.forest) {
+        // Forest grass takes its region's colour.
+        const g = grassAt(d.x, d.y);
+        pick = [g[Math.floor(hash(d.x, d.y) * g.length) % g.length], 1, 6];
+      } else for (const c of cover) { if ((r -= c[1]) < 0) { pick = c; break; } }
+      const parts = this.parts(pick[0], { models: [], size: pick[2], by: 'h', shadow: false }, map.forest ? 0xffffff : look.coverTint, map.area);
       if (!parts) continue;
       add(pick[0], parts, false, -1, d.x, d.y, hash(d.y, d.x) * 6.28, 0.8 + 0.4 * hash(d.x + 1, d.y));
     }
@@ -1031,11 +1052,12 @@ export class World3D {
    * Draw the whole map from high above into an image `widthPx` wide (for the World Map): scenery
    * only, lit by a sun whose shadows cover the whole map. Null until the scenery has loaded.
    */
-  renderOverview(widthPx: number): Overview | null {
+  renderOverview(widthPx: number, rect?: Rect): Overview | null {
     const map = this.builtMap;
     if (!map || this.mapPending) return null;
     const r = this.renderer;
-    const W = map.w, H = map.h;
+    const area = rect ?? { x0: 0, y0: 0, x1: map.w, y1: map.h };
+    const W = area.x1 - area.x0, H = area.y1 - area.y0;
     const sinE = Math.sin(OVERVIEW_ELEV), cosE = Math.cos(OVERVIEW_ELEV);
     const vTop = (H / 2) * sinE + 40 * cosE + 6, vBot = -(H / 2) * sinE - 4;
     const maxTex = r.capabilities.maxTextureSize;
@@ -1043,7 +1065,7 @@ export class World3D {
     const iw = Math.round(W * k), ih = Math.round((vTop - vBot) * k);
 
     const cam = new THREE.OrthographicCamera(-W / 2, W / 2, vTop, vBot, 1, 8000);
-    const cx = W / 2, cz = H / 2, D = 3000;
+    const cx = (area.x0 + area.x1) / 2, cz = (area.y0 + area.y1) / 2, D = 3000;
     cam.position.set(cx, sinE * D, cz + cosE * D);
     cam.lookAt(cx, 0, cz);
     cam.updateMatrixWorld();
@@ -1052,10 +1074,11 @@ export class World3D {
     // A sun over the middle of the map whose shadow camera covers all of it, and no distance fog.
     const sun = this.sun, sc = sun.shadow.camera;
     const keep = { pos: sun.position.clone(), tgt: sun.target.position.clone(), l: sc.left, rt: sc.right, t: sc.top, b: sc.bottom, n: sc.near, f: sc.far };
-    sun.position.set(cx - 480, 1040, cz + 360);
+    sun.position.set(cx - 960, 2080, cz + 720);
     sun.target.position.set(cx, 0, cz);
     sun.target.updateMatrixWorld();
-    sc.left = -1300; sc.right = 1300; sc.top = 1300; sc.bottom = -1300; sc.near = 10; sc.far = 3500;
+    const half = Math.hypot(W, H) / 2 + 100;
+    sc.left = -half; sc.right = half; sc.top = half; sc.bottom = -half; sc.near = 10; sc.far = 7000;
     sc.updateProjectionMatrix();
     const fog = this.scene.fog instanceof THREE.Fog ? this.scene.fog : null;
     const fogKeep = fog ? [fog.near, fog.far] : null;
@@ -1084,7 +1107,7 @@ export class World3D {
     for (let y = 0; y < ih; y++) img.data.set(px.subarray((ih - 1 - y) * iw * 4, (ih - y) * iw * 4), y * iw * 4);
     for (let i = 3; i < img.data.length; i += 4) img.data[i] = 255;
     ctx.putImageData(img, 0, 0);
-    return { canvas: c, k, vTop, mapW: W, mapH: H };
+    return { canvas: c, k, vTop, ...area, mapW: map.w, mapH: map.h };
   }
 
   render(): void {
@@ -1220,12 +1243,49 @@ function crystalModel(color: number): THREE.Object3D {
 
 export { MAP_W, MAP_H };
 
+/** Region ground colours as vertex colours on the (subdivided) ground plane. */
+function tintGround(geo: THREE.PlaneGeometry, w: number, h: number): void {
+  // Rebuild with enough vertices to follow the borders (one every 40 units).
+  const seg = new THREE.PlaneGeometry(w, h, Math.round(w / 40), Math.round(h / 40));
+  geo.copy(seg);
+  seg.dispose();
+  const pos = geo.attributes.position as THREE.BufferAttribute;
+  const cols = new Float32Array(pos.count * 3);
+  const c = new THREE.Color();
+  const outside = new THREE.Color('#3f6b38');
+  const shades = BIOMES.map((b) => new THREE.Color(b.ground));
+  for (let i = 0; i < pos.count; i++) {
+    // The plane is laid flat later (rotation -90° about x): its local y is -(world z - h/2).
+    const x = pos.getX(i) + w / 2, y = h / 2 - pos.getY(i);
+    const b = forestRegion(x, y);
+    c.copy(b >= 0 ? shades[b] : outside);
+    cols[i * 3] = c.r; cols[i * 3 + 1] = c.g; cols[i * 3 + 2] = c.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+}
+
+/** The forest's ponds: water discs just above the ground (one mesh). */
+function pondMesh(): THREE.Mesh {
+  const geos: THREE.BufferGeometry[] = [];
+  for (const p of FOREST.ponds) {
+    const g = new THREE.CircleGeometry(p.r + 4, 28);
+    g.rotateX(-Math.PI / 2);
+    g.translate(p.x, 0.12, p.y);
+    geos.push(g);
+  }
+  const merged = mergeGeometries(geos);
+  for (const g of geos) g.dispose();
+  const m = new THREE.Mesh(merged ?? new THREE.BufferGeometry(), new THREE.MeshLambertMaterial({ color: 0x48a8e0, emissive: 0x0d3a66, emissiveIntensity: 0.35 }));
+  m.receiveShadow = true;
+  return m;
+}
+
 /**
  * Dirt trails along the forest's paths: a transparent canvas over the ground (one draw call),
  * soft-edged brown strokes with a lighter centre.
  */
 function trailMesh(w: number, h: number): THREE.Mesh {
-  const k = 1024 / Math.max(w, h);
+  const k = 1536 / Math.max(w, h);
   const c = document.createElement('canvas');
   c.width = Math.round(w * k); c.height = Math.round(h * k);
   const g = c.getContext('2d')!;

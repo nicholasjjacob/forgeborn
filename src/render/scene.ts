@@ -31,6 +31,8 @@ export interface SceneHooks {
   onBossFail?(): void;
   onBossSpawn?(): void;
   onAreaEnter?(zone: number): void;
+  /** Walked into another forest region (biome index). */
+  onRegionEnter?(biome: number): void;
   onZoneClear?(zone: number): void;
   /** A forest pass opened (its barricade came down). */
   onGateOpen?(zone: number): void;
@@ -347,7 +349,7 @@ export class Scene {
           break;
         case Ev.RegionEnter:
           sfx.play('area');
-          this.hooks.onAreaEnter?.(v);
+          this.hooks.onRegionEnter?.(v);
           break;
         case Ev.GateOpen:
           fx3.dust(x, y, 40);
