@@ -224,7 +224,8 @@ export class QuestPanel {
       const row = this.rows[qi], tier = r.claimed[qi], maxed = tier >= q.tiers.length;
       const v = sim.regionQuestValue(z, qi);
       this.set(row.name, q.name);
-      this.set(row.pips, '★'.repeat(tier) + '☆'.repeat(q.tiers.length - tier));
+      // One star glyph for both states (☆ comes from another font: other size, hard to read).
+      this.html(row.pips, q.tiers.map((_, i) => `<i class="pip${i < tier ? ' on' : ''}">★</i>`).join(''));
       row.root.classList.toggle('maxed', maxed);
       if (maxed) {
         this.set(row.goal, `${questGoal(q, q.tiers.length - 1)} · complete`);
