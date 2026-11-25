@@ -38,9 +38,8 @@ export class WorldMapUI {
   private ov: Overview | null = null;
   private detail = new Map<number, Overview>();
   private ovKey = '';
-  /** Greyed copies of each picture, for the current exploration. */
+  /** Greyed copies of each picture (how unexplored land looks). */
   private readonly grey = new Map<Overview, HTMLCanvasElement>();
-  private readonly fogged = new Map<Overview, { ver: number; img: HTMLCanvasElement }>();
   private view: View = { x: 0, d: 0, s: 1 };
   private anim: { from: View; to: View; t0: number } | null = null;
   private raf = 0;
@@ -89,8 +88,10 @@ export class WorldMapUI {
     this.region = -1;
     this.bindCanvas(wrap.querySelector<HTMLCanvasElement>('.wm-canvas')!);
     this.refresh();
-    // Draw the 3D map once the sheet is on screen (it takes a moment).
-    requestAnimationFrame(() => requestAnimationFrame(() => this.prepare()));
+    // Already drawn (warmed at load): show it in the very first frame. Otherwise draw the 3D map
+    // once the sheet is on screen (it takes a moment).
+    if (this.ov && this.ovKey === this.overviewKey()) this.prepare();
+    else requestAnimationFrame(() => requestAnimationFrame(() => this.prepare()));
   }
 
   close(): void {
@@ -137,9 +138,13 @@ export class WorldMapUI {
   private get pc(): boolean { return document.documentElement.classList.contains('pc'); }
 
   /** The whole-map picture, drawn again only when the scenery changes (a pass opens). */
-  private ensureOverview(): boolean {
+  private overviewKey(): string {
     const map = this.sim.map;
-    const key = `${map.w}x${map.h}|${[...map.openGates].sort().join(',')}`;
+    return `${map.w}x${map.h}|${[...map.openGates].sort().join(',')}`;
+  }
+
+  private ensureOverview(): boolean {
+    const key = this.overviewKey();
     if (this.ov && this.ovKey === key) return true;
     const ov = this.overview?.(this.pc ? 2200 : 1500) ?? null;
     if (!ov) return false; // scenery still loading
@@ -147,18 +152,20 @@ export class WorldMapUI {
     this.ovKey = key;
     this.detail.clear();
     this.grey.clear();
-    this.fogged.clear();
     return true;
   }
 
   /**
-   * Behind the loading screen: draw the map picture, its fogged version and the monsters' stills
+   * Behind the loading screen: draw the map picture, its grey copy, the fog mask and the monsters' stills
    * now, so the first time the map opens there's nothing left to draw.
    */
   warm(): void {
     const f = this.sim.map.forest;
     if (!f || !this.ensureOverview() || !this.ov) return;
-    this.foggedImage(this.ov);
+    // Its grey copy, the shrunk copies of both, and the fog mask.
+    this.sized(this.ov.canvas, 0);
+    this.sized(this.greyOf(this.ov), 0);
+    if (this.sim.explored) this.fogMaskNow(this.sim.explored);
     for (const t of f.territories) monsterSnapshot(t.area, t.monster);
   }
 
@@ -196,41 +203,87 @@ export class WorldMapUI {
     return { x0: Math.max(0, x0 - pad), y0: Math.max(0, y0 - pad), x1: Math.min(map.w, x1 + pad), y1: Math.min(map.h, y1 + pad) };
   }
 
-  /** A picture with everything unexplored swapped for its grey, hazy version. */
-  private foggedImage(ov: Overview): HTMLCanvasElement {
-    const ex = this.sim.explored;
-    const ver = ex ? ex.version : 0;
-    const have = this.fogged.get(ov);
-    if (have && have.ver === ver) return have.img;
-    const c = have?.img ?? document.createElement('canvas');
-    c.width = ov.canvas.width; c.height = ov.canvas.height;
-    const g = c.getContext('2d')!;
-    g.globalCompositeOperation = 'source-over';
-    g.drawImage(ov.canvas, 0, 0);
-    if (ex) {
-      let grey = this.grey.get(ov);
-      if (!grey) { grey = greyed(ov.canvas); this.grey.set(ov, grey); }
-      // The mask, laid over the whole map's ground rectangle (rows are linear in y on this
-      // tilted view); the strip above the north edge follows the first row.
-      const tl = overviewPoint(ov, 0, 0), br = overviewPoint(ov, ex.cols * EXPLORE_CELL, ex.rows * EXPLORE_CELL);
-      const mask = fogMask(ex);
-      const full = document.createElement('canvas');
-      full.width = c.width; full.height = c.height;
-      const fg = full.getContext('2d')!;
-      fg.imageSmoothingEnabled = true;
-      fg.drawImage(mask, tl.u, tl.v, br.u - tl.u, br.v - tl.v);
-      if (tl.v > 0) fg.drawImage(mask, 0, 0, mask.width, 1, tl.u, 0, br.u - tl.u, tl.v + 1);
-      // Grey copy, cut down to the unexplored parts (one composite: it clears outside the source).
-      const tmp = document.createElement('canvas');
-      tmp.width = c.width; tmp.height = c.height;
-      const tg = tmp.getContext('2d')!;
-      tg.drawImage(grey, 0, 0);
-      tg.globalCompositeOperation = 'destination-in';
-      tg.drawImage(full, 0, 0);
-      g.drawImage(tmp, 0, 0);
+  /** Halved copies of each picture (made once), for cheap smooth downscaling. */
+  private readonly mips = new WeakMap<HTMLCanvasElement, HTMLCanvasElement[]>();
+
+  /**
+   * The smallest copy of `img` (itself, or halved again and again) at least `want` px wide: drawn
+   * from there with plain bilinear smoothing it looks as smooth as a high-quality downscale.
+   */
+  private sized(img: HTMLCanvasElement, want: number): HTMLCanvasElement {
+    let list = this.mips.get(img);
+    if (!list) {
+      list = [img];
+      for (let src = img; src.width >= 600;) {
+        const c = document.createElement('canvas');
+        c.width = Math.round(src.width / 2); c.height = Math.round(src.height / 2);
+        const g = c.getContext('2d')!;
+        g.imageSmoothingEnabled = true;
+        g.imageSmoothingQuality = 'low';
+        g.drawImage(src, 0, 0, c.width, c.height);
+        list.push(c);
+        src = c;
+      }
+      this.mips.set(img, list);
     }
-    this.fogged.set(ov, { ver, img: c });
-    return c;
+    let pick = list[0];
+    for (const c of list) if (c.width >= want * 0.95) pick = c;
+    return pick;
+  }
+
+  /** The grey, hazy copy of a picture (how unexplored land looks), made once per picture. */
+  private greyOf(ov: Overview): HTMLCanvasElement {
+    let grey = this.grey.get(ov);
+    if (!grey) { grey = greyed(ov.canvas); this.grey.set(ov, grey); }
+    return grey;
+  }
+
+  private mask: { ver: number; ex: Explored | null; img: HTMLCanvasElement } | null = null;
+  /** The fog mask (opaque where unexplored), redrawn only when the hero has seen somewhere new. */
+  private fogMaskNow(ex: Explored): HTMLCanvasElement {
+    if (!this.mask || this.mask.ex !== ex || this.mask.ver !== ex.version) this.mask = { ver: ex.version, ex, img: fogMask(ex) };
+    return this.mask.img;
+  }
+
+  /** Scratch canvas the size of the view, for laying the fog over a picture. */
+  private scratch: HTMLCanvasElement | null = null;
+  private maskView: HTMLCanvasElement | null = null;
+
+  /**
+   * Draw a picture into the view at (x, y, w, h), with everything unexplored swapped for its grey
+   * version. The fog is laid at view size each draw (a few small draws) rather than rebuilt over
+   * the full 2200 px picture, which hitched the map's open on PC.
+   */
+  private paintFogged(g: CanvasRenderingContext2D, ov: Overview, x: number, y: number, w: number, h: number): void {
+    g.drawImage(this.sized(ov.canvas, w), x, y, w, h);
+    const ex = this.sim.explored;
+    if (!ex) return;
+    const W = g.canvas.width, H = g.canvas.height;
+    const t = this.scratch ??= document.createElement('canvas');
+    if (t.width !== W || t.height !== H) { t.width = W; t.height = H; }
+    const tg = t.getContext('2d')!;
+    tg.globalCompositeOperation = 'source-over';
+    tg.clearRect(0, 0, W, H);
+    tg.imageSmoothingEnabled = true;
+    tg.imageSmoothingQuality = 'low';
+    tg.drawImage(this.sized(this.greyOf(ov), w), x, y, w, h);
+    // The mask, laid over the whole map's ground rectangle (rows are linear in y on this tilted
+    // view); the strip above the north edge follows the first row. Outside it stays clear.
+    const f = w / ov.canvas.width;
+    const tl = overviewPoint(ov, 0, 0), br = overviewPoint(ov, ex.cols * EXPLORE_CELL, ex.rows * EXPLORE_CELL);
+    const mask = this.fogMaskNow(ex);
+    const mx = x + tl.u * f, my = y + tl.v * f, mw = (br.u - tl.u) * f, mh = (br.v - tl.v) * f;
+    const mv = this.maskView ??= document.createElement('canvas');
+    if (mv.width !== W || mv.height !== H) { mv.width = W; mv.height = H; }
+    const mg = mv.getContext('2d')!;
+    mg.clearRect(0, 0, W, H);
+    mg.imageSmoothingEnabled = true;
+    mg.drawImage(mask, mx, my, mw, mh);
+    if (my > y) mg.drawImage(mask, 0, 0, mask.width, 1, mx, y, mw, my - y + 1);
+    // One composite: it also clears everything outside the mask.
+    tg.globalCompositeOperation = 'destination-in';
+    tg.drawImage(mv, 0, 0);
+    g.drawImage(t, 0, 0);
   }
 
   /** Map coordinates of a ground point raised by h. */
@@ -317,15 +370,16 @@ export class WorldMapUI {
     g.fillStyle = '#1b2a1c';
     g.fillRect(0, 0, W, H);
     g.imageSmoothingEnabled = true;
-    g.imageSmoothingQuality = 'high';
+    // Plain bilinear on a pre-shrunk copy (see sized()): 'high' quality redoes a 2200 px
+    // downscale on every draw (~30 ms), which hitched the open and the zoom on PC.
+    g.imageSmoothingQuality = 'low';
     const cx = (x: number) => (x - v.x) * v.s + W / 2;
     const cy = (d: number) => (d - v.d) * v.s + H / 2;
     // Pictures: the whole map, then (zoomed, once made) the sharp close-up on top.
     const paint = (ov: Overview) => {
-      const img = this.foggedImage(ov);
       const tl = this.toMap(ov.x0, (ov.y0 + ov.y1) / 2); // the picture's centre row sits at its own vTop
       const d0 = tl.d - ov.vTop;                          // map D of the picture's top row
-      g.drawImage(img, cx(ov.x0), cy(d0), (img.width / ov.k) * v.s, (img.height / ov.k) * v.s);
+      this.paintFogged(g, ov, cx(ov.x0), cy(d0), (ov.canvas.width / ov.k) * v.s, (ov.canvas.height / ov.k) * v.s);
     };
     paint(this.ov);
     const det = this.region >= 0 ? this.detail.get(this.region) : undefined;

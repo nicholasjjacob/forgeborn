@@ -222,7 +222,7 @@ async function boot() {
 
   if (import.meta.env.DEV) {
     // Dev-only debug handle (stripped from production builds).
-    (window as unknown as Record<string, unknown>).__fb = { sim, app, sfx, scene, stopSaving: () => { saving = false; } };
+    (window as unknown as Record<string, unknown>).__fb = { sim, app, sfx, scene, hud, stopSaving: () => { saving = false; } };
   }
 }
 
