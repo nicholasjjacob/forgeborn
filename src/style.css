@@ -497,7 +497,7 @@ html.icons3d .dock-ico[data-ico="scroll"] { background-image: var(--ico-scroll);
   --qb-h: min(580px, calc(100dvh - var(--safe-top) - var(--dock-h) - var(--safe-bottom) - 170px));
   display: flex; flex-direction: column;
 }
-html.pc #quests-root { --qb-h: min(600px, calc(100dvh - var(--safe-top) - 275px)); }
+html.pc #quests-root { --qb-h: min(600px, calc(100dvh - var(--safe-top) - 118px - 122px)); } /* the panel's max height less its title, tabs and padding */
 #quests-root > .seg { flex: 0 0 auto; }
 #quests-root > [data-seg-page] { flex: 0 0 auto; height: var(--qb-h); min-height: 0; display: flex; flex-direction: column; }
 #quests-root > [data-seg-page][hidden] { display: none; }
@@ -1169,7 +1169,7 @@ html.pc #quests-root { --qb-h: min(600px, calc(100dvh - var(--safe-top) - 275px)
 .inv-wrap .pg-btn { grid-row: 1; width: auto; height: auto; }
 .inv-wrap .pg-btn:first-child { grid-column: 1; }
 .inv-wrap .pg-btn:last-child { grid-column: 3; }
-.inv-grid { grid-column: 2; grid-row: 1; grid-template-columns: repeat(6, 1fr); gap: 5px; }
+.inv-grid { grid-column: 2; grid-row: 1; grid-template-columns: repeat(5, 1fr); gap: 5px; } /* five wide: the bag grows a row (5 slots) at a time */
 .slot { min-height: 0; }
 .wc-tag:empty { display: none; }
 
@@ -1665,5 +1665,42 @@ html.pc .side-btn { --sb: clamp(34px, calc((100cqh - 40px) / 6), 78px); }
 html.pc #panel { width: clamp(340px, min(42vw, calc(50vw - 165px)), 520px); max-height: calc(100dvh - var(--safe-top) - 118px); }
 @media (min-height: 950px) {
   html.pc #panel { width: clamp(340px, min(40vw, calc(50vw - 200px)), 600px); max-height: calc(100dvh - var(--safe-top) - 140px); }
-  html.pc #quests-root { --qb-h: min(600px, calc(100dvh - var(--safe-top) - 300px)); }
+  html.pc #quests-root { --qb-h: min(600px, calc(100dvh - var(--safe-top) - 140px - 122px)); }
+}
+
+/* Short but wide Quest Book pages (a laptop at 150% scaling): the nine achievements as a 3x3 grid
+   of cards instead of nine thin rows. */
+@container qbp (max-height: 470px) and (min-width: 400px) {
+  #quests-root .ach-list { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); gap: 7px; }
+  #quests-root .ach { grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto auto; align-content: center; padding: clamp(4px, 7cqh, 10px) 9px; row-gap: clamp(2px, 4cqh, 5px); column-gap: 7px; }
+  #quests-root .ach-tier { grid-row: 1; width: clamp(22px, 31cqh, 38px); height: clamp(22px, 31cqh, 38px); font-size: clamp(10px, 12cqh, 15px); }
+  #quests-root .ach-name { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 0; font-size: clamp(11.5px, 15.5cqh, 17px); white-space: nowrap; }
+  #quests-root .ach-name span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  #quests-root .ach-name small { font-size: clamp(9.5px, 11.5cqh, 13px); }
+  #quests-root .ach-goal { display: block; grid-column: 1 / -1; grid-row: 2; font-size: clamp(9.5px, 11.5cqh, 13px); white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  #quests-root .ach .bar.thin { grid-column: 1 / -1; grid-row: 3; height: clamp(5px, 7.5cqh, 10px); }
+}
+
+/* ...and the six region quests as a 2x3 grid of cards: name and stars, goal, bar, then the
+   reward (or Claim) along the bottom. */
+@container qbp (max-height: 470px) and (min-width: 400px) {
+  .qb-quests { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); gap: 6px; }
+  .rq { flex-direction: column; align-items: stretch; justify-content: center; gap: clamp(1px, 3cqh, 4px); padding: clamp(3px, 6cqh, 8px) 10px; }
+  .rq-main { gap: clamp(1px, 3cqh, 3px); }
+  .rq-name { font-size: clamp(11px, 17cqh, 15px); }
+  .rq-goal { display: block; font-size: clamp(9.5px, 13cqh, 12px); }
+  .pip { width: clamp(11px, 18cqh, 18px); height: clamp(11px, 18cqh, 18px); font-size: clamp(11px, 18cqh, 18px); }
+  .rq .bar { height: clamp(8px, 14cqh, 13px); }
+  .rq .bar-text { font-size: clamp(8px, 11cqh, 10.5px); line-height: clamp(8px, 14cqh, 13px); }
+  .rq-side { width: auto; height: auto; flex-direction: row; justify-content: flex-end; align-items: center; gap: 6px; }
+  .rq-reward { flex-wrap: nowrap; gap: 0 2px; }
+  .rq-reward .rchip { font-size: clamp(9px, 12cqh, 11.5px); }
+  .rq .btn { padding: clamp(2px, 4cqh, 5px) 14px; font-size: clamp(10.5px, 13cqh, 13px); }
+}
+
+/* Short, wide sheets (laptops at 150%): mission lists in two columns, an odd last task across both. */
+.sheet-body.fill { container: sbody / size; }
+@container sbody (max-height: 480px) and (min-width: 420px) {
+  .task-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .task-list > .task:last-child:nth-child(odd) { grid-column: 1 / -1; }
 }

@@ -78,7 +78,7 @@ export class ForgePanel {
       invBtn: $('#inv-btn'), invCount: $('#inv-count'), invSub: $('#inv-sub'), invDot: $('#inv-dot'),
       grid: $('#inv-grid'),
     };
-    this.pager = new Pager(this.el.grid, 18);
+    this.pager = new Pager(this.el.grid, 15);
     $('.inv-wrap').append(this.pager.el);
 
     this.ensureSlots();
@@ -381,7 +381,7 @@ export class ForgePanel {
   }
 
   /** Fill the page with weapon rows (call when the page opens or the screen resizes). */
-  fitPager(): void { this.pager.fitRows(6, 2, 8, 6); }
+  fitPager(): void { this.pager.fitRows(5, 2, 8, 6); }
 
   /** Something worth doing in the forge (for the tab badge). */
   badge(): string {

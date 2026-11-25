@@ -159,8 +159,12 @@ export class MissionsUI {
     ).join('');
 
     const body = this.wrap.querySelector<HTMLElement>('.sheet-body')!;
-    // The login calendar and a land's monster cards stretch to fill the (fixed-height) sheet
-    // instead of leaving a gap.
+    // With only one land discovered, the Codex opens straight onto its monsters (a list of one
+    // land would be mostly empty space).
+    if (this.tab === 'codex' && this.codexArea === null) {
+      const lands = this.sim.missions.codexAreas();
+      if (lands.length === 1) this.codexArea = lands[0];
+    }
     // Fill pages: the content stretches to the sheet and scales to it (no scrolling, no gaps).
     body.classList.toggle('fill', this.tab === 'login' || this.tab === 'daily' || this.tab === 'weekly' || this.tab === 'journey' || this.tab === 'shop' || (this.tab === 'codex' && this.codexArea !== null));
     const scroll = this.scrollTop ? 0 : body.scrollTop;
@@ -327,7 +331,7 @@ export class MissionsUI {
     const mons = [...def.monsters, def.boss];
     const p = this.codexProgress(area);
     return `<div class="codex-top">
-        <button type="button" class="btn small grey" data-act="carea:back">‹ Lands</button>
+        ${m.codexAreas().length > 1 ? '<button type="button" class="btn small grey" data-act="carea:back">‹ Lands</button>' : ''}
         <h3 class="codex-area">${terrainIcon(area)} ${areaName(area)}</h3><span class="codex-stars">★ ${p.stars}/${p.total}</span>
       </div>
       <div class="codex-grid big">${mons.map((mon, slot) => {
