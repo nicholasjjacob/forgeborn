@@ -50,6 +50,30 @@ export function weaponAnims(skin: string, form: number): WeaponAnims {
   return (large ? LARGE[form] ?? LARGE[15] : MEDIUM[form]) ?? ONE_HAND;
 }
 
+/**
+ * Each hero's signature idle on the Heroes screen (a livelier showcase than the calm battle
+ * idle): by hero, then by weapon type; anything not listed uses the battle idle.
+ */
+const SHOWCASE: Record<string, Record<number, string>> = {
+  knight: { 0: 'Melee_Blocking' },                      // sword up on guard (greatsword: the 2H stance)
+  barbarian: { 1: 'Melee_2H_Idle' },                    // axe across the body, like the greataxe
+  rogue: { 4: 'Melee_Blocking', 5: 'Ranged_1H_Reload' }, // dagger on guard; cranking the crossbow
+  mage: { 8: 'Ranged_Magic_Spellcasting', 9: 'Ranged_Magic_Spellcasting' },
+  druid: { 12: 'Ranged_Magic_Spellcasting_Long' },
+  engineer: { 13: 'Ranged_2H_Reload', 14: 'Hammering' },
+  rogue_hooded: { 10: 'Crouching', 11: 'Crouching' },
+};
+
+/** The Heroes-screen idle for a hero holding a weapon type. */
+export function showcaseIdle(skin: string, form: number): string {
+  return SHOWCASE[skin]?.[form] ?? weaponAnims(skin, form).idle;
+}
+
+/** Hold the weapon upright on the Heroes screen? Only in the arms-down standing idles. */
+export function showcaseUpright(skin: string, form: number): boolean {
+  return weaponAnims(skin, form).upright && /^Idle_/.test(showcaseIdle(skin, form));
+}
+
 /** Model files hero `skin` needs for its animations. */
 export function heroAnimFiles(skin: string): string[] {
   return skinDef(skin).rig === 'large' ? ['hero_anims_large'] : ['hero_anims'];
@@ -57,6 +81,14 @@ export function heroAnimFiles(skin: string): string[] {
 
 export async function loadHeroAnims(skin: string): Promise<HeroAnims> {
   return { anims: await loadModel(heroAnimFiles(skin)[0]) };
+}
+
+/**
+ * Idles that are really a move into a pose (raising a gun to aim): looped, they snap back to the
+ * start every cycle, so they play once and hold the final pose.
+ */
+export function holdsPose(clip: string): boolean {
+  return /_Aiming$/.test(clip);
 }
 
 /** A clip by name from a hero's animations (falls back to the idle). */

@@ -10,7 +10,7 @@ import { cloneActor, findClip, loadModel, measure, model } from './models';
 import { Fx3D } from './fx3d';
 import { BOLT_MODEL, arrowModel, buildKitWeapon, holdWeapon, idleTilt, buildWeapon, weaponTrailColor, type WeaponView } from './weapons3d';
 import { applyLook, applyPalette } from './heroLook';
-import { attackPlayback, heroAnimFiles, heroClip, heroScale, heroWeaponScale, loadHeroAnims, weaponAnims, type HeroAnims } from './heroRig';
+import { attackPlayback, heroAnimFiles, heroClip, heroScale, heroWeaponScale, loadHeroAnims, weaponAnims, type HeroAnims, holdsPose } from './heroRig';
 import { lookOf } from '../sim/skins';
 
 /**
@@ -848,7 +848,7 @@ export class World3D {
     this.setWeapon(eq?.form ?? 0, eq?.rarity ?? 0);
     if (this.heroMixer) {
       const set = weaponAnims(this.heroSkin, eq?.form ?? 0);
-      const idle = this.heroAction(set.idle), run = this.heroAction(set.run);
+      const idle = this.heroAction(set.idle, holdsPose(set.idle)), run = this.heroAction(set.run);
       if (dead) {
         if (!this.heroDead) this.heroPlay(this.heroAct.death, 0.1, true);
       } else if (h.swingT > this.heroSwing + 0.01) {

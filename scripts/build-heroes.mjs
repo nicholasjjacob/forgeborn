@@ -96,6 +96,9 @@ await buildAnims('Rig_Medium', ['General', 'MovementBasic', 'MovementAdvanced', 
   'Melee_Dualwield_Attack_Slice', 'Melee_Dualwield_Attack_Stab',
   'Ranged_1H_Shoot', 'Ranged_1H_Aiming', 'Ranged_2H_Shoot', 'Ranged_2H_Aiming', 'Ranged_Bow_Idle', 'Ranged_Bow_Release',
   'Ranged_Magic_Shoot', 'Chop', 'Pickaxe',
+  // Showcase idles for the Heroes screen (each hero's signature pose, see heroRig SHOWCASE).
+  'Melee_Blocking', 'Ranged_Magic_Spellcasting', 'Ranged_Magic_Spellcasting_Long', 'Crouching',
+  'Ranged_1H_Reload', 'Ranged_2H_Reload', 'Hammering',
 ]), 'hero_anims.glb');
 await buildAnims('Rig_Large', ['General', 'MovementBasic', 'CombatMelee'], new Set([
   'Idle_A', 'Running_A', 'Walking_A', 'Death_A', 'Hit_A',
