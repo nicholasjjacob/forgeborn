@@ -66,6 +66,7 @@ export class HeroesUI {
       </div>`;
     bindSheetTaps(wrap, (act) => this.run(act));
     document.addEventListener('keydown', this.onKey);
+    window.addEventListener('resize', this.onResize);
     document.body.appendChild(wrap);
     this.wrap = wrap;
     this.setupStage(wrap.querySelector('canvas')!);
@@ -83,6 +84,7 @@ export class HeroesUI {
     this.wrap.remove();
     this.wrap = null;
     document.removeEventListener('keydown', this.onKey);
+    window.removeEventListener('resize', this.onResize);
   }
 
   private readonly onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') this.close(); };
@@ -109,6 +111,23 @@ export class HeroesUI {
       else { sfx.play('tick'); this.toast(sim.save.level < (d.minLevel ?? 0) ? `Reach hero level ${d.minLevel} first` : 'Not enough gems yet'); }
     }
     this.render();
+  }
+
+  private readonly onResize = () => { if (this.wrap) this.wrap.style.removeProperty('--hp'); this.fit(); };
+
+  /**
+   * The screen never scrolls: if its content is taller than the sheet (a short or zoomed
+   * window), shrink the hero portraits a step at a time until everything fits.
+   */
+  private fit(): void {
+    const body = this.wrap?.querySelector<HTMLElement>('.sheet-body');
+    const card = this.wrap?.querySelector<HTMLElement>('.hero-portrait');
+    if (!this.wrap || !body || !card) return;
+    let size = card.getBoundingClientRect().width;
+    for (let i = 0; i < 20 && body.scrollHeight > body.clientHeight + 1 && size > 40; i++) {
+      size -= 6;
+      this.wrap.style.setProperty('--hp', `${Math.round(size)}px`);
+    }
   }
 
   /** Cards, the info line and the action button. */
@@ -154,6 +173,7 @@ export class HeroesUI {
         <span class="hero-portrait">${img ? `<img alt="" src="${img}" />` : ''}${have ? '' : `<i class="hero-lock">${gi('padlock', 'grey')}</i>`}</span>
         <span class="hero-card-name">${k.name}</span><span class="hero-card-role">${k.role}</span><span class="hero-tag">${tag}</span></button>`;
     }).join('');
+    this.fit();
     void this.showModel(this.pick);
   }
 
