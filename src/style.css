@@ -1255,7 +1255,7 @@ html.icons3d .chest.ready .chest-ico { width: 38px; height: 38px; filter: drop-s
 .sheet.heroes-sheet { height: min(100%, 760px); max-height: 100%; }
 .heroes-sheet .sheet-body { display: flex; flex-direction: column; overflow: hidden; padding-bottom: 12px; }
 .heroes-sheet .sheet-body > * { flex: 0 0 auto; }
-.heroes-sheet .hero-stage { flex: 1 1 200px; min-height: 110px; height: auto; margin: 2px 0 6px; }
+.heroes-sheet .hero-stage { flex: 1 1 200px; min-height: 110px; height: auto; margin: 2px 0 6px; align-self: center; max-width: 100%; }
 .heroes-sheet .hero-info { margin-bottom: 6px; }
 .heroes-sheet .hero-name { font-size: 21px; }
 .heroes-sheet .hero-perk { font-size: 12px; }

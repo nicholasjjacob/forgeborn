@@ -254,6 +254,13 @@ export class HeroesUI {
     const r = this.renderer, cam = this.camera, scene = this.scene;
     if (!r || !cam || !scene) return;
     const c = r.domElement;
+    // The stage is a square box around the hero: as wide as it is tall (it gets its height from
+    // the room left on the screen), never wider than the sheet.
+    const stage = c.parentElement;
+    if (stage) {
+      const side = `${stage.clientHeight}px`;
+      if (stage.clientHeight && stage.style.width !== side) stage.style.width = side;
+    }
     const w = c.clientWidth, h = c.clientHeight;
     if (w && h && (c.width !== Math.floor(w * r.getPixelRatio()) || c.height !== Math.floor(h * r.getPixelRatio()))) {
       r.setSize(w, h, false);
