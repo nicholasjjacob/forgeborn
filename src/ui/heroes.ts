@@ -101,9 +101,10 @@ export class HeroesUI {
     } else if (act === 'look' || act === 'pal') {
       if (act === 'look' ? sim.setLook(this.pick, id) : sim.setPalette(this.pick, Number(id))) {
         sfx.play('tick');
-        this.shown = ''; // rebuild the preview in the new style
+        void this.restyle(this.pick);
         portraits.delete(this.pick);
         void this.makePortraits();
+        if (act === 'look') void this.makeThumbs(this.pick); // the colour thumbnails show the new style
       }
     } else if (act === 'buy') {
       const d = skinDef(id);
@@ -157,13 +158,17 @@ export class HeroesUI {
     looksEl.innerHTML = owned && def.looks
       ? def.looks.map((l) => `<button type="button" role="radio" aria-checked="${l.id === cur}" class="${l.id === cur ? 'on' : ''}" data-act="look:${l.id}">${l.name}</button>`).join('')
       : '';
-    // Colour schemes: the hero's own palette and the pack's three alternates, as swatches.
+    // Colour schemes: the hero's own palette and the pack's three alternates, as 3D thumbnails.
     const palEl = this.wrap.querySelector<HTMLElement>('.hero-palettes')!;
     const pal = s.palettes[def.id] ?? 0;
     palEl.hidden = !owned || !def.palette;
     palEl.innerHTML = owned && def.palette
-      ? [0, 1, 2, 3].map((n) => `<button type="button" role="radio" aria-label="Colours ${n + 1}" aria-checked="${n === pal}" class="${n === pal ? 'on' : ''}" data-act="pal:${n}" style="background-image:url(models/tex/${def.palette}_${n ? 'ABC'[n - 1] : 0}.png)"></button>`).join('')
+      ? [0, 1, 2, 3].map((n) => {
+        const img = thumbs.get(thumbKey(def.id, lookOf(def.id, s.looks), n));
+        return `<button type="button" role="radio" aria-label="Colours ${n + 1}" aria-checked="${n === pal}" class="${n === pal ? 'on' : ''}" data-act="pal:${n}">${img ? `<img alt="" src="${img}" />` : ''}</button>`;
+      }).join('')
       : '';
+    if (owned && def.palette) void this.makeThumbs(def.id);
     this.wrap.querySelector('.hero-grid')!.innerHTML = SKINS.map((k) => {
       const have = this.sim.ownsSkin(k.id);
       const tag = s.skin === k.id ? `${gi('check-mark', 'green')} Equipped` : have ? 'Owned'
@@ -254,7 +259,7 @@ export class HeroesUI {
   }
 
   /** A posed, normalised copy of a skin (1.5 units tall, feet on the ground). */
-  private async build(id: string, sized = true): Promise<{ obj: THREE.Object3D; mixer: THREE.AnimationMixer } | null> {
+  private async build(id: string, sized = true, palette?: number): Promise<{ obj: THREE.Object3D; mixer: THREE.AnimationMixer } | null> {
     const [g, rig] = await Promise.all([loadModel(`hero_${id}`), loadHeroAnims(id)]).catch(() => [null, null]);
     if (!g || !rig) return null;
     const anims = rig.anims;
@@ -273,7 +278,7 @@ export class HeroesUI {
     applyLook(inner, id, lookOf(id, this.sim.save.looks));
     // Wait for the colour scheme's texture: drawn before it arrives, the hero (and its one-shot
     // portrait) would come out black.
-    const pal = this.sim.save.palettes[id] ?? 0;
+    const pal = palette ?? this.sim.save.palettes[id] ?? 0;
     await paletteReady(id, pal);
     applyPalette(inner, id, pal);
     // The clone copies whatever pose the battlefield hero was in (mid-run, mid-swing): measure it at rest.
@@ -318,37 +323,85 @@ export class HeroesUI {
     this.mixer = built.mixer;
   }
 
+  /** Restyle the hero on the stage in place: its spin and animation carry on. */
+  private async restyle(id: string): Promise<void> {
+    const pal = this.sim.save.palettes[id] ?? 0;
+    await paletteReady(id, pal); // (applying a scheme before its texture loads draws the hero black)
+    if (!this.model || this.shown !== id) return;
+    applyLook(this.model, id, lookOf(id, this.sim.save.looks));
+    applyPalette(this.model, id, pal);
+  }
+
+  /**
+   * Draw `obj` alone into a size×size image from a given camera, off-screen (a render target),
+   * so the live stage never resizes or flickers.
+   */
+  private snapshot(obj: THREE.Object3D, pos: [number, number, number], look: [number, number, number], size: number): string | null {
+    const r = this.renderer, scene = this.scene, cam = this.camera;
+    if (!r || !scene || !cam) return null;
+    const rt = new THREE.WebGLRenderTarget(size, size, { samples: 4 });
+    rt.texture.colorSpace = THREE.SRGBColorSpace;
+    const keep = this.model;
+    if (keep) keep.visible = false;
+    scene.add(obj);
+    const shot = new THREE.PerspectiveCamera(cam.fov, 1, 0.1, 50);
+    shot.position.set(...pos);
+    shot.lookAt(...look);
+    r.setRenderTarget(rt);
+    r.setClearColor(0x000000, 0);
+    r.clear();
+    r.render(scene, shot);
+    const px = new Uint8Array(size * size * 4);
+    r.readRenderTargetPixels(rt, 0, 0, size, size, px);
+    r.setRenderTarget(null);
+    scene.remove(obj);
+    if (keep) keep.visible = true;
+    rt.dispose();
+    // Pixels come bottom row first: flip them into a canvas.
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const ctx = c.getContext('2d')!;
+    const img = ctx.createImageData(size, size);
+    for (let y = 0; y < size; y++) img.data.set(px.subarray((size - 1 - y) * size * 4, (size - y) * size * 4), y * size * 4);
+    ctx.putImageData(img, 0, 0);
+    return c.toDataURL('image/png');
+  }
+
   /** Render each skin once, facing the camera, into a portrait image for its card. */
   private async makePortraits(): Promise<void> {
     for (const k of SKINS) {
       if (portraits.has(k.id)) continue;
       const built = await this.build(k.id, false);
-      if (!built || !this.renderer || !this.scene || !this.camera) return;
-      const r = this.renderer;
-      const keep = this.model;
-      if (keep) keep.visible = false;
-      this.scene.add(built.obj);
-      const size = new THREE.Vector2();
-      r.getSize(size);
-      const aspect = this.camera.aspect;
-      r.setSize(160, 160, false);
-      this.camera.aspect = 1;
-      this.camera.position.set(0, 1.05, 3.1);
-      this.camera.lookAt(0, 0.8, 0);
-      this.camera.updateProjectionMatrix();
-      r.render(this.scene, this.camera);
-      portraits.set(k.id, r.domElement.toDataURL('image/png'));
-      this.scene.remove(built.obj);
-      if (keep) keep.visible = true;
-      this.camera.position.set(...STAGE_CAM);
-      this.camera.lookAt(...STAGE_LOOK);
-      this.camera.aspect = aspect;
-      this.camera.updateProjectionMatrix();
-      r.setSize(size.x, size.y, false);
+      if (!built || !this.renderer) return;
+      const img = this.snapshot(built.obj, [0, 1.05, 3.1], [0, 0.8, 0], 160);
+      if (img) portraits.set(k.id, img);
       this.render();
     }
   }
+
+  /** Head-and-shoulders thumbnails of hero `id` in each colour scheme (for the colour picker). */
+  private thumbing = '';
+  private async makeThumbs(id: string): Promise<void> {
+    const look = lookOf(id, this.sim.save.looks);
+    const key = `${id}:${look}`;
+    if (this.thumbing === key || [0, 1, 2, 3].every((n) => thumbs.has(thumbKey(id, look, n)))) return;
+    this.thumbing = key;
+    for (let n = 0; n <= 3; n++) {
+      if (thumbs.has(thumbKey(id, look, n))) continue;
+      const built = await this.build(id, false, n);
+      if (!built || !this.renderer || this.thumbing !== key) break;
+      built.obj.rotation.y = 0.35;
+      const img = this.snapshot(built.obj, [0, 1.22, 1.75], [0, 1.0, 0], 112);
+      if (img) thumbs.set(thumbKey(id, look, n), img);
+    }
+    if (this.thumbing === key) this.thumbing = '';
+    if (this.pick === id) this.render();
+  }
 }
+
+/** Colour-picker thumbnails, by hero, style and colour scheme. */
+const thumbs = new Map<string, string>();
+const thumbKey = (id: string, look: string, n: number) => `${id}:${look}:${n}`;
 
 const _hip = new THREE.Vector3();
 /**
