@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { sfx } from '../audio/sfx';
-import { cloneActor, findClip, loadModel, measure } from '../render/models';
+import { cloneActor, loadModel, measure } from '../render/models';
 import { SKINS, lookOf, skinDef } from '../sim/skins';
 import { applyLook, applyPalette, paletteReady } from '../render/heroLook';
-import { heroScale, heroWeaponScale, loadHeroAnims } from '../render/heroRig';
+import { heroClip, heroScale, heroWeaponScale, loadHeroAnims, weaponAnims } from '../render/heroRig';
 import { buildKitWeapon, holdWeapon, idleTilt, kitModels } from '../render/weapons3d';
 import { FORMS } from '../sim/weapons';
 import type { Sim } from '../sim/sim';
@@ -302,7 +302,8 @@ export class HeroesUI {
     if (kit) {
       kit.group.scale.multiplyScalar(heroWeaponScale(id));
       const form = w?.form ?? skinDef(id).forms[0];
-      holdWeapon(kit.group, form, idleTilt(form)); // the stage shows the idle pose: held upright
+      // The stage shows the weapon's idle; one-handed weapons (unarmed idle) are held upright.
+      holdWeapon(kit.group, form, weaponAnims(id, form).upright ? idleTilt(form) : 0);
       kit.off?.scale.multiplyScalar(heroWeaponScale(id));
       inner.getObjectByName('handslotr')?.add(kit.group);
       if (kit.off) inner.getObjectByName('handslotl')?.add(kit.off);
@@ -310,7 +311,7 @@ export class HeroesUI {
     const obj = new THREE.Group();
     obj.add(inner);
     const mixer = new THREE.AnimationMixer(inner);
-    const idle = findClip(anims, ['Idle_A']);
+    const idle = heroClip(anims, weaponAnims(id, w?.form ?? skinDef(id).forms[0]).idle);
     if (idle) mixer.clipAction(idle).play();
     mixer.update(0.4);
     centerOnHips(obj);

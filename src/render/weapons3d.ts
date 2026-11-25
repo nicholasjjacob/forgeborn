@@ -197,17 +197,17 @@ const KIT: Record<number, KitDef> = {
   3: { tiers: ['w_sword_2handed', 'fw_sword_E', 'w_sword_2handed_color', 'fw_sword_G'] },     // Greatsword → ice blade
   4: { tiers: ['w_dagger', 'fw_dagger_A', 'fw_dagger_B', 'fw_dagger_C'] },                     // Dagger → poison blade
   5: { tiers: ['w_crossbow_1handed', 'w_crossbow_1handed', 'w_crossbow_2handed', 'w_crossbow_2handed'] },
-  6: { tiers: ['fw_bow_A_withString', 'w_bow_withString', 'fw_bow_B_withString', 'fw_bow_C_withString'], grip: [0, -Math.PI / 2, 0] }, // → bone bow, held upright at the side
-  7: { tiers: ['w_bow_withString', 'fw_bow_B_withString', 'fw_bow_C_withString', 'fw_bow_C_withString'], scale: 1.15, grip: [0, -Math.PI / 2, 0] },
+  6: { tiers: ['fw_bow_A_withString', 'w_bow_withString', 'fw_bow_B_withString', 'fw_bow_C_withString'] }, // → bone bow
+  7: { tiers: ['w_bow_withString', 'fw_bow_B_withString', 'fw_bow_C_withString', 'fw_bow_C_withString'], scale: 1.15 },
   8: { tiers: ['fw_staff_A', 'w_staff', 'fw_staff_B', 'fw_staff_D'] },                         // Staff → sun staff
   9: { tiers: ['w_wand', 'fw_wand_A', 'fw_wand_A', 'fw_wand_B'] },                             // Wand → void orb
   10: { tiers: ['fw_sword_C', 'fw_sword_C', 'fw_sword_D', 'fw_scythe'] },                      // Katana → reaper's scythe
   11: { tiers: ['fw_fistweapon_A', 'fw_fistweapon_B', 'fw_fistweapon_B', 'fw_fistweapon_C_right'], pair: true }, // Claws
   12: { tiers: ['fw_staff_A', 'w_druid_staff', 'w_druid_staff', 'fw_staff_C'] },               // Nature staff → living staff
-  13: { tiers: ['w_shotgun', 'w_shotgun', 'w_shotgun', 'w_shotgun'], grip: [0, -Math.PI / 2, 0.5] }, // rests upright, barrel up
+  13: { tiers: ['w_shotgun', 'w_shotgun', 'w_shotgun', 'w_shotgun'] },
   14: { tiers: ['w_engineer_Wrench', 'w_engineer_Wrench', 'fw_hammer_D', 'fw_hammer_A'] },      // Wrench → warhammer
   15: { tiers: ['fw_hammer_C', 'fw_hammer_D', 'fw_hammer_A', 'fw_hammer_B'] },                 // Warhammer → morningstar
-  16: { tiers: ['fw_spear_A', 'fw_spear_A', 'fw_halberd', 'fw_spear_B'], slide: -0.5 },        // Polearm → golden trident
+  16: { tiers: ['fw_spear_A', 'fw_spear_A', 'fw_halberd', 'fw_spear_B'] },                     // Polearm → golden trident
 };
 /** Left-hand models for weapons worn as a pair (the right-hand model mirrored if not listed). */
 const LEFT: Record<string, string> = { fw_fistweapon_C_right: 'fw_fistweapon_C_left' };

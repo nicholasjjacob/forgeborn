@@ -9,7 +9,7 @@ import { cloneActor, findClip, loadModel, measure, model } from './models';
 import { Fx3D } from './fx3d';
 import { BOLT_MODEL, arrowModel, buildKitWeapon, holdWeapon, idleTilt, buildWeapon, weaponTrailColor, type WeaponView } from './weapons3d';
 import { applyLook, applyPalette } from './heroLook';
-import { heroAnimFiles, heroScale, heroWeaponScale, loadHeroAnims, type HeroAnims } from './heroRig';
+import { attackPlayback, heroAnimFiles, heroClip, heroScale, heroWeaponScale, loadHeroAnims, weaponAnims, type HeroAnims } from './heroRig';
 import { lookOf } from '../sim/skins';
 
 /**
@@ -27,7 +27,6 @@ const CHUNK = 160;                     // props are instanced per chunk so off-s
 const HERO_H = 17;
 const HERO_LAYER = 1;
 /** Where the attack clip (KayKit "Throw") reaches the top of its wind-up; the strike follows. */
-const ATTACK_FROM = 0.55;
 /** Weapon orientation in the hero's hand slot (blade along the holder's +y). */
 const HAND_ROT: [number, number, number] = [0, 0, 0];
 
@@ -178,6 +177,9 @@ export class World3D {
   private readonly shotMeshes: THREE.Mesh[] = [];
   /** Which model + style the hero's look was last applied to. */
   private heroLookOn = '';
+  /** The hero's animation clips, and which attack clip plays next. */
+  private heroAnims: GLTF | null = null;
+  private attackTurn = 0;
   /** Current upright tilt of the weapon in hand (eases between idle and attacking). */
   private heldTilt = 0;
   /** Which hero the shown model is (it lags the save's skin while a new hero loads). */
@@ -601,15 +603,10 @@ export class World3D {
     this.heroModel = m;
     const mixer = new THREE.AnimationMixer(m);
     this.heroMixer = mixer;
+    this.heroAnims = anims;
     const act = (names: string[]) => { const c = findClip(anims, names); return c ? mixer.clipAction(c) : null; };
-    this.heroAct = {
-      idle: act(['Idle_A']),
-      run: act(['Running_A']),
-      attack: rig.attack ? mixer.clipAction(rig.attack) : null,
-      death: act(['Death_A']),
-      walk: act(['Walking_A']),
-    };
-    if (this.heroAct.attack) { this.heroAct.attack.setLoop(THREE.LoopOnce, 1); this.heroAct.attack.clampWhenFinished = true; }
+    // Idle, run and attack clips depend on the weapon in hand (see heroAction / weaponAnims).
+    this.heroAct = { idle: act(['Idle_A']), run: act(['Running_A']), attack: null, death: act(['Death_A']), walk: act(['Walking_A']) };
     if (this.heroAct.death) { this.heroAct.death.setLoop(THREE.LoopOnce, 1); this.heroAct.death.clampWhenFinished = true; }
     this.heroDead = false;
     this.heroPlay(this.heroAct.idle, 0);
@@ -628,6 +625,15 @@ export class World3D {
       this.hand.rotation.set(HAND_ROT[0], HAND_ROT[1], HAND_ROT[2]);
     }
     findBone(m, ['handslotl', 'handslot.l', 'handl', 'hand.l'])?.add(this.kitOff);
+  }
+
+  /** The hero's action for clip `name` of its animations (attacks play once and hold). */
+  private heroAction(name: string, once = false): THREE.AnimationAction | null {
+    const c = this.heroAnims && heroClip(this.heroAnims, name);
+    if (!c || !this.heroMixer) return null;
+    const a = this.heroMixer.clipAction(c);
+    if (once) { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; }
+    return a;
   }
 
   private heroPlay(a: THREE.AnimationAction | null, fade = 0.15, restart = false): void {
@@ -773,24 +779,31 @@ export class World3D {
     const eq = sim.save.equipped;
     this.setWeapon(eq?.form ?? 0, eq?.rarity ?? 0);
     if (this.heroMixer) {
+      const set = weaponAnims(this.heroSkin, eq?.form ?? 0);
+      const idle = this.heroAction(set.idle), run = this.heroAction(set.run);
       if (dead) {
         if (!this.heroDead) this.heroPlay(this.heroAct.death, 0.1, true);
       } else if (h.swingT > this.heroSwing + 0.01) {
-        // A new swing started: play the slash, sped up to fit the swing.
-        // The sim lands the hit the moment the swing starts, so skip the clip's slow wind-up:
-        // start at the top of the raise and the blade comes down ~0.07 s later, with the hit.
-        this.heroPlay(this.heroAct.attack, 0.04, true);
-        if (this.heroAct.attack) { this.heroAct.attack.time = ATTACK_FROM; this.heroAct.attack.timeScale = 2.6; }
-      } else if (this.heroCur === this.heroAct.attack && this.heroAct.attack && this.heroAct.attack.time < this.heroAct.attack.getClip().duration * 0.75) {
-        // let the slash finish
+        // A new attack: the weapon's attack clips take turns. The sim lands the hit the moment the
+        // attack starts, so the clip skips most of its wind-up (attackPlayback).
+        const a = this.heroAction(set.attacks[this.attackTurn++ % set.attacks.length], true);
+        if (a) {
+          this.heroPlay(a, 0.05, true);
+          const pb = attackPlayback(a.getClip(), !!sim.ranged);
+          a.time = pb.from;
+          a.timeScale = pb.speed;
+        }
+        this.heroAct.attack = a;
+      } else if (this.heroCur === this.heroAct.attack && this.heroAct.attack && this.heroAct.attack.time < this.heroAct.attack.getClip().duration * 0.8) {
+        // let the attack finish
       } else {
-        this.heroPlay(h.moving ? this.heroAct.run : this.heroAct.idle, 0.18);
-        if (this.heroAct.run) this.heroAct.run.timeScale = 1.25;
+        this.heroPlay(h.moving ? run : idle, 0.18);
+        if (run) run.timeScale = 1.2;
       }
       this.heroMixer.update(dt);
-      // Standing idle: blades held upright; attacking or running: the pack's own grip (see idleTilt).
+      // Standing idle with a one-handed weapon (the idle is unarmed): hold it upright (see idleTilt).
       const attacking = h.swingT > 0 || this.heroCur === this.heroAct.attack;
-      const tilt = attacking || h.moving || dead ? 0 : idleTilt(eq?.form ?? 0);
+      const tilt = attacking || h.moving || dead || !set.upright ? 0 : idleTilt(eq?.form ?? 0);
       this.heldTilt += (tilt - this.heldTilt) * (1 - Math.exp(-dt * (attacking ? 30 : 8)));
       holdWeapon(this.kitHand, eq?.form ?? 0, this.heldTilt);
     }

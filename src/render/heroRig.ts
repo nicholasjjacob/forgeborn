@@ -1,38 +1,76 @@
-import type * as THREE from 'three';
+import * as THREE from 'three';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { skinDef } from '../sim/skins';
 import { findClip, loadModel } from './models';
 
 /**
- * Hero animations by rig. Most heroes share the medium rig (hero_anims). The Warlord is on the
- * large rig (hero_anims_large), which has no attack clip: it borrows the medium rig's (both rigs
- * use the same bone names) with only its rotations, so the bigger skeleton keeps its proportions.
+ * Hero animations (KayKit Character Animations, built by scripts/build-heroes.mjs). Most heroes
+ * share the medium rig (hero_anims); the Warlord is on the large rig (hero_anims_large). Each
+ * weapon type picks its own idle, run and attack clips (WEAPON_ANIMS), so a bow is drawn and
+ * released, a greatsword swung two-handed, a staff casts, and so on.
  */
 
-export interface HeroAnims { anims: GLTF; attack: THREE.AnimationClip | null }
+export interface HeroAnims { anims: GLTF }
 
-const borrowed = new Map<THREE.AnimationClip, THREE.AnimationClip>();
+/** Clips for one weapon type. `attacks` take turns; `upright`: hold the weapon upright in idle. */
+export interface WeaponAnims { idle: string; run: string; attacks: readonly string[]; upright: boolean }
+
+const ONE_HAND: WeaponAnims = { idle: 'Idle_A', run: 'Running_A', attacks: ['Melee_1H_Attack_Slice_Diagonal', 'Melee_1H_Attack_Chop', 'Melee_1H_Attack_Slice_Horizontal'], upright: true };
+const TWO_HAND: WeaponAnims = { idle: 'Melee_2H_Idle', run: 'Running_A', attacks: ['Melee_2H_Attack_Slice', 'Melee_2H_Attack_Chop'], upright: false };
+const MAGIC: WeaponAnims = { idle: 'Idle_A', run: 'Running_A', attacks: ['Ranged_Magic_Shoot'], upright: true };
+const BOW: WeaponAnims = { idle: 'Ranged_Bow_Idle', run: 'Running_HoldingBow', attacks: ['Ranged_Bow_Release'], upright: false };
+
+/** Medium rig, by weapon type (FORMS index). */
+const MEDIUM: Record<number, WeaponAnims> = {
+  0: ONE_HAND,
+  1: { ...ONE_HAND, attacks: ['Melee_1H_Attack_Chop', 'Melee_1H_Attack_Slice_Diagonal'] },
+  2: TWO_HAND,
+  3: TWO_HAND,
+  4: { ...ONE_HAND, attacks: ['Melee_1H_Attack_Stab', 'Melee_1H_Attack_Slice_Diagonal'] },
+  5: { idle: 'Ranged_1H_Aiming', run: 'Running_A', attacks: ['Ranged_1H_Shoot'], upright: false },
+  6: BOW,
+  7: BOW,
+  8: MAGIC,
+  9: MAGIC,
+  10: { ...ONE_HAND, attacks: ['Melee_1H_Attack_Slice_Horizontal', 'Melee_1H_Attack_Slice_Diagonal', 'Melee_1H_Attack_Stab'] },
+  11: { idle: 'Idle_A', run: 'Running_A', attacks: ['Melee_Dualwield_Attack_Slice', 'Melee_Dualwield_Attack_Stab'], upright: false },
+  12: MAGIC,
+  13: { idle: 'Ranged_2H_Aiming', run: 'Running_HoldingRifle', attacks: ['Ranged_2H_Shoot'], upright: false },
+  14: ONE_HAND,
+};
+
+/** Large rig (the Warlord). */
+const LARGE: Record<number, WeaponAnims> = {
+  15: { idle: 'Melee_2H_Idle', run: 'Running_A', attacks: ['Melee_2H_Attack', 'Melee_2H_Slam'], upright: false },
+  16: { idle: 'Melee_2H_Idle', run: 'Running_A', attacks: ['Melee_1H_Stab', 'Melee_2H_Attack'], upright: false },
+};
+
+export function weaponAnims(skin: string, form: number): WeaponAnims {
+  const large = skinDef(skin).rig === 'large';
+  return (large ? LARGE[form] ?? LARGE[15] : MEDIUM[form]) ?? ONE_HAND;
+}
 
 /** Model files hero `skin` needs for its animations. */
 export function heroAnimFiles(skin: string): string[] {
-  return skinDef(skin).rig === 'large' ? ['hero_anims_large', 'hero_anims'] : ['hero_anims'];
+  return skinDef(skin).rig === 'large' ? ['hero_anims_large'] : ['hero_anims'];
 }
 
 export async function loadHeroAnims(skin: string): Promise<HeroAnims> {
-  const large = skinDef(skin).rig === 'large';
-  const medium = await loadModel('hero_anims');
-  const anims = large ? await loadModel('hero_anims_large') : medium;
-  let attack = findClip(medium, ['Throw', 'Use_Item']);
-  if (attack && large) {
-    let b = borrowed.get(attack);
-    if (!b) {
-      b = attack.clone();
-      b.tracks = b.tracks.filter((t) => t.name.endsWith('.quaternion'));
-      borrowed.set(attack, b);
-    }
-    attack = b;
-  }
-  return { anims, attack };
+  return { anims: await loadModel(heroAnimFiles(skin)[0]) };
+}
+
+/** A clip by name from a hero's animations (falls back to the idle). */
+export function heroClip(anims: GLTF, name: string): THREE.AnimationClip | null {
+  return findClip(anims, [name]) ?? findClip(anims, ['Idle_A']);
+}
+
+/**
+ * Where to start an attack clip and how fast to play it: the sim lands the hit the moment the
+ * attack starts, so skip most of the wind-up and reach the strike quickly.
+ */
+export function attackPlayback(clip: THREE.AnimationClip, ranged: boolean): { from: number; speed: number } {
+  const d = clip.duration;
+  return ranged ? { from: d * 0.15, speed: Math.max(1.4, d * 1.6) } : { from: d * 0.25, speed: Math.max(1.3, d * 2.0) };
 }
 
 /** Weapons in a giant's hands are made chunkier to match. */
