@@ -412,7 +412,9 @@ export class WorldMapUI {
       if (el.innerHTML !== html) el.innerHTML = html;
       el.classList.toggle('locked', !open);
       el.classList.toggle('here', here);
-      const p = at(bm.x, bm.y);
+      // A region holding a boss lair: the tag sits a little lower, clear of the lair's skull.
+      const lair = f.lairs.find((l) => l.biome === b);
+      const p = at(bm.x, bm.y + (lair && Math.hypot(lair.x - bm.x, lair.y - bm.y) < 260 ? 120 : 0));
       el.style.left = `${(p.x / W) * 100}%`;
       el.style.top = `${(p.y / H) * 100}%`;
     });

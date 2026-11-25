@@ -1318,21 +1318,29 @@ html.pc .side-btn:hover, html.pc #dock button:hover, html.pc .chip:hover { filte
   position: relative; width: min(100%, calc(58dvh * var(--ar, 1))); aspect-ratio: var(--ar, 1); margin: 4px auto 8px;
   border-radius: 14px; overflow: hidden; background: #1b2a1c;
   box-shadow: 0 0 0 3px var(--wood), 0 4px 0 3px var(--wood-dark);
+  container-type: inline-size; /* the region tags size themselves to the map, not the screen */
 }
 .wm-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: pointer; }
 .wm-labels { position: absolute; inset: 0; pointer-events: none; }
+/* Region tags scale with the map (cqw = 1% of its width): readable on a big PC map, compact on a
+   phone, where long names wrap onto two lines and the level line gives way (the close-up has it). */
 .wm-region {
   position: absolute; translate: -50% -50%; pointer-events: auto;
-  display: flex; flex-direction: column; align-items: center; gap: 0; padding: 5px 14px 6px; border: 0; border-radius: 12px;
-  background: #0a1035cc; color: #fff; font-size: 15px; line-height: 1.1; text-shadow: var(--outline);
-  box-shadow: inset 0 0 0 2px #ffffff66, 0 3px 0 #0008;
+  display: flex; flex-direction: column; align-items: center; gap: 0;
+  max-width: 24cqw; padding: 0.3em 0.7em 0.35em; border: 0; border-radius: 0.75em;
+  background: #0a1035c8; color: #fff; font-size: clamp(9px, 2.5cqw, 15px); line-height: 1.05; text-align: center; text-shadow: var(--outline);
+  box-shadow: inset 0 0 0 2px #ffffff66, 0 2px 0 #0008;
 }
-.wm-region b { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
-.wm-region small { font-size: 11px; color: var(--ink-soft); }
-.wm-region .gi { width: 16px; height: 16px; margin-bottom: -2px; }
-.wm-region.here { box-shadow: inset 0 0 0 2.5px #ffd23f, 0 3px 0 #0008; }
-.wm-region.locked { background: #2a2e3ccc; }
+.wm-region b { display: block; white-space: normal; text-wrap: balance; }
+.wm-region small { font-size: 0.72em; color: var(--ink-soft); margin-top: 0.15em; white-space: nowrap; }
+.wm-region .gi { width: 1.05em; height: 1.05em; margin: 0 0.2em -0.15em 0; vertical-align: baseline; }
+.wm-region.here { box-shadow: inset 0 0 0 2.5px #ffd23f, 0 2px 0 #0008; }
+.wm-region.locked { background: #2a2e3cc8; }
 .wm-region.locked b { color: #d4d8e6; }
+@container (max-width: 520px) {
+  .wm-region { padding: 0.25em 0.5em; }
+  .wm-region small { display: none; }
+}
 .wm-back {
   position: absolute; left: 8px; top: 8px; border: 0; border-radius: 10px; padding: 6px 11px; font-size: 13px; color: #fff;
   background: linear-gradient(var(--blue-1), var(--blue-2)); box-shadow: inset 0 0 0 2px var(--blue-edge), 0 3px 0 var(--blue-edge); text-shadow: var(--outline);
