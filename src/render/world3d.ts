@@ -121,6 +121,7 @@ export class World3D {
   private readonly hemi = new THREE.HemisphereLight(0xffffff, 0x445533, 1.5);
   private readonly sun = new THREE.DirectionalLight(0xffffff, 2.4);
   private readonly frustum = new THREE.Frustum();
+  private cssH = 1;
   private readonly projM = new THREE.Matrix4();
   private readonly v = new THREE.Vector3();
   private readonly sphere = new THREE.Sphere(new THREE.Vector3(), 20);
@@ -309,12 +310,17 @@ export class World3D {
 
   resize(w: number, h: number): void {
     this.w = Math.max(1, w); this.h = Math.max(1, h);
+    this.cssH = this.renderer.domElement.parentElement?.clientHeight || this.h;
     this.renderer.setSize(this.w, this.h, false);
     const aspect = this.w / this.h;
     this.camera.aspect = aspect;
     const tan = Math.tan((FOV * Math.PI) / 360);
     // Visible width at the focus point: as wide as the old 2D view, or more on wide screens.
-    const viewW = Math.max(VIEW_W, VIEW_H * aspect);
+    // PC layout (a big landscape window): show more of the world rather than blowing the hero up
+    // to fill the screen: about 5.5 CSS px per world unit (a phone shows about 4).
+    const pc = document.documentElement.classList.contains('pc');
+    const viewH = pc ? Math.max(VIEW_H, Math.min(170, this.cssH / 5.5)) : VIEW_H;
+    const viewW = Math.max(VIEW_W, viewH * aspect);
     this.dist = viewW / (2 * tan * aspect);
     this.pxPerUnit = this.h / (2 * this.dist * tan);
     this.halfW = viewW / 2;

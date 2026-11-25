@@ -80,6 +80,7 @@ async function boot() {
 
   // First-run hint: fades on the first touch/click or after a few seconds.
   const hint = document.getElementById('hint')!;
+  if (document.documentElement.classList.contains('pc')) hint.textContent = 'Click or hold to move · WASD / arrow keys · Auto lets the hero hunt on their own';
   const hideHint = () => hint.classList.add('hide');
   if (sim.save.kills > 50) hideHint();
   document.getElementById('battle')!.addEventListener('pointerdown', hideHint, { once: true });

@@ -13,6 +13,16 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="description" content="A top-down action idle RPG: fight, forge weapons, and push through new areas." />
     <link rel="stylesheet" href="/src/style.css" />
+    <script>
+      // Two layouts: "pc" for wide windows (Chrome on a laptop or desktop, the Windows app) and
+      // the phone layout for everything else. Set before the first paint so nothing jumps.
+      (function () {
+        var q = matchMedia('(min-width: 900px) and (min-aspect-ratio: 5/4)');
+        var set = function () { document.documentElement.classList.toggle('pc', q.matches); };
+        set();
+        q.addEventListener('change', set);
+      })();
+    </script>
   </head>
   <body>
     <main id="app">
