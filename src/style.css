@@ -640,6 +640,10 @@ html.pc #quests-root { --qb-h: min(600px, calc(100dvh - var(--safe-top) - 160px)
 /* Flex (not grid) so long text can never widen the sheet past the screen. */
 .sheet-wrap { display: flex; flex-direction: column; padding: calc(var(--safe-top) + 22px) 10px calc(var(--safe-bottom) + 10px); }
 .sheet-wrap[hidden] { display: none; }
+/* The World Map's sheet while closed: kept laid out exactly as when open (so opening is instant),
+   but invisible, untouchable and not animating. */
+.wm-parked { position: fixed; inset: 0; z-index: 10; visibility: hidden; pointer-events: none; }
+.wm-parked .sheet { animation: none; }
 .sheet {
   /* Fixed height (not sized to content) so the tab bar stays in the same spot on every tab. */
   position: relative; width: min(520px, 100%); margin: auto; flex: 0 0 auto; height: min(100%, 760px); min-height: 0;

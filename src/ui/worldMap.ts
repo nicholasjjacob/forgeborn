@@ -55,13 +55,16 @@ export class WorldMapUI {
     private readonly codexIcon: (area: number, slot: number) => string,
   ) {}
 
-  get isOpen(): boolean { return this.wrap !== null; }
+  /**
+   * The sheet is built once and kept: closing parks it (hidden, out of the way) and opening shows
+   * it again, so opening never has to build the sheet, lay it out or set up its drawing surfaces.
+   */
+  private parked = true;
+  get isOpen(): boolean { return this.wrap !== null && !this.parked; }
 
-  open(): void {
-    if (this.wrap && !this.wrap.isConnected) this.close();
-    if (this.wrap) return;
+  private build(): HTMLElement {
     const wrap = document.createElement('div');
-    wrap.className = 'modal sheet-wrap';
+    wrap.className = 'wm-parked sheet-wrap';
     wrap.setAttribute('role', 'dialog');
     wrap.setAttribute('aria-modal', 'true');
     wrap.setAttribute('aria-label', 'World map');
@@ -80,18 +83,30 @@ export class WorldMapUI {
           <div class="wm-info"></div>
         </div>
       </div>`;
+    wrap.inert = true;
     bindSheetTaps(wrap, (act) => this.run(act));
-    document.addEventListener('keydown', this.onKey);
+    this.bindCanvas(wrap.querySelector<HTMLCanvasElement>('.wm-canvas')!);
     document.body.appendChild(wrap);
-    this.wrap = wrap;
+    return wrap;
+  }
+
+  open(): void {
+    if (this.wrap && !this.wrap.isConnected) { this.wrap = null; this.parked = true; } // removed from the page: build anew
+    if (this.isOpen) return;
+    const wrap = this.wrap ?? (this.wrap = this.build());
+    // Shown again: the class change also restarts the fade and pop-in animations.
+    wrap.className = 'modal sheet-wrap';
+    wrap.inert = false;
+    this.parked = false;
+    document.addEventListener('keydown', this.onKey);
     this.sig = '';
     this.region = -1;
-    this.bindCanvas(wrap.querySelector<HTMLCanvasElement>('.wm-canvas')!);
+    this.anim = null;
     this.shown = false;
     this.refresh();
-    // The work is split over two frames so neither drops: this one builds the sheet (fading in),
-    // the next draws the map. A picture warmed at load already sets the map's shape now, so
-    // nothing jumps; otherwise the 3D map is drawn once the sheet is on screen.
+    // The map is drawn on the next frame, so this one only shows the sheet (fading in). A picture
+    // warmed at load already sets the map's shape now, so nothing jumps; otherwise the 3D map is
+    // drawn once the sheet is on screen.
     if (this.ov && this.ovKey === this.overviewKey()) {
       wrap.querySelector<HTMLElement>('.wm-wait')!.hidden = true;
       wrap.querySelector<HTMLElement>('.wm-view')!.style.setProperty('--ar', String(this.ov.canvas.width / this.ov.canvas.height));
@@ -99,10 +114,13 @@ export class WorldMapUI {
     } else requestAnimationFrame(() => requestAnimationFrame(() => this.prepare()));
   }
 
+  /** Park the sheet: hidden and inert (and not a `.modal`, which other menus look for), kept for next time. */
   close(): void {
-    if (!this.wrap) return;
-    this.wrap.remove();
-    this.wrap = null;
+    if (!this.wrap || this.parked) return;
+    this.wrap.className = 'wm-parked sheet-wrap';
+    this.wrap.inert = true;
+    this.parked = true;
+    this.anim = null;
     cancelAnimationFrame(this.raf);
     this.raf = 0;
     document.removeEventListener('keydown', this.onKey);
@@ -172,9 +190,9 @@ export class WorldMapUI {
     this.sized(this.greyOf(this.ov), 0);
     if (this.sim.explored) this.fogMaskNow(this.sim.explored);
     for (const t of f.territories) monsterSnapshot(t.area, t.monster);
-    // Rehearse a whole open, unseen: the browser builds and lays out the sheet, creates its
-    // drawing surfaces and moves the pictures to the graphics card now, not on the first tap.
-    // The hero's region gets its close-up too.
+    // Build the sheet now (it's kept from then on) and draw it once, unseen: the browser lays it
+    // out, creates its drawing surfaces and moves the pictures to the graphics card now, not on
+    // the first tap. The hero's region gets its close-up too.
     this.open();
     const wrap = this.wrap;
     if (!wrap) return;
@@ -184,18 +202,21 @@ export class WorldMapUI {
     if (this.sim.biome >= 0) this.ensureDetail(this.sim.biome);
     this.canvas().getContext('2d')!.getImageData(0, 0, 1, 1); // run the queued drawing now
     this.close();
+    wrap.style.visibility = '';
+    wrap.style.animation = '';
   }
 
-  /** Draw (or reuse) the whole-map picture. */
   /** The map has been drawn in this sheet (the first draw waits a frame after opening). */
   private shown = false;
 
+  /** Draw (or reuse) the whole-map picture. */
   private prepare(): void {
-    if (!this.wrap) return;
+    const wrap = this.wrap;
+    if (!this.isOpen || !wrap) return;
     this.shown = true;
     if (!this.ensureOverview() || !this.ov) { setTimeout(() => this.prepare(), 400); return; }
-    this.wrap.querySelector<HTMLElement>('.wm-wait')!.hidden = true;
-    this.wrap.querySelector<HTMLElement>('.wm-view')!.style.setProperty('--ar', String(this.ov.canvas.width / this.ov.canvas.height));
+    wrap.querySelector<HTMLElement>('.wm-wait')!.hidden = true;
+    wrap.querySelector<HTMLElement>('.wm-view')!.style.setProperty('--ar', String(this.ov.canvas.width / this.ov.canvas.height));
     this.view = this.viewFor(this.region);
     if (this.region >= 0) this.ensureDetail(this.region);
     this.draw(true);
@@ -353,7 +374,7 @@ export class WorldMapUI {
     cancelAnimationFrame(this.raf);
     const step = () => {
       this.raf = 0;
-      if (!this.wrap || !this.anim) return;
+      if (!this.isOpen || !this.anim) return;
       const t = Math.min(1, (performance.now() - this.anim.t0) / ZOOM_MS);
       const e = 1 - (1 - t) ** 3;
       const { from, to } = this.anim;
@@ -373,7 +394,7 @@ export class WorldMapUI {
 
   /** Paint the picture, the markers and the labels for the current view. */
   private draw(force = false): void {
-    if (!this.wrap || !this.ov) return;
+    if (!this.wrap || !this.ov) return; // (drawn while parked only by warm())
     const now = performance.now();
     if (!force && now - this.drawnAt < 200) return;
     this.drawnAt = now;
@@ -575,7 +596,8 @@ export class WorldMapUI {
 
   /** Re-render when progress changes (and redraw the hero marker). Called by the HUD ~10×/s. */
   refresh(): void {
-    if (!this.wrap) return;
+    const wrap = this.wrap;
+    if (!this.isOpen || !wrap) return;
     if (this.ov && !this.anim && this.shown) this.draw();
     const sim = this.sim, s = sim.save;
     const f = this.forest;
@@ -586,9 +608,9 @@ export class WorldMapUI {
     if (sig === this.sig) return;
     this.sig = sig;
     const where = f && sim.biome >= 0 ? f.biomes[sim.biome].name : zoneName(s.zone);
-    this.wrap.querySelector('.map-you')!.innerHTML = `📍 <b>${where}</b> · Hero Lv ${s.level}`;
-    this.wrap.querySelector<HTMLElement>('.wm-back')!.hidden = this.region < 0;
-    const info = this.wrap.querySelector<HTMLElement>('.wm-info')!;
+    wrap.querySelector('.map-you')!.innerHTML = `📍 <b>${where}</b> · Hero Lv ${s.level}`;
+    wrap.querySelector<HTMLElement>('.wm-back')!.hidden = this.region < 0;
+    const info = wrap.querySelector<HTMLElement>('.wm-info')!;
     if (this.region < 0 || !f) {
       info.innerHTML = `
         <p class="sheet-note">Tap a region to look closer. Grey land is still unexplored: walk there to uncover it.</p>
