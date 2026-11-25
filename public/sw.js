@@ -1,11 +1,12 @@
 /*
  * Forgeborn service worker: makes the installed app load instantly and play offline.
- *  - Page navigations: network first (so updates arrive), falling back to the cached page.
+ *  - Page navigations: network first, bypassing the HTTP cache (GitHub Pages lets browsers keep
+ *    the page for 10 minutes, which would hide a fresh deploy), falling back to the cached page.
  *  - Hashed build assets (JS/CSS) and icons: cache first; they never change once built.
  *  - Unhashed files (sprite sheets, sprites.json): network first, cached copy when offline.
  * Bump VERSION to force old caches out after a breaking change.
  */
-const VERSION = 'forgeborn-v1';
+const VERSION = 'forgeborn-v2';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 
 self.addEventListener('install', (event) => {
@@ -26,7 +27,7 @@ self.addEventListener('fetch', (event) => {
 
   if (req.mode === 'navigate') {
     event.respondWith(
-      fetch(req)
+      fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' })
         .then((res) => {
           const copy = res.clone();
           caches.open(VERSION).then((c) => c.put('./index.html', copy));
