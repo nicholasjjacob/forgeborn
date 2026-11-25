@@ -84,11 +84,11 @@ describe('simulation', () => {
   it('progresses at a reasonable pace with greedy upgrades', () => {
     const at5 = play(5);
     const at20 = play(20);
-    // Pace targets: into the second region within ~5 min, a few regions by 20 min, but the
-    // Greenwood's nine take hours, not minutes.
+    // Pace targets: into the second region within ~5 min, but the Greenwood's nine take hours.
     expect(at5.maxZone).toBeGreaterThanOrEqual(1);
-    expect(at20.maxZone).toBeGreaterThanOrEqual(2);
-    expect(at20.maxZone).toBeLessThan(PLAYABLE_ZONES - 2);
+    expect(at20.maxZone).toBeGreaterThanOrEqual(1);
+    expect(at20.maxZone).toBeLessThan(PLAYABLE_ZONES - 4);
+    expect(at20.save.level).toBeGreaterThan(at5.save.level);
     expect(at20.save.level).toBeGreaterThan(at5.save.level);
   });
 

@@ -19,13 +19,13 @@ import { MissionSystem } from './missionSystem';
 import { GameMap, MAP_H, MAP_W } from './map';
 import { BIOMES, FOREST_H, FOREST_W, biomeArrival, forestRegion, forestZone, type Territory } from './forest';
 import { MAX_LEVEL, levelBonus, milestoneReward, xpForKill, xpToNext, MILESTONES, type MilestoneReward } from './level';
-import { PLAYABLE_ZONES, zoneArea, zoneBoss, zoneBossName, zoneLevel, zoneName, zoneStage, bossCooldown } from './zones';
+import { PLAYABLE_ZONES, stagePower, zoneArea, zoneBoss, zoneBossName, zoneLevel, zoneName, zoneStage, bossCooldown } from './zones';
 import {
   forgeCost, forgeLevelCap, INVENTORY_SIZE, INVENTORY_STEP, MAX_FORGE_LEVEL, MAX_INVENTORY, inventoryExpandCost, mergeCount, bonusWeapon, compareWeapons, forgeAtkBonus, forgeUpgradeCost, forgeWeapon, matchingSlots, mergePartners, mergeWeapons,
   salvageValue, starterWeapon, weaponStats, type RangedDef, type Weapon,
 } from './weapons';
 
-export const MAX_ENEMIES = 64; // room for the forest's hordes
+export const MAX_ENEMIES = 128; // room for the forest's crowds and hordes
 export const MAX_SHOTS = 32;
 
 /** Fighting style codes stored on each enemy (see MonsterStyle in areas.ts). */
@@ -561,7 +561,7 @@ export class Sim {
       const pos = this.territoryPoint(t);
       if (!pos) return;
       // Restock quickly when nearly empty (or the hero isn't looking), steadily otherwise.
-      this.terrT[i] = alive[i] < t.count / 2 ? 0.8 : 3;
+      this.terrT[i] = alive[i] < t.count / 2 ? 0.35 : 1.4;
       const elite = t.zone > 0 ? this.rng.chance(0.03 + 0.02 * t.zone) : this.rng.chance(0.01);
       this.setEnemy(slot, t.monster, false, pos.x, pos.y, elite, zoneStage(t.zone), t.area);
       slot.terr = i; slot.homeX = t.x; slot.homeY = t.y; slot.homeR = t.r;
@@ -1305,11 +1305,17 @@ export class Sim {
 
       const dx = h.x - e.x, dy = h.y - e.y;
       const d = Math.hypot(dx, dy) || 0.001;
-      if (!e.aggro && (d < (e.terr >= 0 ? 72 : 120) || e.boss)) e.aggro = true;
+      // Forest monsters only take on a hero in their own region (not across a rock wall).
+      const home = e.terr >= 0 && this.map.forest ? this.map.forest.territories[e.terr] : null;
+      const sameRegion = !home || home.biome === this.biome;
+      if (!e.aggro && sameRegion && (d < (e.terr >= 0 ? 72 : 120) || e.boss)) e.aggro = true;
       // Territory monsters chase only so far from home, then head back (healed).
-      if (e.aggro && e.terr >= 0 && (Math.hypot(e.x - e.homeX, e.y - e.homeY) > e.homeR + 170 || d > 240)) {
-        e.aggro = false; e.windT = 0; e.dashT = 0; e.hp = e.maxHp;
+      if (e.aggro && e.terr >= 0 && (!sameRegion || Math.hypot(e.x - e.homeX, e.y - e.homeY) > e.homeR + 170 || d > 240)) {
+        // (No instant heal: one stuck against rocks far from home could otherwise never die.)
+        e.aggro = false; e.windT = 0; e.dashT = 0;
       }
+      // Calm territory monsters recover quickly (a lost chase heals them up on the way home).
+      if (!e.aggro && e.terr >= 0 && e.hp < e.maxHp && e.hitT <= 0) e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.2 * dt);
 
       const reach = HERO_RADIUS + e.radius + 2;
       if (e.aggro && e.windT > 0) {
@@ -1553,8 +1559,9 @@ export class Sim {
     e.x = e.prevX = x; e.y = e.prevY = y;
     e.kx = e.ky = 0;
     e.radius = boss ? (monster === 3 ? BOSS.radius : 10) : m.radius;
-    e.maxHp = e.hp = enemyHp(stage) * m.hp * (boss ? BOSS.hp * champ : 1);
-    e.dmg = enemyDmg(stage) * m.dmg * (boss ? BOSS.dmg * champ : 1);
+    const power = stagePower(stage);
+    e.maxHp = e.hp = enemyHp(stage) * power.hp * m.hp * (boss ? BOSS.hp * champ : 1);
+    e.dmg = enemyDmg(stage) * power.dmg * m.dmg * (boss ? BOSS.dmg * champ : 1);
     e.speed = boss ? BOSS.speed : m.speed * this.rng.range(0.9, 1.1);
     e.atkInterval = boss ? BOSS.atkInterval : m.atkInterval;
     e.atkCd = e.atkInterval * 0.6;

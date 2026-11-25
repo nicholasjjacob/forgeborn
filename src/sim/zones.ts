@@ -106,3 +106,18 @@ export function zoneBossName(zone: number): string {
   const { def } = areaFor(area);
   return slot === 3 ? def.boss.name : `${def.monsters[slot].name} Champion`;
 }
+
+/**
+ * How much tougher each zone's monsters are than the base curve (health, damage). Calibrated with
+ * a greedy simulated player: a zone's regulars take several hits when it opens and only fall in
+ * one by the time the next one does; a fresh zone's crowd can still overwhelm you. Gold per kill
+ * is unchanged (more of it would just feed the hero's upgrades). Zones past the table use its end.
+ */
+const ZONE_POWER: readonly [number, number][] = [
+  [1, 1], [12, 5.5], [17, 8], [30, 13], [32, 15], [30, 15], [27, 14], [24, 13], [22, 12],
+];
+export function stagePower(stage: number): { hp: number; dmg: number } {
+  const z = Math.max(0, Math.min(ZONE_POWER.length - 1, Math.round((stage - 1) / 4)));
+  const [hp, dmg] = ZONE_POWER[z];
+  return { hp, dmg };
+}

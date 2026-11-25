@@ -256,9 +256,12 @@ const HAUNTS: [string, number, number, number, number, number, boolean?][] = [
   ['Sunken Shrine', 1, 90, 70, 140, 8], ['Heron Isle', 2, -90, 80, 130, 8], ['Mossback Barrow', 0, 90, -70, 220, 18, true],
 ];
 
-const TERRITORIES: Territory[] = HAUNTS.map(([name, monster, dx, dy, r, count, horde]) => {
+/** The forest is crowded: every haunt holds about twice its listed pack (hordes nearly so). */
+const CROWD = 2, HORDE_CROWD = 1.75, SPREAD = 1.2;
+const TERRITORIES: Territory[] = HAUNTS.map(([name, monster, dx, dy, r0, count0, horde]) => {
   const l = L(name);
-  const p = settle(l.biome, l.x + dx, l.y + dy, r * 0.6);
+  const r = r0 * SPREAD, count = Math.round(count0 * (horde ? HORDE_CROWD : CROWD));
+  const p = settle(l.biome, l.x + dx, l.y + dy, r * 0.55);
   const [area, slot] = REGION_MONSTERS[l.biome][monster];
   return { zone: l.zone, biome: l.biome, area, monster: slot, x: p.x, y: p.y, r, count, landmark: name, horde };
 });
