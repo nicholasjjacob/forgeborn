@@ -1,3 +1,4 @@
+import { Explored } from './explore';
 import { DEFAULT_SKIN, SKINS, canWield, skinDef, type ClassMods } from './skins';
 import { Rng } from '../core/rng';
 import { areaFor, type MonsterDef } from './areas';
@@ -119,6 +120,8 @@ export interface SaveData {
   palettes: Record<string, number>;
   /** Zone → wall-clock time (ms) when its beaten boss can be rematched again. */
   bossReady: Record<string, number>;
+  /** Forest fog of war: the cells the hero has seen (base64 bitset, see Explored). Kept through Reforge. */
+  explored: string;
   /** Recent earnings per second, used to pay out offline progress. */
   rates: { gold: number; shards: number };
   savedAt: number;
@@ -135,7 +138,7 @@ export function freshSave(): SaveData {
     missions: freshMissions(),
     level: 1, xp: 0, levelClaimed: [], materials: freshMaterials(),
     zone: 0, zoneBosses: 0, zoneBest: 0,
-    skin: DEFAULT_SKIN, skins: [DEFAULT_SKIN], looks: {}, palettes: {}, bossReady: {},
+    skin: DEFAULT_SKIN, skins: [DEFAULT_SKIN], looks: {}, palettes: {}, bossReady: {}, explored: '',
     savedAt: Date.now(),
   };
 }
@@ -458,6 +461,15 @@ export class Sim {
     }
   }
   private gateHintT = 0;
+
+  /** Forest fog of war (null off the forest). */
+  explored: Explored | null = null;
+  private explore(): void {
+    const map = this.map;
+    if (!map.forest) return;
+    if (!this.explored) this.explored = new Explored(map.w, map.h, this.save.explored);
+    if (this.explored.reveal(this.hero.x, this.hero.y)) this.save.explored = this.explored.toString();
+  }
   private lairHintT = 0;
 
   /** Forest boss lairs: walking into the current region's lair calls up its boss. */
@@ -787,6 +799,7 @@ export class Sim {
     h.hp = Math.min(h.maxHp, h.hp + h.maxHp * (HERO_REGEN + (this.cls.regen ?? 0)) * dt);
     this.moveHero(dt);
     this.trackRegion();
+    this.explore();
     this.updateLair();
     this.updateEnemies(dt);
     this.updateShots(dt);

@@ -1285,10 +1285,11 @@ html.icons3d .chest.ready .chest-ico { width: 38px; height: 38px; filter: drop-s
 .heroes-sheet .hero-palettes { min-height: 55px; align-items: center; }
 .heroes-sheet .hero-perk { min-height: 2.5em; line-height: 1.25; display: flex; align-items: center; justify-content: center; }
 
-/* Forest minimap (bottom-left, above the bottom icons); tap for the World Map. */
+/* Forest minimap: a round window on the map around the hero (bottom-left, above the bottom
+   icons); tap for the World Map. */
 .minimap {
   position: absolute; left: 8px; bottom: calc(var(--dock-h) + var(--safe-bottom) + 8px); z-index: 2;
-  width: 92px; height: 101px; border-radius: 12px; cursor: pointer;
+  width: 104px; height: 104px; border-radius: 50%; cursor: pointer;
   box-shadow: 0 0 0 3px var(--wood), 0 4px 0 3px var(--wood-dark), 0 6px 14px #0007;
 }
 .minimap[hidden] { display: none; }
@@ -1309,7 +1310,7 @@ html.pc #dock { padding-bottom: calc(var(--safe-bottom) + 14px); gap: 18px; }
 html.pc #dock button { width: 78px; height: 78px; }
 html.pc #dock .dock-ico { width: 46px; height: 46px; }
 html.pc #dock .dock-lbl { font-size: 13px; }
-html.pc .minimap { left: 14px; bottom: calc(var(--safe-bottom) + 14px); width: 168px; height: 185px; border-radius: 16px; }
+html.pc .minimap { left: 14px; bottom: calc(var(--safe-bottom) + 14px); width: 176px; height: 176px; }
 html.pc .hint { bottom: calc(var(--dock-h) + var(--safe-bottom) + 24px); font-size: 13px; }
 html.pc #toast { top: 34%; }
 html.pc #canvas-host { cursor: crosshair; }
@@ -1318,7 +1319,7 @@ html.pc .side-btn:hover, html.pc #dock button:hover, html.pc .chip:hover { filte
 /* Big screens (1080p and up): scale the HUD so it isn't tiny on a large monitor. */
 @media (min-height: 950px) {
   html.pc #topbar, html.pc #dock { zoom: 1.2; }
-  html.pc .minimap { width: 200px; height: 220px; }
+  html.pc .minimap { width: 210px; height: 210px; }
   html.pc #panel { width: min(600px, 40vw); }
   html.pc .sheet { width: min(600px, 100%); }
 }
