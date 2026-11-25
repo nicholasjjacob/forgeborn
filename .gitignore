@@ -4,3 +4,6 @@ dist/
 
 # machine-specific paths for the sprite renderer
 tools/blender/sources.json
+
+# local scratch pages
+/_*.html
