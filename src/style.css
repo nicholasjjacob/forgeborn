@@ -497,7 +497,7 @@ html.icons3d .dock-ico[data-ico="scroll"] { background-image: var(--ico-scroll);
   --qb-h: min(580px, calc(100dvh - var(--safe-top) - var(--dock-h) - var(--safe-bottom) - 170px));
   display: flex; flex-direction: column;
 }
-html.pc #quests-root { --qb-h: min(600px, calc(100dvh - var(--safe-top) - 160px)); }
+html.pc #quests-root { --qb-h: min(600px, calc(100dvh - var(--safe-top) - 275px)); }
 #quests-root > .seg { flex: 0 0 auto; }
 #quests-root > [data-seg-page] { flex: 0 0 auto; height: var(--qb-h); min-height: 0; display: flex; flex-direction: column; }
 #quests-root > [data-seg-page][hidden] { display: none; }
@@ -1656,4 +1656,14 @@ html.pc .side-btn { --sb: clamp(34px, calc((100cqh - 40px) / 6), 78px); }
   /* The top bar is zoomed 1.2x here, so its own lengths are in zoomed units. */
   html.pc .purse { height: calc((100dvh - var(--safe-top) - 12px - var(--mm) - 14px - var(--safe-bottom) - 14px) / 1.2); }
   html.pc .side-icons { width: 82px; }
+}
+
+/* PC menu panel: never over the HUD. It stays right of the zone capsule and the bottom buttons
+   (centred, about 135px each side; 165px when the HUD is zoomed on big screens) and below
+   Auto/Settings, so on short or narrow windows (laptops at 125-150% scaling) it gets narrower
+   and shorter instead of covering them; the pages inside scale to fit. */
+html.pc #panel { width: clamp(340px, min(42vw, calc(50vw - 165px)), 520px); max-height: calc(100dvh - var(--safe-top) - 118px); }
+@media (min-height: 950px) {
+  html.pc #panel { width: clamp(340px, min(40vw, calc(50vw - 200px)), 600px); max-height: calc(100dvh - var(--safe-top) - 140px); }
+  html.pc #quests-root { --qb-h: min(600px, calc(100dvh - var(--safe-top) - 300px)); }
 }

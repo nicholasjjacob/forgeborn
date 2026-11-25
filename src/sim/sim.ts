@@ -996,7 +996,9 @@ export class Sim {
   }
 
   get reforgeGain(): number {
-    return embersFor(this.save.highestStage);
+    // The furthest zone open this run counts even if highestStage lagged (it only updates on a
+    // boss win; a zone can also open later by levelling up past its level gate).
+    return embersFor(Math.max(this.save.highestStage, zoneStage(this.maxZone)));
   }
 
   /** Offline cap including the Night Watch perk. */
