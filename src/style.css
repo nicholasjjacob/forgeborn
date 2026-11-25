@@ -42,6 +42,9 @@
 html, body {
   margin: 0;
   height: 100%;
+  /* A full-window game: the page itself never scrolls. (Panels sliding in from the edge would
+     otherwise flash a scrollbar in desktop Chrome; scrolling lists scroll inside their sheets.) */
+  overflow: hidden;
   background: #0b1030;
   color: var(--ink);
   font: 600 15px/1.25 var(--font);
