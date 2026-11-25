@@ -6,9 +6,8 @@ import type { Sim } from '../sim/sim';
 /**
  * Minimap of the forest world (bottom-left): regions in their colours, trails, closed passes
  * (red X), monster territories, boss lairs and the hero (white arrow); anything not yet explored
- * is greyed out until the hero has been there. Two shapes (Settings):
- *  - circle: a round window centred on the hero, showing the land around them;
- *  - square: the whole forest at once, the hero moving across it.
+ * is greyed out until the hero has been there. A window on the land around the hero, in either
+ * frame (Settings): a circle or a rounded square, at the same zoom.
  * Tap it to open the World Map. Hidden off the forest.
  *
  * The fog is one persistent layer: built from the explored cells once, then every frame a soft
@@ -56,14 +55,9 @@ export class Minimap {
     // Canvas px per world unit, and where the map's origin sits on the canvas.
     const h = this.sim.hero;
     const hx = h.prevX + (h.x - h.prevX) * alpha, hy = h.prevY + (h.y - h.prevY) * alpha;
-    let k: number, ox: number, oy: number;
-    if (square) {
-      k = Math.min(W / map.w, H / map.h);
-      ox = (W - map.w * k) / 2; oy = (H - map.h * k) / 2;
-    } else {
-      k = W / (2 * VIEW_R);
-      ox = W / 2 - hx * k; oy = H / 2 - hy * k;
-    }
+    // Both shapes show the same land around the hero at the same zoom; only the frame differs.
+    const k = W / (2 * VIEW_R);
+    const ox = W / 2 - hx * k, oy = H / 2 - hy * k;
     if (!this.bg || this.bgFor !== f || Math.abs(this.bgK - k) > 1e-6) this.bg = this.background(f, map.w, map.h, k);
     const ex = this.sim.explored;
     if (ex && this.fogFor !== ex) this.fog = this.fogLayer(ex);
@@ -79,7 +73,7 @@ export class Minimap {
     g.translate(ox, oy);
     g.drawImage(this.bg, 0, 0);
     const seen = (x: number, y: number) => !ex || ex.seen(x, y);
-    const dot = square ? 0.75 : 1; // markers a touch smaller on the whole-map view
+    const dot = 1;
 
     // Territories: the monster's colour, once found.
     for (const t of f.territories) {

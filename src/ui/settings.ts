@@ -6,18 +6,12 @@ export interface SettingsActions {
   applyQuality(q: 'high' | 'low'): void;
   applyFps(fps: 30 | 60): void;
   reset(): void;
-  /** Present the browser's install prompt if one is available; returns false if not. */
-  install(): Promise<boolean>;
-  canInstall(): boolean;
   /** Open the Reforge page (prestige), and its badge text ('' when there's nothing new). */
   openReforge(): void;
   reforgeBadge(): string;
 }
 
-const isIos = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-const isStandalone = () => matchMedia('(display-mode: standalone)').matches || (navigator as unknown as { standalone?: boolean }).standalone === true;
-
-/** Settings sheet: sound, graphics quality, frame rate, Reforge, install, reset. Changes apply instantly. */
+/** Settings sheet: sound, graphics quality, frame rate, Reforge, minimap, full screen, reset. Changes apply instantly. */
 export function openSettings(sim: Sim, act: SettingsActions): void {
   const s = sim.save;
   const wrap = document.createElement('div');
@@ -32,9 +26,8 @@ export function openSettings(sim: Sim, act: SettingsActions): void {
       <div class="set-row"><span>Graphics<small>Low: sharper on weak phones, fewer particles, no shake</small></span><div class="seg" data-key="quality"><button data-v="high">High</button><button data-v="low">Low</button></div></div>
       <div class="set-row"><span>Frame rate<small>30 saves battery</small></span><div class="seg" data-key="fps"><button data-v="60">60</button><button data-v="30">30</button></div></div>
       <div class="set-row"><span>Reforge<small>Restart stronger: trade this run for embers and perks</small></span><button type="button" class="btn small primary" id="open-reforge">Open<span class="badge" id="set-reforge-badge"></span></button></div>
-      <div class="set-row"><span>Minimap<small>Circle: around your hero · Square: the whole forest</small></span><div class="seg" data-key="minimap"><button data-v="circle">Circle</button><button data-v="square">Square</button></div></div>
+      <div class="set-row"><span>Minimap<small>Frame shape</small></span><div class="seg" data-key="minimap"><button data-v="circle">Circle</button><button data-v="square">Square</button></div></div>
       <div class="set-row fullscreen-row" hidden><span>Full screen<small>Hide the browser bars (Esc leaves)</small></span><div class="seg" data-key="fullscreen"><button data-v="on">On</button><button data-v="off">Off</button></div></div>
-      <div class="set-row install-row" hidden><span>Install<small class="install-note"></small></span><button type="button" class="btn small primary" id="install-btn">Install</button></div>
       <div class="set-actions">
         <button type="button" class="btn ghost" id="reset-progress">Reset progress</button>
         <button type="button" class="btn primary" id="close-settings">Done</button>
@@ -73,22 +66,6 @@ export function openSettings(sim: Sim, act: SettingsActions): void {
   wrap.querySelector<HTMLElement>('.fullscreen-row')!.hidden = !(document.documentElement.classList.contains('pc') && document.fullscreenEnabled);
   const onFs = () => sync();
   document.addEventListener('fullscreenchange', onFs);
-
-  // Install: native prompt on Chrome/Android/desktop; instructions on iOS Safari.
-  const row = wrap.querySelector<HTMLElement>('.install-row')!;
-  const note = wrap.querySelector<HTMLElement>('.install-note')!;
-  const ib = wrap.querySelector<HTMLButtonElement>('#install-btn')!;
-  if (!isStandalone()) {
-    if (act.canInstall()) {
-      row.hidden = false;
-      note.textContent = 'Play full-screen and offline';
-      ib.addEventListener('click', async () => { if (await act.install()) row.hidden = true; });
-    } else if (isIos()) {
-      row.hidden = false;
-      note.textContent = 'In Safari: tap Share, then "Add to Home Screen"';
-      ib.hidden = true;
-    }
-  }
 
   const close = () => { document.removeEventListener('keydown', onKey); document.removeEventListener('fullscreenchange', onFs); wrap.remove(); };
   const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };

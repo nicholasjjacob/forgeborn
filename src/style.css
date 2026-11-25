@@ -1382,7 +1382,5 @@ html.pc .wm-ri-act .btn { min-width: 100%; }
 .sheet-body.fill .codex-grid.big .codex-card { min-height: 0; }
 .sheet-body.fill .codex-grid.big .codex-portrait { flex: 1 1 110px; height: auto; min-height: 80px; }
 
-/* Square minimap: the whole forest, a rounded box in the map's proportions. */
-.minimap.square { border-radius: 12px; height: 94px; }
-html.pc .minimap.square { height: 159px; }
-@media (min-height: 950px) { html.pc .minimap.square { height: 190px; } }
+/* Square minimap: the same view as the circle, in a rounded square frame. */
+.minimap.square { border-radius: 14px; }

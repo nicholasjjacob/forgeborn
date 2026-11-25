@@ -96,7 +96,7 @@ async function boot() {
     app.resize();
   };
   const applySound = () => { sfx.enabled = sim.save.sound; if (sim.save.sound) sfx.unlock(); };
-  const pwa = registerPwa();
+  registerPwa(); // service worker (offline play) and automatic updates
 
   sim.missions.update(new Date());
   hud = new Hud(document.getElementById('app')!, sim, art.weaponIcons, (area, slot) => { ensureAreaSprites(area); return areaArt(area).monsterIcons[slot]; }, () => openSettings(sim, {
@@ -107,8 +107,6 @@ async function boot() {
       saving = false; // stop pagehide/autosave from restoring the old save during reload
       wipeSave().finally(() => location.reload());
     },
-    install: () => pwa.install(),
-    canInstall: () => pwa.canInstall(),
     openReforge: () => hud?.openPage('reforge'),
     reforgeBadge: () => hud?.reforgeBadge() ?? '',
   }));

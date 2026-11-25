@@ -83,7 +83,7 @@ export interface SaveData {
   auto: boolean;
   sound: boolean;
   quality: 'high' | 'low';
-  /** Minimap shape: a round view around the hero, or the whole forest in a square. */
+  /** Minimap frame: a circle or a rounded square (same view around the hero). */
   minimap: 'circle' | 'square';
   shards: number;
   forgeLevel: number;
