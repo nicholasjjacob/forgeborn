@@ -1,4 +1,4 @@
-import { monsterSlot, paintMonsterPortraits } from './monsterPreview';
+import { monsterSlot, monsterSnapshot, paintMonsterPortraits } from './monsterPreview';
 import { gi } from './icons';
 import { sfx } from '../audio/sfx';
 import { fmt } from '../core/format';
@@ -330,29 +330,39 @@ export class WorldMapUI {
       g.beginPath(); g.moveTo(p.x - r, p.y - r); g.lineTo(p.x + r, p.y + r); g.moveTo(p.x + r, p.y - r); g.lineTo(p.x - r, p.y + r); g.stroke();
     }
 
-    // Monster haunts (found ones, zoomed in): their codex portrait; hordes get a red ring.
     if (zoomed) {
+      // Monster haunts (found ones): the monster's portrait on a light disc; hordes get a red ring.
       for (const t of f.territories) {
         if (t.biome !== this.region || !seen(t.x, t.y)) continue;
         const p = at(t.x, t.y);
         const r = (t.horde ? 17 : 13) * scale;
-        g.fillStyle = 'rgba(10,16,53,0.75)';
+        const disc = g.createRadialGradient(p.x, p.y - r * 0.3, r * 0.1, p.x, p.y, r);
+        disc.addColorStop(0, '#f4f7ff'); disc.addColorStop(1, '#b9c6ea');
+        g.fillStyle = disc;
         g.beginPath(); g.arc(p.x, p.y, r, 0, Math.PI * 2); g.fill();
-        const icon = this.icon(t.area, t.monster);
-        if (icon?.complete && icon.naturalWidth) g.drawImage(icon, p.x - r * 0.85, p.y - r * 0.85, r * 1.7, r * 1.7);
-        g.strokeStyle = t.horde ? '#ff4040' : '#fff'; g.lineWidth = (t.horde ? 2.5 : 1.5) * scale;
+        // The monster's real 3D model (a still); its codex sprite only until the model has loaded.
+        const snap = monsterSnapshot(t.area, t.monster);
+        const icon = snap ? null : this.icon(t.area, t.monster);
+        if (snap) {
+          g.save();
+          g.beginPath(); g.arc(p.x, p.y, r - 1, 0, Math.PI * 2); g.clip();
+          g.drawImage(snap, p.x - r * 1.05, p.y - r * 1.0, r * 2.1, r * 2.1);
+          g.restore();
+        }
+        else if (icon?.complete && icon.naturalWidth) g.drawImage(icon, p.x - r * 0.85, p.y - r * 0.85, r * 1.7, r * 1.7);
+        g.strokeStyle = t.horde ? '#ff4040' : '#0a1035'; g.lineWidth = (t.horde ? 2.5 : 2) * scale;
         g.beginPath(); g.arc(p.x, p.y, r, 0, Math.PI * 2); g.stroke();
       }
-      // Landmark names (found ones).
+      // Landmark names (found ones), on top, just above their landmark.
       g.font = `600 ${11 * scale}px Fredoka, system-ui, sans-serif`;
       g.textAlign = 'center';
-      g.textBaseline = 'top';
+      g.textBaseline = 'bottom';
       for (const l of f.landmarks) {
         if (l.biome !== this.region || !seen(l.x, l.y) || f.lairs.some((q) => q.name === l.name)) continue;
         const p = at(l.x, l.y);
         g.lineWidth = 3 * scale; g.strokeStyle = 'rgba(10,16,53,0.85)'; g.fillStyle = '#fff';
-        g.strokeText(l.name, p.x, p.y + 6 * scale);
-        g.fillText(l.name, p.x, p.y + 6 * scale);
+        g.strokeText(l.name, p.x, p.y - 4 * scale);
+        g.fillText(l.name, p.x, p.y - 4 * scale);
       }
     }
 

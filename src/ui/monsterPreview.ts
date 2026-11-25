@@ -171,6 +171,46 @@ function paintWeapon(c: HTMLCanvasElement, w: number, h: number, now: number): v
   c.parentElement?.classList.add('has3d');
 }
 
+/**
+ * A still portrait of a monster's 3D model (`m<area>_<slot>`), size×size pixels, drawn once and
+ * cached: for places that paint onto their own canvas (the World Map's haunt markers). Null until
+ * the model has loaded (callers just try again on their next draw).
+ */
+const snapshots = new Map<string, HTMLCanvasElement>();
+export function monsterSnapshot(area: number, slot: number, size = 96): HTMLCanvasElement | null {
+  const key = `m${area % 6}_${slot}`;
+  const have = snapshots.get(`${key}|${size}`);
+  if (have) return have;
+  if (!setup()) return null;
+  const fly = slot < 3 && areaFor(area).def.monsters[slot]?.shape === 'bat';
+  const p = build(key, fly);
+  if (!p) return null;
+  const r = renderer!, sc = scene!, cam = camera!;
+  const size0 = r.getSize(new THREE.Vector2());
+  if (size0.x !== size || size0.y !== size) r.setSize(size, size, false);
+  const rot = p.obj.rotation.y;
+  p.obj.rotation.y = 0.5;
+  // Frame the monster as it actually stands in its idle pose (flyers hover well above the ground).
+  p.obj.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(p.obj, true);
+  const c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
+  const span = Math.max(sz.x, sz.y, sz.z * 0.8, 0.3);
+  const dist = (span * 0.62) / Math.tan((cam.fov * Math.PI) / 360);
+  cam.aspect = 1;
+  cam.position.set(c.x, c.y + dist * 0.28, c.z + dist);
+  cam.lookAt(c.x, c.y, c.z);
+  cam.updateProjectionMatrix();
+  sc.add(p.obj);
+  r.render(sc, cam);
+  sc.remove(p.obj);
+  p.obj.rotation.y = rot;
+  const out = document.createElement('canvas');
+  out.width = out.height = size;
+  out.getContext('2d')!.drawImage(r.domElement, 0, 0);
+  snapshots.set(`${key}|${size}`, out);
+  return out;
+}
+
 function loop(now: number): void {
   raf = requestAnimationFrame(loop);
   if (now - last < FRAME_MS - 2) return;
