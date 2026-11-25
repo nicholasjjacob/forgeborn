@@ -696,7 +696,7 @@ html.icons3d .dock-ico[data-ico="scroll"] { background-image: var(--ico-scroll);
 .codex-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .codex-card { position: relative; padding: 7px 4px 7px; border-radius: 12px; text-align: center; background: linear-gradient(var(--card-hi), var(--cream-2)); box-shadow: inset 0 0 0 2px var(--wood), 0 3px 0 var(--wood-dark); display: flex; flex-direction: column; align-items: center; gap: 3px; }
 .codex-card.maxed { background: linear-gradient(#8a6a14, #5a420a); }
-.codex-portrait { width: 100%; height: 50px; display: grid; place-items: center; border-radius: 9px; background: radial-gradient(circle at 50% 60%, #ffffff40, #ffffff00 70%); }
+.codex-portrait { width: 100%; height: 50px; display: grid; place-items: center; border-radius: 9px; }
 .codex-next { font-size: 9px; color: var(--ink-soft); display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 1px; min-height: 18px; }
 .codex-next .rchip { font-size: 10px; padding: 0 5px 0 2px; }
 .codex-next.done { color: #ffc84a; font-size: 10px; }
@@ -1374,3 +1374,10 @@ html.pc .wm-info { grid-column: 2; grid-row: 2; align-self: center; }
 html.pc .wm-info .sheet-note { text-align: left; font-size: 13px; }
 html.pc .wm-ri-act .btn { min-width: 100%; }
 .wm-horde { color: #ff7a6a; }
+
+/* A land's four monster cards fill the sheet (two rows sharing the height); the portraits take
+   the spare room, so there's no empty space under the cards. */
+.sheet-body.fill .codex-top { flex: 0 0 auto; }
+.sheet-body.fill .codex-grid.big { flex: 1 1 auto; min-height: 0; grid-template-rows: 1fr 1fr; margin-bottom: 4px; }
+.sheet-body.fill .codex-grid.big .codex-card { min-height: 0; }
+.sheet-body.fill .codex-grid.big .codex-portrait { flex: 1 1 110px; height: auto; min-height: 80px; }
