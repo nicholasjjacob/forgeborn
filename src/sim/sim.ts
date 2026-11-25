@@ -142,7 +142,9 @@ export function freshSave(): SaveData {
 
 export interface Enemy {
   alive: boolean;
-  monster: number;   // index into the area roster (0..2), or 3 for the boss
+  monster: number;   // index into its terrain's roster (0..2), or 3 for the boss
+  /** The terrain the monster comes from (forest regions borrow monsters from every terrain). */
+  area: number;
   boss: boolean;
   elite: boolean;
   style: number;     // STYLE_* code
@@ -288,7 +290,7 @@ export class Sim {
     this.rng = new Rng(seed ?? (Date.now() & 0xffffffff));
     for (let i = 0; i < MAX_ENEMIES; i++) {
       this.enemies.push({
-        alive: false, monster: 0, boss: false, elite: false, style: 0, windT: 0, dashT: 0, dirX: 0, dirY: 0, dashHit: false, skillCd: 0, x: 0, y: 0, prevX: 0, prevY: 0, kx: 0, ky: 0, radius: 5,
+        alive: false, monster: 0, area: 0, boss: false, elite: false, style: 0, windT: 0, dashT: 0, dirX: 0, dirY: 0, dashHit: false, skillCd: 0, x: 0, y: 0, prevX: 0, prevY: 0, kx: 0, ky: 0, radius: 5,
         hp: 0, maxHp: 0, dmg: 0, speed: 0, atkInterval: 1, atkCd: 0, gold: 0, aggro: false,
         wanderA: 0, wanderT: 0, spawnT: 0, chasing: false, stuckT: 0, detourT: 0, detourA: 0, hitT: 0, lungeT: 0, seed: 0,
         terr: -1, homeX: 0, homeY: 0, homeR: 0, stage: 1,
@@ -330,7 +332,7 @@ export class Sim {
   get zoneBossBeaten(): boolean { return this.save.zone < this.save.zoneBosses; }
 
   monsterDef(e: Enemy): MonsterDef {
-    const { def } = areaFor(this.map.area);
+    const { def } = areaFor(e.area);
     return e.monster === 3 ? def.boss : def.monsters[e.monster];
   }
 
@@ -560,7 +562,7 @@ export class Sim {
       // Restock quickly when nearly empty (or the hero isn't looking), steadily otherwise.
       this.terrT[i] = alive[i] < t.count / 2 ? 0.8 : 3;
       const elite = t.zone > 0 ? this.rng.chance(0.03 + 0.02 * t.zone) : this.rng.chance(0.01);
-      this.setEnemy(slot, t.monster, false, pos.x, pos.y, elite, zoneStage(t.zone));
+      this.setEnemy(slot, t.monster, false, pos.x, pos.y, elite, zoneStage(t.zone), t.area);
       slot.terr = i; slot.homeX = t.x; slot.homeY = t.y; slot.homeR = t.r;
     });
   }
@@ -1536,8 +1538,9 @@ export class Sim {
     return null;
   }
 
-  private setEnemy(e: Enemy, monster: number, boss: boolean, x: number, y: number, elite = false, stage = this.save.stage): void {
-    const { def } = areaFor(this.map.area);
+  private setEnemy(e: Enemy, monster: number, boss: boolean, x: number, y: number, elite = false, stage = this.save.stage, area = this.map.area): void {
+    const { def } = areaFor(area);
+    e.area = area;
     const m = monster === 3 ? def.boss : def.monsters[monster];
     e.stage = stage;
     e.terr = -1; e.homeX = x; e.homeY = y; e.homeR = 0;
@@ -1582,7 +1585,7 @@ export class Sim {
     this.save.stats.gold += gold;
     this.save.kills++;
     this.events.push(Ev.Kill, e.x, e.y, gold, e.boss ? 1 : 0);
-    this.missions.recordKill(this.map.area, e.monster);
+    this.missions.recordKill(e.area, e.monster);
     if (e.elite) this.save.stats.elites++;
     this.gainXp(xpForKill(e.stage, e.boss));
 

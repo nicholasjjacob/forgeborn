@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { areaFor, type PropKind } from '../sim/areas';
 import { MAP_H, MAP_W, type GameMap } from '../sim/map';
-import { BIOMES, FOREST, FOREST_MODELS, FOREST_PATHS, forestRegion, grassAt } from '../sim/forest';
+import { BIOMES, FOREST, FOREST_MODELS, FOREST_MONSTERS, FOREST_PATHS, forestRegion, grassAt } from '../sim/forest';
 import { ELITE, MAX_ENEMIES, MAX_HERO_SHOTS, MAX_SHOTS, SLAM_RADIUS, SLAM_WIND, STYLE_DASHER, type Enemy, type Sim } from '../sim/sim';
 import { cloneActor, findClip, loadModel, measure, model } from './models';
 import { Fx3D } from './fx3d';
@@ -100,7 +100,7 @@ const LOOKS: AreaLook[] = [
 export function preloadArea(area: number, skin = 'knight'): Promise<unknown> {
   const names = new Set<string>([`hero_${skin}`, ...heroAnimFiles(skin)]);
   for (let i = 0; i < 4; i++) names.add(`m${area % 6}_${i}`);
-  if (area === 0) for (const n of FOREST_MODELS) names.add(n);
+  if (area === 0) for (const n of [...FOREST_MODELS, ...FOREST_MONSTERS]) names.add(n);
   else {
     for (const p of areaFor(area).def.props) for (const n of PROP_SPECS[p.kind].models) if (!n.startsWith('@')) names.add(n);
     for (const [n] of COVER[area % COVER.length]) names.add(n);
@@ -417,6 +417,7 @@ export class World3D {
     for (const [, list] of this.pools) for (const a of list) a.obj.removeFromParent();
     this.pools.clear();
     for (let i = 0; i < 4; i++) void loadModel(`m${area % 6}_${i}`).catch(() => {});
+    if (area === 0) for (const n of FOREST_MONSTERS) void loadModel(n).catch(() => {});
   }
 
   private buildGround(map: GameMap): void {
@@ -802,7 +803,7 @@ export class World3D {
   }
 
   private flying(e: Enemy): boolean {
-    return areaFor(this.area).def.monsters[e.monster]?.shape === 'bat' && !e.boss;
+    return areaFor(e.area).def.monsters[e.monster]?.shape === 'bat' && !e.boss;
   }
 
   // --- Per frame -----------------------------------------------------------------------------
@@ -877,10 +878,10 @@ export class World3D {
       for (const m of this.weapon.glow) m.emissiveIntensity = pulse;
     }
 
-    // Monsters
-    const def = areaFor(this.area).def;
+    // Monsters (each from its own terrain's roster: the forest's regions mix them)
     for (let i = 0; i < MAX_ENEMIES; i++) {
       const e = sim.enemies[i], s = this.slots[i];
+      const def = areaFor(e.area).def;
       if (!e.alive) {
         if (s.actor) {
           if (s.alive) {
@@ -896,7 +897,7 @@ export class World3D {
         s.aura.visible = s.slam.visible = s.slamIn.visible = s.slamEdge.visible = s.lane.visible = false;
         continue;
       }
-      const key = `m${this.area % 6}_${e.monster}`;
+      const key = `m${e.area % 6}_${e.monster}`;
       const fly = def.monsters[e.monster]?.shape === 'bat' && !e.boss;
       if (s.actor && s.actor.key !== key) { this.release(s.actor); s.actor = null; }
       if (!s.actor) {

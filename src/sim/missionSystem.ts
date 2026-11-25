@@ -175,8 +175,10 @@ export class MissionSystem {
 
   /** Areas the player has reached (codex pages). */
   codexAreas(): number[] {
+    // Terrains reached, plus any whose monsters have been met (the forest's regions borrow them).
     const last = zoneArea(this.sim.save.zoneBest);
-    return Array.from({ length: last + 1 }, (_, i) => i);
+    const met = Object.keys(this.m.codex).map(Number).filter((a) => (this.m.codex[String(a)] ?? []).some((k) => k > 0));
+    return [...new Set([...Array.from({ length: last + 1 }, (_, i) => i), ...met])].sort((a, b) => a - b);
   }
 
   // --- Gem shop --------------------------------------------------------------------

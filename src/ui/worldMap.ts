@@ -338,7 +338,7 @@ export class WorldMapUI {
         const r = (t.horde ? 17 : 13) * scale;
         g.fillStyle = 'rgba(10,16,53,0.75)';
         g.beginPath(); g.arc(p.x, p.y, r, 0, Math.PI * 2); g.fill();
-        const icon = this.icon(t.monster);
+        const icon = this.icon(t.area, t.monster);
         if (icon?.complete && icon.naturalWidth) g.drawImage(icon, p.x - r * 0.85, p.y - r * 0.85, r * 1.7, r * 1.7);
         g.strokeStyle = t.horde ? '#ff4040' : '#fff'; g.lineWidth = (t.horde ? 2.5 : 1.5) * scale;
         g.beginPath(); g.arc(p.x, p.y, r, 0, Math.PI * 2); g.stroke();
@@ -420,14 +420,14 @@ export class WorldMapUI {
     });
   }
 
-  private icon(slot: number): HTMLImageElement | null {
-    let im = this.icons.get(slot);
+  private icon(area: number, slot: number): HTMLImageElement | null {
+    let im = this.icons.get(area * 4 + slot);
     if (!im) {
-      const src = this.codexIcon(0, slot);
+      const src = this.codexIcon(area, slot);
       if (!src) return null;
       im = new Image();
       im.src = src;
-      this.icons.set(slot, im);
+      this.icons.set(area * 4 + slot, im);
     }
     return im;
   }
@@ -520,10 +520,10 @@ export class WorldMapUI {
     const bossState = !beaten ? `waits ${where}` : cool > 0 ? `defeated ✓ · back in ${clock(cool)}` : `defeated ✓ · rematch ${where}`;
     // Monsters of this region: shown once one of their haunts here has been found.
     const haunts = f.territories.filter((t) => t.biome === b);
-    const slots = [...new Set(haunts.map((t) => t.monster))];
-    const mons = slots.map((m) => {
-      const found = haunts.some((t) => t.monster === m && seen(t.x, t.y));
-      return monsterSlot(0, m, this.codexIcon(0, m), 'map-mon', !found);
+    const kinds = [...new Map(haunts.map((t) => [t.area * 4 + t.monster, t])).values()];
+    const mons = kinds.map((k) => {
+      const found = haunts.some((t) => t.area === k.area && t.monster === k.monster && seen(t.x, t.y));
+      return monsterSlot(k.area, k.monster, this.codexIcon(k.area, k.monster), 'map-mon', !found);
     }).join('');
     const found = haunts.filter((t) => seen(t.x, t.y)).length;
     const hordes = haunts.filter((t) => t.horde).length;

@@ -61,7 +61,7 @@ const LINKS: [number, number, number][] = [
   [4, 7, 2], [3, 6, 2], [5, 8, 2],                                  // up into the Old Mill
 ];
 
-export interface Territory { zone: number; biome: number; monster: number; x: number; y: number; r: number; count: number; landmark: string; horde?: boolean }
+export interface Territory { zone: number; biome: number; area: number; monster: number; x: number; y: number; r: number; count: number; landmark: string; horde?: boolean }
 export interface Lair { zone: number; biome: number; x: number; y: number; r: number; name: string }
 export interface Landmark { name: string; x: number; y: number; zone: number; biome: number; style: string }
 /** A barricaded pass; `zone` is the tier it leads into (it opens once that zone is unlocked). */
@@ -217,7 +217,25 @@ const LMK: Landmark[] = LANDMARKS.map(([b, name, dx, dy, style]) => {
 });
 const L = (name: string) => LMK.find((l) => l.name === name)!;
 
-/** [landmark, monster, dx, dy, radius, count, horde] (the haunt sits off its landmark). */
+/**
+ * Each region's own three monsters, borrowed from every terrain's roster: [terrain, slot].
+ * Terrains: 0 Greenwood, 1 Mirewood, 2 Sunscar, 3 Hollow Deep, 4 Frostveil, 5 Emberforge.
+ */
+export const REGION_MONSTERS: [number, number][][] = [
+  [[0, 0], [0, 1], [0, 2]], // Meadow Outskirts: Moss Blob, Meadow Pigeon, Mushnub
+  [[2, 2], [2, 1], [2, 0]], // Goldenrod Fields: Sand Alpaca, Dune Dino, Cactling
+  [[1, 0], [1, 2], [1, 1]], // Mistwater Glade: Spiky Blob, Mire Bee, Bog Glub
+  [[4, 2], [0, 0], [1, 2]], // Bloomwood Groves: Snow Sprite, Moss Blob, Mire Bee
+  [[5, 0], [5, 2], [2, 1]], // Emberleaf Woods: Cinder Orc, Ember Demon, Dune Dino
+  [[4, 0], [4, 1], [4, 2]], // Tidepine Thicket: Frost Yeti, Ice Squid, Snow Sprite
+  [[5, 1], [3, 2], [0, 2]], // Old Mill Crossing: Bone Brute, Golemite, Mushnub
+  [[3, 1], [3, 0], [5, 2]], // Crimson Hollow: Cave Ghost, Cave Alien, Ember Demon
+  [[1, 1], [4, 1], [1, 0]], // Emerald Mere: Bog Glub, Ice Squid, Spiky Blob
+];
+/** Every monster model the forest's regions use (to preload). */
+export const FOREST_MONSTERS: string[] = [...new Set(REGION_MONSTERS.flat().map(([a, s]) => `m${a}_${s}`))];
+
+/** [landmark, which of the region's monsters (0-2), dx, dy, radius, count, horde] (the haunt sits off its landmark). */
 const HAUNTS: [string, number, number, number, number, number, boolean?][] = [
   // Meadow tier
   ['Mossy Boulders', 0, 40, 30, 140, 6], ['Standing Stones', 1, 110, -90, 120, 5], ['Great Oak', 2, 0, 60, 110, 4], ['Old Watchtree', 0, -60, 40, 110, 4],
@@ -236,7 +254,8 @@ const HAUNTS: [string, number, number, number, number, number, boolean?][] = [
 const TERRITORIES: Territory[] = HAUNTS.map(([name, monster, dx, dy, r, count, horde]) => {
   const l = L(name);
   const p = settle(l.biome, l.x + dx, l.y + dy, r * 0.6);
-  return { zone: l.zone, biome: l.biome, monster, x: p.x, y: p.y, r, count, landmark: name, horde };
+  const [area, slot] = REGION_MONSTERS[l.biome][monster];
+  return { zone: l.zone, biome: l.biome, area, monster: slot, x: p.x, y: p.y, r, count, landmark: name, horde };
 });
 
 const LAIRS: Lair[] = [

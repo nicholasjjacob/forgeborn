@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BIOMES, FOREST, MISSING_LINKS, biomeArrival, borderDepth, forestRegion } from '../src/sim/forest';
+import { BIOMES, FOREST, MISSING_LINKS, REGION_MONSTERS, biomeArrival, borderDepth, forestRegion } from '../src/sim/forest';
 import { GameMap } from '../src/sim/map';
 
 describe('the forest world', () => {
@@ -64,5 +64,16 @@ describe('forest borders', () => {
     expect([...reachable(map)].sort()).toEqual([0, 1, 2, 3, 4, 5]);
     map.openGates.add(2);
     expect([...reachable(map)].sort()).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+  });
+});
+
+describe('forest monsters', () => {
+  it('every region has its own three monsters, and its haunts use them', () => {
+    const sets = REGION_MONSTERS.map((r) => r.map(([a, s]) => `${a}.${s}`).sort().join(','));
+    expect(REGION_MONSTERS.every((r) => r.length === 3)).toBe(true);
+    expect(new Set(sets).size).toBe(9); // no two regions share the same trio
+    for (const t of FOREST.territories) {
+      expect(REGION_MONSTERS[t.biome].some(([a, s]) => a === t.area && s === t.monster), t.landmark).toBe(true);
+    }
   });
 });

@@ -73,10 +73,9 @@ export class Minimap {
       g.beginPath(); g.moveTo(x - d, y - d); g.lineTo(x + d, y + d); g.moveTo(x + d, y - d); g.lineTo(x - d, y + d); g.stroke();
     }
     // Territories: the monster's colour, once found.
-    const mons = areaFor(0).def.monsters;
     for (const t of f.territories) {
       if (!seen(t.x, t.y)) continue;
-      g.fillStyle = mons[t.monster].pal.m;
+      g.fillStyle = areaFor(t.area).def.monsters[t.monster].pal.m;
       g.globalAlpha = 0.35;
       g.beginPath(); g.arc(t.x * k, t.y * k, t.r * k, 0, Math.PI * 2); g.fill();
       g.globalAlpha = 1;
