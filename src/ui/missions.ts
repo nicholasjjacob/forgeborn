@@ -7,7 +7,7 @@ import { actionElement, bindSheetTaps } from './tap';
 import { fmt } from '../core/format';
 import { areaFor, areaName } from '../sim/areas';
 import {
-  DAILY_TASKS, JOURNEY_DAYS, JOURNEY_TASKS, SHOP, codexReward, codexTiers, describeReward, formatCountdown, msUntilNextDay,
+  JOURNEY_DAYS, JOURNEY_TASKS, SHOP, codexReward, codexTiers, describeReward, formatCountdown, msUntilNextDay,
   msUntilNextWeek, type Reward, type TaskDef,
 } from '../sim/missions';
 import type { BoardKind } from '../sim/missionSystem';
@@ -41,7 +41,7 @@ function count(n: number): string {
 
 /**
  * The Missions sheet (a full-height panel over the game) plus the main-screen pieces:
- * the left icon column and the right-side quest tracker. Rendering is string templates;
+ * the left icon column . Rendering is string templates;
  * a section only re-renders when its state signature changes, so an open sheet costs little.
  */
 export class MissionsUI {
@@ -49,7 +49,6 @@ export class MissionsUI {
   private tab: MissionTab = 'daily';
   private journeyDaySel = -1;
   private sig = '';
-  private readonly cache = new Map<HTMLElement, string>();
 
   constructor(
     private readonly sim: Sim,
@@ -59,21 +58,6 @@ export class MissionsUI {
     document.getElementById('side-missions')!.addEventListener('click', () => this.open(this.bestTab()));
     document.getElementById('side-journey')!.addEventListener('click', () => this.open('journey'));
     document.getElementById('side-codex')!.addEventListener('click', () => this.open('codex'));
-    // Tracker cards are buttons (so a tap never starts the joystick). A finished mission is
-    // claimed right there; any other card opens the daily board.
-    document.getElementById('tracker')!.addEventListener('click', (e) => {
-      const card = (e.target as HTMLElement).closest<HTMLElement>('.track-card');
-      if (!card) return;
-      const id = card.dataset.task;
-      if (card.classList.contains('ready') && id && this.sim.missions.claimTask('daily', id, new Date())) {
-        sfx.play('coin');
-        starBurst(card);
-        this.toast('Mission complete!');
-        this.refreshMain(new Date());
-        return;
-      }
-      this.open('daily');
-    });
   }
 
   get isOpen(): boolean { return this.wrap !== null; }
@@ -388,13 +372,7 @@ export class MissionsUI {
 
   // --- Main-screen pieces --------------------------------------------------------------
 
-  private set(el: HTMLElement, html: string): void {
-    if (this.cache.get(el) === html) return;
-    this.cache.set(el, html);
-    el.innerHTML = html;
-  }
-
-  /** Side icon badges + the right-side tracker. Called by the HUD ~10×/s. */
+  /** Side icon badges. Called by the HUD ~10×/s. */
   refreshMain(now: Date): void {
     const m = this.sim.missions;
     const b = m.badges(now);
@@ -413,16 +391,5 @@ export class MissionsUI {
     const gemEl = document.getElementById('gem-label')!;
     const gems = fmt(this.sim.save.missions.gems);
     if (gemEl.textContent !== gems) gemEl.textContent = gems;
-
-    // Tracker: up to two daily missions, claimable first, then closest to done.
-    const tasks = DAILY_TASKS.filter((t) => t.id !== 'd-login' && !m.board('daily').claimed.includes(t.id))
-      .map((t) => ({ t, p: Math.min(1, m.progress('daily', t) / t.target) }))
-      .sort((a, z) => (z.p >= 1 ? 1 : 0) - (a.p >= 1 ? 1 : 0) || z.p - a.p)
-      .slice(0, 2);
-    this.set(document.getElementById('tracker')!, tasks.map(({ t, p }) => `
-      <button type="button" class="track-card ${p >= 1 ? 'ready' : ''}" data-task="${t.id}" aria-label="${t.text}${p >= 1 ? ': tap to claim' : ''}">
-        <span class="track-text">${p >= 1 ? '✔ ' : ''}${t.text}</span>
-        ${p >= 1 ? '<span class="track-claim">Tap to claim</span>' : `<span class="bar thin"><span class="bar-fill" style="transform:scaleX(${p.toFixed(2)})"></span></span>`}
-      </button>`).join(''));
   }
 }

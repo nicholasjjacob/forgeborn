@@ -176,7 +176,7 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 #progress-text { position: relative; display: block; text-align: center; font-size: 10px; line-height: 15px; color: #fff; text-shadow: 0 1px 0 #000; font-variant-numeric: tabular-nums; }
 @keyframes pulse { to { filter: brightness(1.25); } }
 
-/* Right column: Auto, settings, quest tracker */
+/* Right column: Auto, settings */
 .chips { position: relative; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .chip {
   border: 0; border-radius: 999px; padding: 5px 12px; font-size: 13px;
@@ -188,9 +188,6 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 
 /* Pinned under Auto/settings so the top row stays narrow on phones. */
 /* Starts below the zone capsule (which is taller than the Auto/settings column) so they never overlap. */
-.tracker { position: absolute; top: calc(100% + 34px); right: 0; display: flex; flex-direction: column; gap: 5px; width: 118px; cursor: pointer; }
-.tracker:empty { display: none; }
-.track-card {
   display: block; width: 100%; border: 0; font: inherit; text-align: left; cursor: pointer;
   padding: 5px 8px 6px;
   border-radius: 10px;
@@ -198,12 +195,6 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
   box-shadow: inset 0 0 0 2px var(--wood), 0 2px 0 var(--wood-dark);
   color: var(--ink);
 }
-.track-card .bar { display: block; }
-.track-card .bar-fill { display: block; }
-.track-text { display: block; }
-.track-claim { display: block; margin-top: 2px; font-size: 10px; color: var(--good); }
-.track-card.ready { background: linear-gradient(#36b84af5, #1f7a30f5); box-shadow: inset 0 0 0 2px var(--green-2), 0 2px 0 var(--green-edge); animation: pulse 0.9s ease-in-out infinite alternate; }
-.track-text { font-size: 11px; line-height: 1.15; margin-bottom: 3px; }
 
 /* Bars (shared) */
 .bar { position: relative; height: 16px; border-radius: 8px; overflow: hidden; background: #0a1035; box-shadow: inset 0 2px 0 #0006; }
@@ -810,7 +801,7 @@ html.icons3d .dock-ico[data-ico="scroll"] { background-image: var(--ico-scroll);
 .ember.big { width: 22px; height: 28px; }
 
 @media (prefers-reduced-motion: reduce) {
-  #progress.boss, .slot.mergeable, .slot.new, .slot.pop, .dot, .track-card.ready, .chest.ready .chest-ico, .chest.ready::before, .chest.ready::after, .day-cell.today, #vignette.boss { animation: none; }
+  #progress.boss, .slot.mergeable, .slot.new, .slot.pop, .dot, .chest.ready .chest-ico, .chest.ready::before, .chest.ready::after, .day-cell.today, #vignette.boss { animation: none; }
 }
 
 /* --- Reward spill (ui/rewardFx.ts) ------------------------------------------------------ */
@@ -979,7 +970,7 @@ html.icons3d .dock-ico[data-ico="scroll"] { background-image: var(--ico-scroll);
 .tabs .badge, .sheet-tabs .dot { z-index: 1; }
 .tabs button, .sheet-tabs button { overflow: visible; }
 /* Cards: a thin light rim inside the dark outline, like the pack's panels. */
-.upgrade, .quest, .ach, .task, .lv-row, .codex-card, .offer, .day-cell, .weapon-card, .bag-tile, .bag-weapons, .bag-detail, .forge-level-btn, .track-card {
+.upgrade, .quest, .ach, .task, .lv-row, .codex-card, .offer, .day-cell, .weapon-card, .bag-tile, .bag-weapons, .bag-detail, .forge-level-btn {
   outline: 1.5px solid #0a1035b0; outline-offset: -1px;
 }
 .name, .q-text, .ach-name, .task-text, .wc-name, .offer-name, .bag-detail-name, .zone-name { text-shadow: 0 1px 0 #0a103580; }

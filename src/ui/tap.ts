@@ -32,7 +32,7 @@ export function bindSheetTaps(wrap: HTMLElement, run: (action: string) => void):
     if (up !== d.act && !(up === null && d.act !== 'close')) return;
     e.preventDefault();
     // The browser still sends a click after this release. If the action closes the sheet, that
-    // click would land on whatever sits underneath (e.g. the missions tracker under a sheet's
+    // click would land on whatever sits underneath (e.g. a side button under a sheet's
     // close button) and open it: swallow it.
     swallowNextClick();
     run(d.act);
