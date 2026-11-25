@@ -239,16 +239,16 @@ describe('save migration', () => {
 });
 
 describe('forge balance', () => {
-  it('forge level is capped by the furthest area reached this run', () => {
+  it('forge level is capped by the furthest zone reached this run', () => {
     const save = freshSave();
     save.gold = 1e12;
     const sim = new Sim(save, 3);
-    expect(sim.upgradeForge()).toBe(false); // first terrain: level 1 only
-    save.zoneBosses = 6; save.level = 100; // zone 6 = third terrain
+    expect(sim.upgradeForge()).toBe(false); // first region: level 1 only
+    save.zoneBosses = 1; save.level = 100; // second region open
     expect(sim.upgradeForge()).toBe(true);
     expect(sim.upgradeForge()).toBe(true);
-    expect(sim.upgradeForge()).toBe(false); // third terrain: level 3
-    expect(forgeLevelCap(6)).toBe(3);
+    expect(sim.upgradeForge()).toBe(false); // second region: level 3
+    expect(forgeLevelCap(2)).toBe(5);
   });
 
   it('forging just to salvage never pays, on average', () => {

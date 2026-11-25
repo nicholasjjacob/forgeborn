@@ -1,7 +1,7 @@
 import type { Rng } from '../core/rng';
 import type { PropKind } from './areas';
 import { Ev, type EventQueue } from './events';
-import { MAP_H, MAP_W, type GameMap } from './map';
+import type { GameMap } from './map';
 
 /**
  * Wood and stone: building materials for later. Pieces lie on the ground near trees and rocks
@@ -68,8 +68,8 @@ export class Gatherer {
     const map = this.host.map;
     this.sources = [];
     map.props.forEach((p, i) => {
-      const inside = p.x > 40 && p.x < MAP_W - 40 && p.y > 40 && p.y < MAP_H - 40;
-      if (inside && PROP_MATERIAL[p.kind]) this.sources.push(i);
+      const inside = p.x > 40 && p.x < map.w - 40 && p.y > 40 && p.y < map.h - 40;
+      if (inside && p.gate === undefined && PROP_MATERIAL[p.kind]) this.sources.push(i);
     });
     for (let i = 0; i < START_PIECES; i++) this.spawnNear();
   }
@@ -142,8 +142,11 @@ export class Gatherer {
   private spawnNear(): void {
     if (!this.sources.length) return;
     const rng = this.host.rng, map = this.host.map;
-    for (let tries = 0; tries < 8; tries++) {
+    const h = this.host.hero;
+    for (let tries = 0; tries < 30; tries++) {
       const p = map.props[this.sources[rng.int(this.sources.length)]];
+      // Big maps: near the hero, where the pieces can be seen and picked up (anywhere as a fallback).
+      if (tries < 24 && Math.hypot(p.x - h.x, p.y - h.y) > 260) continue;
       const a = rng.range(0, Math.PI * 2), dist = p.r + rng.range(6, 14);
       const x = p.x + Math.cos(a) * dist, y = p.y + Math.sin(a) * dist;
       if (map.blocked(x, y, 3)) continue;

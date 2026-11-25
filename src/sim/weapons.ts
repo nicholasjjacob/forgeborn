@@ -113,12 +113,12 @@ export function forgeCost(level: number): number {
 }
 
 /**
- * Highest forge level reachable this run: one level per terrain reached on the world map
- * (Meadow → 1, Mirewood → 2, …), given the furthest unlocked zone. Keeps the forge from
- * outrunning the monsters it's meant to help with.
+ * Highest forge level reachable this run: two levels per zone (region) opened, given the furthest
+ * unlocked zone (the Greenwood's three regions allow up to 5). Keeps the forge from outrunning
+ * the monsters it's meant to help with.
  */
 export function forgeLevelCap(maxZone: number): number {
-  return Math.min(MAX_FORGE_LEVEL, 1 + Math.floor(Math.max(0, maxZone) / 3));
+  return Math.min(MAX_FORGE_LEVEL, 1 + 2 * Math.max(0, maxZone));
 }
 
 export function weaponName(w: Weapon): string {

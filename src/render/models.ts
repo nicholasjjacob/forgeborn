@@ -31,6 +31,15 @@ export function loadModel(name: string): Promise<GLTF> {
         m.castShadow = true;
         m.receiveShadow = false;
       });
+      if (name.startsWith('nf_')) {
+        // Forest pack models ship without their texture: each colourway shares tex/forest_<N>.png.
+        const tex = forestTexture(Number(/_Color(\d)/.exec(name)?.[1] ?? 1));
+        g.scene.traverse((o) => {
+          const m = o as THREE.Mesh;
+          if (!m.isMesh) return;
+          for (const mat of Array.isArray(m.material) ? m.material : [m.material]) { (mat as THREE.MeshLambertMaterial).map = tex; mat.needsUpdate = true; }
+        });
+      }
       ready.set(name, g);
       return g;
     });
@@ -38,6 +47,21 @@ export function loadModel(name: string): Promise<GLTF> {
     cache.set(name, p);
   }
   return p;
+}
+
+const forestTex = new Map<number, THREE.Texture>();
+function forestTexture(colour: number): THREE.Texture {
+  let t = forestTex.get(colour);
+  if (!t) {
+    t = new THREE.TextureLoader().load(`models/tex/forest_${colour}.png`);
+    t.flipY = false; // glTF UV convention
+    t.colorSpace = THREE.SRGBColorSpace;
+    // A palette atlas: sample cells without mipmap blending.
+    t.generateMipmaps = false;
+    t.minFilter = THREE.LinearFilter;
+    forestTex.set(colour, t);
+  }
+  return t;
 }
 
 /** The model if it has finished loading (starts the load otherwise). */

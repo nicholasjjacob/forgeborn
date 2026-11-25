@@ -16,9 +16,10 @@ import { OFFLINE_CAP_HOURS } from './offline';
 import { freshMissions, type MissionSave } from './missions';
 import { MissionSystem } from './missionSystem';
 import { GameMap, MAP_H, MAP_W } from './map';
+import { FOREST_H, FOREST_W, forestRegion, type Territory } from './forest';
 import { Gatherer, freshMaterials, type Materials } from './gather';
 import { MAX_LEVEL, levelBonus, milestoneReward, xpForKill, xpToNext, MILESTONES, type MilestoneReward } from './level';
-import { zoneArea, zoneBossMonster, zoneLevel, zoneName, zoneStage, bossCooldown } from './zones';
+import { PLAYABLE_ZONES, zoneArea, zoneBossMonster, zoneBossName, zoneLevel, zoneName, zoneStage, bossCooldown } from './zones';
 import {
   forgeCost, forgeLevelCap, INVENTORY_SIZE, INVENTORY_STEP, MAX_FORGE_LEVEL, MAX_INVENTORY, inventoryExpandCost, mergeCount, bonusWeapon, compareWeapons, forgeAtkBonus, forgeUpgradeCost, forgeWeapon, matchingSlots, mergePartners, mergeWeapons,
   salvageValue, starterWeapon, weaponStats, type RangedDef, type Weapon,
@@ -172,6 +173,10 @@ export interface Enemy {
   hitT: number;
   lungeT: number;
   seed: number;
+  /** Forest: the territory it belongs to (-1 = none), its home circle, and its zone's difficulty. */
+  terr: number;
+  homeX: number; homeY: number; homeR: number;
+  stage: number;
 }
 
 export interface Hero {
@@ -190,8 +195,8 @@ export type Phase = 'playing' | 'dead';
 
 // Uniform grid for enemy-enemy separation (rebuilt every tick; typed arrays, no allocation).
 const SEP_CELL = 24;
-const SEP_COLS = Math.ceil(MAP_W / SEP_CELL);
-const SEP_ROWS = Math.ceil(MAP_H / SEP_CELL);
+const SEP_COLS = Math.ceil(Math.max(MAP_W, FOREST_W) / SEP_CELL);
+const SEP_ROWS = Math.ceil(Math.max(MAP_H, FOREST_H) / SEP_CELL);
 
 export class Sim {
   readonly save: SaveData;
@@ -209,6 +214,8 @@ export class Sim {
   /** Furthest zone already announced as unlocked. */
   private knownMaxZone = 0;
   time = 0;
+  /** Wall clock (ms) for boss cooldowns; tests swap it for a fixed or simulated clock. */
+  clock: () => number = () => Date.now();
   private spawnT = 0;
   readonly shots: Shot[] = Array.from({ length: MAX_SHOTS }, () => ({
     alive: false, x: 0, y: 0, prevX: 0, prevY: 0, vx: 0, vy: 0, dmg: 0, life: 0, monster: 0,
@@ -285,10 +292,12 @@ export class Sim {
         alive: false, monster: 0, boss: false, elite: false, style: 0, windT: 0, dashT: 0, dirX: 0, dirY: 0, dashHit: false, skillCd: 0, x: 0, y: 0, prevX: 0, prevY: 0, kx: 0, ky: 0, radius: 5,
         hp: 0, maxHp: 0, dmg: 0, speed: 0, atkInterval: 1, atkCd: 0, gold: 0, aggro: false,
         wanderA: 0, wanderT: 0, spawnT: 0, chasing: false, stuckT: 0, detourT: 0, detourA: 0, hitT: 0, lungeT: 0, seed: 0,
+        terr: -1, homeX: 0, homeY: 0, homeR: 0, stage: 1,
       });
     }
     save.stage = zoneStage(save.zone);
     this.map = new GameMap(zoneArea(save.zone), save.zone);
+    this.placeHeroAtSpawn();
     this.knownMaxZone = this.maxZone;
     this.gather.reset();
     this.fillQuests();
@@ -308,6 +317,7 @@ export class Sim {
   /** Can the hero travel to `zone`? Needs its level, and every earlier zone's boss beaten. */
   zoneUnlocked(zone: number): boolean {
     if (zone <= 0) return zone === 0;
+    if (zone >= PLAYABLE_ZONES) return false; // the other terrains are still to come
     return zone <= this.save.zoneBosses && this.save.level >= zoneLevel(zone);
   }
 
@@ -382,9 +392,15 @@ export class Sim {
    * rematched once its cooldown (bossCooldown) has passed, and each rematch starts it again.
    * Returns false if the fight didn't start. `now` is wall-clock ms (cooldowns survive restarts).
    */
-  challengeBoss(now = Date.now()): boolean {
+  challengeBoss(now = this.clock()): boolean {
     if (this.bossActive || this.phase !== 'playing' || this.returnT > 0) return false;
     const z = this.save.zone;
+    const lair = this.map.forest?.lairs.find((l) => l.zone === z);
+    if (lair) {
+      if (this.zoneBossBeaten && this.bossCooldownLeft(now) > 0) return false;
+      this.moveTo(lair.x, lair.y);
+      return true;
+    }
     if (this.zoneBossBeaten) {
       if (this.bossCooldownLeft(now) > 0) return false;
       this.save.bossReady[z] = now + bossCooldown(z) * 1000;
@@ -396,7 +412,7 @@ export class Sim {
   }
 
   /** Seconds until this zone's beaten boss can be rematched (0 = now, or not beaten yet). */
-  bossCooldownLeft(now = Date.now()): number {
+  bossCooldownLeft(now = this.clock()): number {
     if (!this.zoneBossBeaten) return 0;
     const at = this.save.bossReady[this.save.zone] ?? 0;
     // A clock moved backwards can't trap the player: never more than the full cooldown.
@@ -412,6 +428,119 @@ export class Sim {
     this.returnT = 0;
     this.enterZoneMap(true);
     return true;
+  }
+
+  /** The forest region the hero stands in (or the current zone on the old maps). */
+  private trackRegion(): void {
+    const f = this.map.forest;
+    if (!f) return;
+    const z = forestRegion(this.hero.y);
+    const s = this.save;
+    if (z !== s.zone) {
+      s.zone = z;
+      s.stage = zoneStage(z);
+      this.events.push(Ev.RegionEnter, this.hero.x, this.hero.y, z);
+    }
+    // Passes open once their region is unlocked (level + the previous region's boss).
+    for (const g of f.gates) {
+      const open = this.zoneUnlocked(g.zone);
+      if (open !== this.map.openGates.has(g.zone)) {
+        if (open) { this.map.openGates.add(g.zone); this.events.push(Ev.GateOpen, g.x, g.y, g.zone); }
+        else this.map.openGates.delete(g.zone);
+      }
+      // Standing at a closed pass: say what it takes, now and then.
+      if (!open && Math.hypot(this.hero.x - g.x, this.hero.y - g.y) < 70 && this.time > this.gateHintT) {
+        this.gateHintT = this.time + 6;
+        const lvl = zoneLevel(g.zone), boss = zoneBossName(g.zone - 1);
+        const parts = [this.save.level < lvl ? `reach Lv ${lvl}` : '', this.save.zoneBosses < g.zone ? `defeat the ${boss}` : ''].filter(Boolean);
+        this.notices.push(`The way to ${zoneName(g.zone)} is blocked: ${parts.join(' and ')}`);
+      }
+    }
+  }
+  private gateHintT = 0;
+
+  /** Forest boss lairs: walking into the current region's lair calls up its boss. */
+  private updateLair(): void {
+    const f = this.map.forest;
+    if (!f || this.phase !== 'playing') return;
+    const z = this.save.zone;
+    const lair = f.lairs.find((l) => l.zone === z);
+    if (!lair) return;
+    const h = this.hero;
+    const d = Math.hypot(h.x - lair.x, h.y - lair.y);
+    if (this.bossActive) {
+      if (d > lair.r + 150) this.abandonBoss(); // ran off: the boss returns to its lair
+      return;
+    }
+    if (d > lair.r * 0.75) return;
+    const now = this.clock();
+    if (this.zoneBossBeaten) {
+      if (this.bossCooldownLeft(now) > 0) return;
+      this.save.bossReady[z] = now + bossCooldown(z) * 1000;
+    }
+    // One on one: the lair's surroundings are cleared, then the boss rises at its heart.
+    for (const e of this.enemies) if (e.alive && Math.hypot(e.x - lair.x, e.y - lair.y) < lair.r + 80) e.alive = false;
+    this.bossActive = true;
+    this.bossT = BOSS_TIME;
+    const b = this.enemies.find((e) => !e.alive) ?? this.enemies[0];
+    this.setEnemy(b, zoneBossMonster(z), true, lair.x, lair.y - lair.r * 0.3, false, zoneStage(z));
+    b.homeX = lair.x; b.homeY = lair.y; b.homeR = lair.r;
+    this.events.push(Ev.BossSpawn);
+  }
+
+  /** The hero left the lair mid-fight: the boss goes back to waiting (no penalty). */
+  private abandonBoss(): void {
+    for (const e of this.enemies) if (e.alive && e.boss) e.alive = false;
+    this.bossActive = false;
+    this.events.push(Ev.BossFail);
+  }
+
+  /** Forest territories: keep each nearby territory stocked; let far-away ones empty out. */
+  private readonly terrT: number[] = [];
+  private spawnTerritories(dt: number): void {
+    const f = this.map.forest!;
+    const h = this.hero;
+    const alive = new Array<number>(f.territories.length).fill(0);
+    for (const e of this.enemies) {
+      if (!e.alive || e.terr < 0) continue;
+      const t = f.territories[e.terr];
+      // Far from the hero and not chasing: tidy away (the territory restocks when he returns).
+      if (!e.aggro && Math.hypot(e.x - h.x, e.y - h.y) > 520 && Math.hypot(t.x - h.x, t.y - h.y) > t.r + 420) { e.alive = false; continue; }
+      alive[e.terr]++;
+    }
+    f.territories.forEach((t, i) => {
+      if (Math.hypot(t.x - h.x, t.y - h.y) > t.r + 380) return; // only near the hero
+      this.terrT[i] = (this.terrT[i] ?? 0) - dt;
+      if (alive[i] >= t.count || this.terrT[i] > 0) return;
+      const slot = this.enemies.find((e) => !e.alive);
+      if (!slot) return;
+      const pos = this.territoryPoint(t);
+      if (!pos) return;
+      // Restock quickly when nearly empty (or the hero isn't looking), steadily otherwise.
+      this.terrT[i] = alive[i] < t.count / 2 ? 0.8 : 3;
+      const elite = t.zone > 0 ? this.rng.chance(0.03 + 0.02 * t.zone) : this.rng.chance(0.01);
+      this.setEnemy(slot, t.monster, false, pos.x, pos.y, elite, zoneStage(t.zone));
+      slot.terr = i; slot.homeX = t.x; slot.homeY = t.y; slot.homeR = t.r;
+    });
+  }
+
+  /** A free spot inside territory `t`, not right next to the hero. */
+  private territoryPoint(t: Territory): { x: number; y: number } | null {
+    for (let k = 0; k < 10; k++) {
+      const a = this.rng.range(0, Math.PI * 2), d = Math.sqrt(this.rng.next()) * t.r;
+      const x = t.x + Math.cos(a) * d, y = t.y + Math.sin(a) * d;
+      if (this.map.blocked(x, y, 7) || Math.hypot(x - this.hero.x, y - this.hero.y) < 70) continue;
+      this.tmpPoint.x = x; this.tmpPoint.y = y;
+      return this.tmpPoint;
+    }
+    return null;
+  }
+
+  /** Put the hero at the current region's arrival point (forest) or the map's centre. */
+  private placeHeroAtSpawn(): void {
+    const h = this.hero, sp = this.map.forest?.spawns[Math.min(this.save.zone, this.map.forest.spawns.length - 1)];
+    h.x = h.prevX = sp ? sp.x : this.map.w / 2;
+    h.y = h.prevY = sp ? sp.y : this.map.h / 2;
   }
 
   // --- Simulation ----------------------------------------------------------
@@ -647,6 +776,8 @@ export class Sim {
 
     h.hp = Math.min(h.maxHp, h.hp + h.maxHp * (HERO_REGEN + (this.cls.regen ?? 0)) * dt);
     this.moveHero(dt);
+    this.trackRegion();
+    this.updateLair();
     this.updateEnemies(dt);
     this.updateShots(dt);
     this.updateHeroShots(dt);
@@ -891,13 +1022,25 @@ export class Sim {
     } else {
       inp.idleT += dt;
       if (this.save.auto && inp.idleT > AUTO_IDLE_DELAY) {
-        // Auto-hunt: walk toward the nearest enemy until it's comfortably in reach.
-        const e = this.nearestEnemy(Infinity, this.ignoreT > 0 ? this.ignore : null);
+        // Auto-hunt: walk toward the nearest enemy until it's comfortably in reach. In the forest,
+        // only monsters in the hero's own region (not across a cliff); with none about, head for
+        // the nearest of the region's territories.
+        const f = this.map.forest;
+        const e = this.nearestEnemy(f ? 420 : Infinity, this.ignoreT > 0 ? this.ignore : null, f ? this.save.zone : -1);
         target = e;
         if (e) {
           const dx = e.x - h.x, dy = e.y - h.y;
           const d = Math.hypot(dx, dy);
-          if (d > HERO_RADIUS + e.radius + this.range * 0.6) { vx = dx / d; vy = dy / d; }
+          // Ranged heroes keep their distance: shoot from just outside a monster's notice range.
+          if (d > HERO_RADIUS + e.radius + this.range * (this.ranged ? 0.8 : 0.6)) { vx = dx / d; vy = dy / d; }
+        } else if (f) {
+          let best: Territory | null = null, bd = Infinity;
+          for (const t of f.territories) {
+            if (t.zone !== this.save.zone) continue;
+            const d = Math.hypot(t.x - h.x, t.y - h.y);
+            if (d > t.r * 0.5 && d < bd) { bd = d; best = t; }
+          }
+          if (best) { vx = (best.x - h.x) / bd; vy = (best.y - h.y) / bd; }
         }
       }
     }
@@ -929,13 +1072,14 @@ export class Sim {
     }
   }
 
-  private nearestEnemy(maxEdgeDist: number, skip: Enemy | null = null): Enemy | null {
+  private nearestEnemy(maxEdgeDist: number, skip: Enemy | null = null, region = -1): Enemy | null {
     const h = this.hero;
     let best: Enemy | null = null;
     let bestD = Infinity;
     for (let i = 0; i < MAX_ENEMIES; i++) {
       const e = this.enemies[i];
       if (!e.alive || e.spawnT > 0 || e === skip) continue;
+      if (region >= 0 && forestRegion(e.y) !== region) continue;
       const d = Math.hypot(e.x - h.x, e.y - h.y) - e.radius - HERO_RADIUS;
       if (d < bestD && d <= maxEdgeDist) { bestD = d; best = e; }
     }
@@ -1119,7 +1263,11 @@ export class Sim {
 
       const dx = h.x - e.x, dy = h.y - e.y;
       const d = Math.hypot(dx, dy) || 0.001;
-      if (!e.aggro && (d < 120 || e.boss)) e.aggro = true;
+      if (!e.aggro && (d < (e.terr >= 0 ? 72 : 120) || e.boss)) e.aggro = true;
+      // Territory monsters chase only so far from home, then head back (healed).
+      if (e.aggro && e.terr >= 0 && (Math.hypot(e.x - e.homeX, e.y - e.homeY) > e.homeR + 170 || d > 240)) {
+        e.aggro = false; e.windT = 0; e.dashT = 0; e.hp = e.maxHp;
+      }
 
       const reach = HERO_RADIUS + e.radius + 2;
       if (e.aggro && e.windT > 0) {
@@ -1167,9 +1315,17 @@ export class Sim {
         }
       } else {
         e.wanderT -= dt;
-        if (e.wanderT <= 0) { e.wanderT = this.rng.range(1, 3); e.wanderA = this.rng.range(0, Math.PI * 2); }
-        e.x += Math.cos(e.wanderA) * e.speed * 0.3 * dt;
-        e.y += Math.sin(e.wanderA) * e.speed * 0.3 * dt;
+        if (e.wanderT <= 0) {
+          e.wanderT = this.rng.range(1, 3);
+          // Wander, but drift back toward home when outside the territory.
+          const away = e.terr >= 0 ? Math.hypot(e.x - e.homeX, e.y - e.homeY) : 0;
+          e.wanderA = away > e.homeR * 0.8 ? Math.atan2(e.homeY - e.y, e.homeX - e.x) + this.rng.range(-0.5, 0.5) : this.rng.range(0, Math.PI * 2);
+        }
+        const home = e.terr >= 0 && Math.hypot(e.x - e.homeX, e.y - e.homeY) > e.homeR;
+        const k = home ? 0.8 : 0.3;
+        this.map.steer(e.x, e.y, e.radius, Math.cos(e.wanderA), Math.sin(e.wanderA), this.steerOut);
+        e.x += this.steerOut.x * e.speed * k * dt;
+        e.y += this.steerOut.y * e.speed * k * dt;
       }
 
       // Knockback decays quickly.
@@ -1300,6 +1456,7 @@ export class Sim {
 
   private spawn(dt: number): void {
     if (this.bossActive || this.returnT > 0) return; // boss fights are one-on-one
+    if (this.map.forest) { this.spawnTerritories(dt); return; }
     this.spawnT -= dt;
     if (this.spawnT > 0) return;
     let alive = 0;
@@ -1340,10 +1497,11 @@ export class Sim {
     return null;
   }
 
-  private setEnemy(e: Enemy, monster: number, boss: boolean, x: number, y: number, elite = false): void {
+  private setEnemy(e: Enemy, monster: number, boss: boolean, x: number, y: number, elite = false, stage = this.save.stage): void {
     const { def } = areaFor(this.map.area);
     const m = monster === 3 ? def.boss : def.monsters[monster];
-    const stage = this.save.stage;
+    e.stage = stage;
+    e.terr = -1; e.homeX = x; e.homeY = y; e.homeR = 0;
     // Champions (zone bosses that are a big version of a regular monster) are a bit softer.
     const champ = boss && monster !== 3 ? 0.65 : 1;
     e.alive = true;
@@ -1387,10 +1545,10 @@ export class Sim {
     this.events.push(Ev.Kill, e.x, e.y, gold, e.boss ? 1 : 0);
     this.missions.recordKill(this.map.area, e.monster);
     if (e.elite) this.save.stats.elites++;
-    this.gainXp(xpForKill(this.save.stage, e.boss));
+    this.gainXp(xpForKill(e.stage, e.boss));
 
     // Shards for the forge: bosses always drop a bundle, regular monsters sometimes drop one.
-    const per = 1 + Math.floor(this.save.stage / 12);
+    const per = 1 + Math.floor(e.stage / 12);
     const raw = (e.boss ? 10 * per : e.elite ? 3 * per : this.rng.chance(0.1) ? per : 0) * this.shardMult;
     // Random rounding keeps fractional bonuses fair over time.
     const shards = Math.floor(raw) + (this.rng.chance(raw % 1) ? 1 : 0);
@@ -1412,7 +1570,9 @@ export class Sim {
         this.events.push(Ev.ZoneClear, e.x, e.y, s.zone);
         this.updateReach();
       }
-      this.returnT = 2.2;
+      if (!this.map.forest) this.returnT = 2.2; // the old arenas send you back; the forest carries on
+      // In the forest the boss recovers in its lair before a rematch (even after the first win).
+      else s.bossReady[s.zone] = Math.max(s.bossReady[s.zone] ?? 0, this.clock() + bossCooldown(s.zone) * 1000);
     }
   }
 
@@ -1489,8 +1649,7 @@ export class Sim {
   private resetField(): void {
     this.clearEnemies();
     const h = this.hero;
-    h.x = h.prevX = MAP_W / 2;
-    h.y = h.prevY = MAP_H / 2;
+    this.placeHeroAtSpawn();
     h.hp = h.maxHp;
     this.input.hasTarget = false;
     this.spawnT = 1;
@@ -1500,7 +1659,8 @@ export class Sim {
   /** Build the current zone's (field) map. `announce` shows the zone's name banner. */
   private enterZoneMap(announce: boolean): void {
     const z = this.save.zone;
-    this.map = new GameMap(zoneArea(z), z);
+    // The forest is one map for all its zones: keep it (and its opened passes).
+    if (!(this.map.forest && zoneArea(z) === this.map.area)) this.map = new GameMap(zoneArea(z), z);
     this.resetField();
     if (announce) this.events.push(Ev.AreaEnter, 0, 0, z);
   }
@@ -1530,14 +1690,16 @@ export class Sim {
     const h = this.hero;
     h.hp = 0;
     this.events.push(Ev.HeroDie, h.x, h.y);
-    if (this.bossActive) return this.failBoss(true);
+    if (this.bossActive && !this.map.forest) return this.failBoss(true);
+    if (this.bossActive) { this.abandonBoss(); this.phase = 'dead'; this.phaseT = 1.5; return; }
     this.phase = 'dead';
     this.phaseT = 1.5;
   }
 
   private respawn(): void {
     this.phase = 'playing';
-    if (this.map.boss || this.map.zone !== this.save.zone) this.enterZoneMap(false);
+    if (this.map.forest) this.resetField();
+    else if (this.map.boss || this.map.zone !== this.save.zone) this.enterZoneMap(false);
     else this.resetField();
   }
 

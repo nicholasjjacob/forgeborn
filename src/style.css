@@ -1319,3 +1319,11 @@ html.icons3d .chest.ready .chest-ico { width: 38px; height: 38px; filter: drop-s
 .heroes-sheet .hero-looks { min-height: 29px; align-items: center; }
 .heroes-sheet .hero-palettes { min-height: 55px; align-items: center; }
 .heroes-sheet .hero-perk { min-height: 2.5em; line-height: 1.25; display: flex; align-items: center; justify-content: center; }
+
+/* Forest minimap (bottom-left, above the bottom icons); tap for the World Map. */
+.minimap {
+  position: absolute; left: 8px; bottom: calc(var(--dock-h) + var(--safe-bottom) + 8px); z-index: 2;
+  width: 92px; height: 101px; border-radius: 12px; cursor: pointer;
+  box-shadow: 0 0 0 3px var(--wood), 0 4px 0 3px var(--wood-dark), 0 6px 14px #0007;
+}
+.minimap[hidden] { display: none; }

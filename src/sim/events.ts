@@ -22,6 +22,8 @@ export const Ev = {
   ZoneUnlock: 21, // value = zone index (a new zone opened on the world map)
   ZoneClear: 22,  // x, y; value = zone index (its boss was beaten for the first time)
   Burst: 23,      // x, y; value = radius, flag = rarity (a hero's magic orb exploded)
+  RegionEnter: 24, // x, y = hero; value = zone (walked into another forest region)
+  GateOpen: 25,    // x, y = the pass; value = zone it leads into (its barricade came down)
 } as const;
 export type Ev = (typeof Ev)[keyof typeof Ev];
 

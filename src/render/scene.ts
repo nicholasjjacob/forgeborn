@@ -32,6 +32,8 @@ export interface SceneHooks {
   onBossSpawn?(): void;
   onAreaEnter?(zone: number): void;
   onZoneClear?(zone: number): void;
+  /** A forest pass opened (its barricade came down). */
+  onGateOpen?(zone: number): void;
   onLevelUp?(level: number): void;
   onPickup?(kind: 'wood' | 'stone'): void;
 }
@@ -156,8 +158,9 @@ export class Scene {
     const k = 1 - Math.exp(-dt * 8);
     this.camX += (hx - this.camX) * k;
     this.camY += (hy - this.camY) * k;
-    const cx = clamp(this.camX, Math.min(w3.halfW - 30, MAP_W / 2), Math.max(MAP_W - w3.halfW + 30, MAP_W / 2));
-    const cy = clamp(this.camY, Math.min(w3.halfD * 0.55, MAP_H / 2), Math.max(MAP_H - w3.halfD * 0.35, MAP_H / 2));
+    const MW = sim.map.w, MH = sim.map.h;
+    const cx = clamp(this.camX, Math.min(w3.halfW - 30, MW / 2), Math.max(MW - w3.halfW + 30, MW / 2));
+    const cy = clamp(this.camY, Math.min(w3.halfD * 0.55, MH / 2), Math.max(MH - w3.halfD * 0.35, MH / 2));
     this.fx.low = this.lowQ;
     if (this.lowQ) this.shake = 0;
     this.shake = Math.max(0, this.shake - dt * 3);
@@ -350,10 +353,19 @@ export class Scene {
           sfx.play('area');
           break;
         case Ev.AreaEnter:
-          this.camX = MAP_W / 2; this.camY = MAP_H / 2;
+          // Arrived somewhere new (travel): snap the camera to the hero.
+          this.camX = this.sim.hero.x; this.camY = this.sim.hero.y;
           sfx.play('area');
-          fx.ring(MAP_W / 2, MAP_H / 2, 0xffffff, 5);
+          fx.ring(this.sim.hero.x, this.sim.hero.y, 0xffffff, 5);
           this.hooks.onAreaEnter?.(v);
+          break;
+        case Ev.RegionEnter:
+          sfx.play('area');
+          this.hooks.onAreaEnter?.(v);
+          break;
+        case Ev.GateOpen:
+          fx3.dust(x, y, 40);
+          this.hooks.onGateOpen?.(v);
           break;
       }
     }

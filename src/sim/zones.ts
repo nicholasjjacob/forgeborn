@@ -11,6 +11,8 @@ import { areaFor, areaName } from './areas';
  */
 
 export const ZONES_PER_AREA = 3;
+/** Zones that can be played: the Greenwood's three. The other terrains arrive with their art packs. */
+export const PLAYABLE_ZONES = 3;
 /** Zones with their own names; past this the terrains repeat as "+" tiers. */
 export const NAMED_ZONES = 18;
 

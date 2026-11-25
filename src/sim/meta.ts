@@ -20,7 +20,11 @@ export const freshStats = (): Stats => ({
 
 // --- Reforge (prestige) --------------------------------------------------------
 
-export const REFORGE_MIN_STAGE = 30;
+/**
+ * Reforge opens on reaching the Greenwood's last region (stage 9) while it is the only playable
+ * terrain; it moves later again as new terrains arrive.
+ */
+export const REFORGE_MIN_STAGE = 9;
 
 /** Embers earned by reforging after reaching `runBest` this run. */
 /** Ember Glow: every ember ever earned permanently boosts damage and HP (spent or not). */
@@ -28,7 +32,7 @@ export const GLOW_DMG = 0.02;
 export const GLOW_HP = 0.01;
 
 export function embersFor(runBest: number): number {
-  return runBest < REFORGE_MIN_STAGE ? 0 : Math.floor(0.5 * Math.pow(runBest - 25, 1.5));
+  return runBest < REFORGE_MIN_STAGE ? 0 : Math.floor(0.5 * Math.pow(runBest - 3, 1.5));
 }
 
 export type PerkId = 'might' | 'vigor' | 'fortune' | 'shards' | 'forgemaster' | 'headstart' | 'swift' | 'offline';

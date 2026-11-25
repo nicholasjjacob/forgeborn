@@ -1,5 +1,6 @@
 import { Rng } from '../core/rng';
 import { areaFor, type PropKind } from './areas';
+import { FOREST, FOREST_H, FOREST_W, buildForest, type ForestInfo } from './forest';
 
 export const MAP_W = 640;
 export const MAP_H = 640;
@@ -13,7 +14,13 @@ const PROP_RADIUS: Record<PropKind, number> = {
   tree: 6, pine: 5, rock: 6, cactus: 4, crystal: 4, shroom: 0, deadtree: 4, bush: 0,
 };
 
-export interface Prop { kind: PropKind; x: number; y: number; r: number; variant: number }
+export interface Prop {
+  kind: PropKind; x: number; y: number; r: number; variant: number;
+  /** Forest props: the pack model, its target size (height, or width for by 'w') and turn. */
+  model?: string; size?: number; by?: 'h' | 'w'; rot?: number;
+  /** Part of the barricade into this zone: solid until that zone opens (see GameMap.openGates). */
+  gate?: number;
+}
 
 export interface Decal { x: number; y: number; variant: number }
 
@@ -48,12 +55,35 @@ export class GameMap {
   readonly decals: Decal[] = [];
   readonly layout: Layout;
   readonly tint: number;
-  private readonly cols = Math.ceil(MAP_W / CELL);
-  private readonly rows = Math.ceil(MAP_H / CELL);
+  /** Size in world units: the old zone maps are MAP_W × MAP_H; the forest world is bigger. */
+  readonly w: number;
+  readonly h: number;
+  /** The forest world's regions, territories, lairs and passes (null for the old zone maps). */
+  readonly forest: ForestInfo | null = null;
+  /** Barricades (Prop.gate) that are open: walk-through and hidden. */
+  readonly openGates = new Set<number>();
+  private readonly cols: number;
+  private readonly rows: number;
   private readonly grid: number[][];
 
   constructor(readonly area: number, readonly zone = area * 3, readonly boss = false) {
     const rng = new Rng(0xa5ea + area * 7919 + zone * 104729 + (boss ? 31 : 0));
+    // The first terrain is one big forest world holding all three of its zones.
+    const isForest = area === 0 && !boss;
+    this.w = isForest ? FOREST_W : MAP_W;
+    this.h = isForest ? FOREST_H : MAP_H;
+    this.cols = Math.ceil(this.w / CELL);
+    this.rows = Math.ceil(this.h / CELL);
+    if (isForest) {
+      this.forest = FOREST;
+      this.layout = 'groves';
+      this.tint = 0xffffff;
+      const built = buildForest(rng);
+      for (const fp of built.props) this.props.push({ kind: fp.kind, x: fp.x, y: fp.y, r: fp.r, variant: 0, model: fp.model, size: fp.size, by: fp.by, rot: fp.rot, gate: fp.gate });
+      for (const c of built.cover) this.decals.push({ x: c.x, y: c.y, variant: 0 });
+      this.grid = this.buildGrid();
+      return;
+    }
     const { def } = areaFor(area);
     const depth = 1 + (zone % 3) * 4; // 1, 5, 9: deeper zones lean toward the terrain's rarer props
     this.layout = boss ? 'arena' : layoutFor(zone);
@@ -142,7 +172,11 @@ export class GameMap {
       this.decals.push({ x: rng.range(10, MAP_W - 10), y: rng.range(10, MAP_H - 10), variant: 0 });
     }
 
-    this.grid = Array.from({ length: this.cols * this.rows }, () => []);
+    this.grid = this.buildGrid();
+  }
+
+  private buildGrid(): number[][] {
+    const grid: number[][] = Array.from({ length: this.cols * this.rows }, () => []);
     this.props.forEach((p, i) => {
       if (p.r <= 0) return;
       // Register in every cell the circle overlaps, padded by the largest mover radius so a
@@ -150,8 +184,14 @@ export class GameMap {
       const reach = p.r + MAX_MOVER_RADIUS;
       const c0 = this.col(p.x - reach), c1 = this.col(p.x + reach);
       const r0 = this.row(p.y - reach), r1 = this.row(p.y + reach);
-      for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) this.grid[r * this.cols + c].push(i);
+      for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) grid[r * this.cols + c].push(i);
     });
+    return grid;
+  }
+
+  /** Is prop `p` currently solid? (Barricades stop being solid once their zone opens.) */
+  private solidProp(p: Prop): boolean {
+    return p.gate === undefined || !this.openGates.has(p.gate);
   }
 
   private add(kind: PropKind, x: number, y: number, variant: number, r: number): void {
@@ -178,6 +218,7 @@ export class GameMap {
     const cell = this.grid[this.row(out.y) * this.cols + this.col(out.x)];
     for (let k = 0; k < cell.length; k++) {
       const p = this.props[cell[k]];
+      if (!this.solidProp(p)) continue;
       const dx = out.x - p.x, dy = out.y - p.y;
       const min = p.r + radius;
       const d2 = dx * dx + dy * dy;
@@ -186,8 +227,8 @@ export class GameMap {
       out.x = p.x + (dx / d) * min;
       out.y = p.y + (dy / d) * min;
     }
-    out.x = Math.max(16, Math.min(MAP_W - 16, out.x));
-    out.y = Math.max(16, Math.min(MAP_H - 16, out.y));
+    out.x = Math.max(16, Math.min(this.w - 16, out.x));
+    out.y = Math.max(16, Math.min(this.h - 16, out.y));
   }
 
   /**
@@ -199,6 +240,7 @@ export class GameMap {
     const cell = this.grid[this.row(y) * this.cols + this.col(x)];
     for (let k = 0; k < cell.length; k++) {
       const p = this.props[cell[k]];
+      if (!this.solidProp(p)) continue;
       const px = p.x - x, py = p.y - y;
       const d = Math.hypot(px, py);
       const look = p.r + radius + 8;
@@ -221,9 +263,10 @@ export class GameMap {
     const cell = this.grid[this.row(y) * this.cols + this.col(x)];
     for (let k = 0; k < cell.length; k++) {
       const p = this.props[cell[k]];
+      if (!this.solidProp(p)) continue;
       const min = p.r + radius;
       if ((x - p.x) ** 2 + (y - p.y) ** 2 < min * min) return true;
     }
-    return x < 20 || y < 20 || x > MAP_W - 20 || y > MAP_H - 20;
+    return x < 20 || y < 20 || x > this.w - 20 || y > this.h - 20;
   }
 }

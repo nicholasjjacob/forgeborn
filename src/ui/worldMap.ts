@@ -6,6 +6,7 @@ import { areaFor, areaName } from '../sim/areas';
 import { xpForKill } from '../sim/level';
 import type { Sim } from '../sim/sim';
 import {
+  PLAYABLE_ZONES,
   ZONES_PER_AREA, isTerrainBossZone, zoneArea, zoneBossName, zoneLevel, zoneName, zoneStage,
 } from '../sim/zones';
 import { bindSheetTaps } from './tap';
@@ -93,13 +94,14 @@ export class WorldMapUI {
     if (sig === this.sig) return;
     this.sig = sig;
 
-    // Show every terrain up to the one holding the next locked zone, then one mystery card.
-    const nextLocked = max + 1;
+    // Show every playable terrain up to the one holding the next locked zone, then one mystery
+    // card (the terrains past the Greenwood arrive with their art).
+    const nextLocked = Math.min(max + 1, PLAYABLE_ZONES - 1);
     const lastArea = zoneArea(nextLocked);
     const cards: string[] = [];
     for (let a = 0; a <= lastArea; a++) cards.push(this.areaCard(a, max));
-    cards.push(`<div class="map-area mystery"><div class="map-area-head"><span class="map-ico">${gi('compass', 'gold')}</span><b>Undiscovered lands</b></div>
-      <p>Push further to reveal what lies beyond.</p></div>`);
+    cards.push(`<div class="map-area mystery"><div class="map-area-head"><span class="map-ico">${gi('compass', 'gold')}</span><b>More lands coming soon</b></div>
+      <p>Beyond the Greenwood lie marshes, dunes, caverns, snowfields and fire. Their roads open in a future update.</p></div>`);
 
     this.wrap.querySelector('.sheet-body')!.innerHTML = `
       <div class="map-you">📍 <b>${zoneName(s.zone)}</b> · Hero Lv ${s.level}</div>

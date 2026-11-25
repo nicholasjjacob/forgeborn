@@ -71,9 +71,11 @@ async function boot() {
     onBossFail: () => hud?.toast('Boss escaped… farm and try again', 'bad'),
     onAreaEnter: (zone) => hud?.toast(zoneName(zone), 'boss'),
     onZoneClear: () => hud?.toast('Zone boss defeated! +10 gems', 'boss'),
+    onGateOpen: (zone) => hud?.toast(`The way to ${zoneName(zone)} is open!`, 'boss'),
     onLevelUp: (level) => hud?.toast(`Level ${level}!`, 'boss'),
     onPickup: (kind) => hud?.bumpMaterial(kind),
   });
+  if (import.meta.env.DEV) (window as unknown as { __scene: Scene }).__scene = scene; // dev-only handle for testing
   new Input(document.getElementById('battle')!, sim, scene);
 
   // First-run hint: fades on the first touch/click or after a few seconds.

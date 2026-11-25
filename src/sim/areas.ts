@@ -59,7 +59,7 @@ const mon = (name: string, shape: MonsterShape, pal: MonsterPalette, style: Mons
 
 export const AREAS: AreaDef[] = [
   {
-    name: 'Greenfield Meadow',
+    name: 'Greenwood Forest',
     ground: { base: '#7ccf4f', dark: '#62b63f', light: '#9be36a', speck: '#4f9c34' },
     void: '#3f7f2e',
     props: [{ kind: 'tree', weight: 4 }, { kind: 'bush', weight: 3 }, { kind: 'rock', weight: 2 }],

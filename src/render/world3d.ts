@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { areaFor, type PropKind } from '../sim/areas';
 import { MAP_H, MAP_W, type GameMap } from '../sim/map';
+import { FOREST_GRASS, FOREST_MODELS, FOREST_PATHS } from '../sim/forest';
 import { ELITE, MAX_ENEMIES, MAX_HERO_SHOTS, MAX_SHOTS, SLAM_RADIUS, SLAM_WIND, STYLE_DASHER, type Enemy, type Sim } from '../sim/sim';
 import { MAX_PICKUPS } from '../sim/gather';
 import { cloneActor, findClip, loadModel, measure, model } from './models';
@@ -71,8 +72,11 @@ const LOOKS: AreaLook[] = [
 export function preloadArea(area: number, skin = 'knight'): Promise<unknown> {
   const names = new Set<string>([`hero_${skin}`, ...heroAnimFiles(skin)]);
   for (let i = 0; i < 4; i++) names.add(`m${area % 6}_${i}`);
-  for (const p of areaFor(area).def.props) for (const n of PROP_SPECS[p.kind].models) if (!n.startsWith('@')) names.add(n);
-  for (const [n] of COVER[area % COVER.length]) names.add(n);
+  if (area === 0) for (const n of FOREST_MODELS) names.add(n);
+  else {
+    for (const p of areaFor(area).def.props) for (const n of PROP_SPECS[p.kind].models) if (!n.startsWith('@')) names.add(n);
+    for (const [n] of COVER[area % COVER.length]) names.add(n);
+  }
   return Promise.all([...names].map((n) => loadModel(n).catch(() => null)));
 }
 
@@ -177,6 +181,9 @@ export class World3D {
   private readonly shotMeshes: THREE.Mesh[] = [];
   /** Which model + style the hero's look was last applied to. */
   private heroLookOn = '';
+  /** Barricade props, and which passes were last drawn open. */
+  private gateProps: number[] = [];
+  private gatesShown = '';
   /** The hero's animation clips, and which attack clip plays next. */
   private heroAnims: GLTF | null = null;
   private attackTurn = 0;
@@ -364,9 +371,13 @@ export class World3D {
     if (map.area !== this.area) this.setArea(map.area);
     // Wait (a frame at a time) for this terrain's scenery models; the ground shows meanwhile.
     const names = new Set<string>();
-    for (const p of areaFor(map.area).def.props) for (const n of PROP_SPECS[p.kind].models) if (!n.startsWith('@')) names.add(n);
-    for (const [n] of COVER[map.area % COVER.length]) names.add(n);
-    if (names.has('bush_0')) names.add('tree_0'); // bushes borrow the tree's green leaves
+    if (map.forest) for (const n of FOREST_MODELS) names.add(n);
+    else {
+      for (const p of areaFor(map.area).def.props) for (const n of PROP_SPECS[p.kind].models) if (!n.startsWith('@')) names.add(n);
+      for (const [n] of COVER[map.area % COVER.length]) names.add(n);
+      if (names.has('bush_0')) names.add('tree_0'); // bushes borrow the tree's green leaves
+    }
+    for (const n of names) void loadModel(n).catch(() => {});
     let missing = false;
     for (const n of names) if (!model(n)) missing = true;
     if (changed) this.buildGround(map);
@@ -399,20 +410,22 @@ export class World3D {
     const { def } = areaFor(map.area);
     const look = LOOKS[map.area % LOOKS.length];
     const tex = groundTexture(def.ground);
-    tex.repeat.set(MAP_W / 90, MAP_H / 90);
+    const MW = map.w, MH = map.h;
+    tex.repeat.set(MW / 90, MH / 90);
     const tint = new THREE.Color(map.tint);
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(MAP_W, MAP_H), new THREE.MeshLambertMaterial({ map: tex, color: tint }));
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(MW, MH), new THREE.MeshLambertMaterial({ map: tex, color: tint }));
     ground.rotation.x = -Math.PI / 2;
-    ground.position.set(MAP_W / 2, 0, MAP_H / 2);
+    ground.position.set(MW / 2, 0, MH / 2);
     ground.receiveShadow = true;
     // Beyond the map edge: darker ground fading into fog, so there's never a hard void.
-    const outer = new THREE.Mesh(new THREE.PlaneGeometry(MAP_W * 4, MAP_H * 4), new THREE.MeshLambertMaterial({ map: tex.clone(), color: new THREE.Color(def.void).lerp(tint, 0.25) }));
-    (outer.material as THREE.MeshLambertMaterial).map!.repeat.set((MAP_W * 4) / 90, (MAP_H * 4) / 90);
+    const outer = new THREE.Mesh(new THREE.PlaneGeometry(MW * 4, MH * 4), new THREE.MeshLambertMaterial({ map: tex.clone(), color: new THREE.Color(def.void).lerp(tint, 0.25) }));
+    (outer.material as THREE.MeshLambertMaterial).map!.repeat.set((MW * 4) / 90, (MH * 4) / 90);
     (outer.material as THREE.MeshLambertMaterial).map!.needsUpdate = true;
     outer.rotation.x = -Math.PI / 2;
-    outer.position.set(MAP_W / 2, -0.2, MAP_H / 2);
+    outer.position.set(MW / 2, -0.2, MH / 2);
     outer.receiveShadow = true;
     this.groundGroup.add(ground, outer);
+    if (map.forest) this.groundGroup.add(trailMesh(MW, MH));
 
     // Light: terrain look × the zone's time of day.
     const sunCol = new THREE.Color(look.sun).multiply(tint);
@@ -440,6 +453,11 @@ export class World3D {
     };
 
     map.props.forEach((p, i) => {
+      if (p.model) {
+        const parts = this.parts(p.model, { models: [], size: p.size ?? 20, by: p.by ?? 'h', shadow: true }, 0xffffff, map.area);
+        if (parts) add(p.model, parts, p.kind !== 'bush', i, p.x, p.y, p.rot ?? 0, 1);
+        return;
+      }
       const spec = PROP_SPECS[p.kind];
       const name = spec.models[(p.variant + Math.floor(p.x * 7 + p.y * 13)) % spec.models.length];
       const parts = this.parts(name, spec, p.kind === 'rock' ? look.rockTint : p.kind === 'crystal' ? look.crystal : look.propTint, map.area);
@@ -448,7 +466,7 @@ export class World3D {
       add(name, parts, spec.shadow, i, p.x, p.y, h * Math.PI * 2, 0.85 + 0.3 * hash(p.y, p.x));
     });
 
-    const cover = COVER[map.area % COVER.length];
+    const cover = map.forest ? FOREST_GRASS.map((n): [string, number, number] => [n, 1, 6]) : COVER[map.area % COVER.length];
     const total = cover.reduce((s, c) => s + c[1], 0);
     const n = this.low ? Math.floor(map.decals.length * 0.6) : map.decals.length;
     for (let i = 0; i < n; i++) {
@@ -461,7 +479,7 @@ export class World3D {
     }
 
     // Extra cover on high quality so open ground doesn't look flat.
-    const extra = this.low ? 0 : 420;
+    const extra = this.low || map.forest ? 0 : 420;
     for (let i = 0; i < extra; i++) {
       const x = 20 + hash(i * 1.37, 3.1) * (MAP_W - 40), y = 20 + hash(7.7, i * 0.91) * (MAP_H - 40);
       let r = hash(x, y) * total, pick = cover[0];
@@ -471,6 +489,9 @@ export class World3D {
     }
 
     this.propRefs = map.props.map(() => null);
+    this.gateProps = [];
+    map.props.forEach((p, i) => { if (p.gate !== undefined) this.gateProps.push(i); });
+    this.gatesShown = '';
     for (const g of groups.values()) {
       const meshes: THREE.InstancedMesh[] = [];
       for (const part of g.parts) {
@@ -547,6 +568,21 @@ export class World3D {
       this.tintCache.set(key, t);
     }
     return t;
+  }
+
+  /** Hide the boulders of passes that have opened (and show them again if they close). */
+  private syncGates(map: GameMap): void {
+    const key = [...map.openGates].sort().join(',');
+    if (key === this.gatesShown) return;
+    this.gatesShown = key;
+    const zero = new THREE.Matrix4().makeScale(0, 0, 0), tmp = new THREE.Matrix4();
+    for (const i of this.gateProps) {
+      const ref = this.propRefs[i], p = map.props[i];
+      if (!ref) continue;
+      const open = map.openGates.has(p.gate!);
+      const m = open ? zero : propMatrix(ref.x, ref.y, ref.rot, ref.s);
+      ref.meshes.forEach((im, k) => { im.setMatrixAt(ref.index, open ? zero : tmp.multiplyMatrices(m, ref.parts[k].m)); im.instanceMatrix.needsUpdate = true; });
+    }
   }
 
   /** A tree or rock that was just chopped/mined shakes for a moment. */
@@ -759,6 +795,7 @@ export class World3D {
       if (nl <= 0) this.shaking.delete(idx); else this.shaking.set(idx, nl);
     }
 
+    if (sim.map.forest) this.syncGates(sim.map);
     // Hero
     if (sim.save.skin !== this.heroSkin) this.loadHero(sim.save.skin);
     const look = lookOf(sim.save.skin, sim.save.looks);
@@ -1139,3 +1176,30 @@ function crystalModel(color: number): THREE.Object3D {
 }
 
 export { MAP_W, MAP_H };
+
+/**
+ * Dirt trails along the forest's paths: a transparent canvas over the ground (one draw call),
+ * soft-edged brown strokes with a lighter centre.
+ */
+function trailMesh(w: number, h: number): THREE.Mesh {
+  const k = 1024 / Math.max(w, h);
+  const c = document.createElement('canvas');
+  c.width = Math.round(w * k); c.height = Math.round(h * k);
+  const g = c.getContext('2d')!;
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  const stroke = (width: number, color: string, blur: number) => {
+    g.strokeStyle = color; g.lineWidth = width * k; g.shadowColor = color; g.shadowBlur = blur * k;
+    g.beginPath();
+    for (const [x0, y0, x1, y1] of FOREST_PATHS) { g.moveTo(x0 * k, y0 * k); g.lineTo(x1 * k, y1 * k); }
+    g.stroke();
+  };
+  stroke(34, 'rgba(150,112,70,0.55)', 10);
+  stroke(20, 'rgba(178,140,92,0.6)', 6);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshLambertMaterial({ map: tex, transparent: true, depthWrite: false }));
+  m.rotation.x = -Math.PI / 2;
+  m.position.set(w / 2, 0.05, h / 2);
+  m.receiveShadow = true;
+  return m;
+}

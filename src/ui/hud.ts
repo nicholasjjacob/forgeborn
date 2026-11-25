@@ -1,4 +1,5 @@
 import { autoFit } from './pager';
+import { Minimap } from './minimap';
 import { gi } from './icons';
 import { HeroesUI } from './heroes';
 import { fmt } from '../core/format';
@@ -109,6 +110,8 @@ export class Hud {
     this.bag = new BagUI(sim, () => this.openPage('forge'));
     $('#side-bag').addEventListener('click', () => { sfx.play('tick'); this.bag.open(); });
     this.worldMap = new WorldMapUI(sim, (m) => this.toast(m), codexIcon);
+    this.minimap = new Minimap(sim, () => { sfx.play('tick'); this.worldMap.open(); });
+    $('#battle').appendChild(this.minimap.el);
     $('#side-map').addEventListener('click', () => { sfx.play('tick'); this.worldMap.open(); });
     this.mapDot = $('#side-map .dot');
     this.lv = { chip: $('#level-chip'), num: $('#level-num'), fill: $('#xp-fill'), dot: $('#level-dot') };
@@ -187,6 +190,7 @@ export class Hud {
   }
 
   private fitAll: () => void = () => {};
+  private readonly minimap: Minimap;
 
   /** Open a menu page (Upgrades, Forge, Quests; Reforge from Settings) over the battlefield. */
   openPage(tab: Tab): void {
@@ -329,6 +333,7 @@ export class Hud {
       this.toast(`${zoneBossName(s.zone)} awaits! Tap Fight Boss`, 'boss');
     }
     this.worldMap.refresh();
+    this.minimap.update();
 
     for (const b of document.querySelectorAll<HTMLElement>('[data-buy-mode]')) {
       this.toggle(b, 'active', b.dataset.buyMode === String(s.buyMode));

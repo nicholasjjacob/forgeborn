@@ -1,5 +1,5 @@
 import { starterWeapon } from '../src/sim/weapons';
-import { bossCooldown } from '../src/sim/zones';
+import { PLAYABLE_ZONES, bossCooldown } from '../src/sim/zones';
 import { describe, expect, it } from 'vitest';
 import { Sim, freshSave, type Enemy } from '../src/sim/sim';
 import { UPGRADES, UPGRADE_IDS, maxAffordable, upgradeCost } from '../src/sim/balance';
@@ -22,8 +22,16 @@ function autoBuy(sim: Sim) {
   }
 }
 
+/** Forest bosses wait in their lairs: put the hero in the current region's lair (one tick). */
+function enterLair(sim: Sim) {
+  const lair = sim.map.forest!.lairs.find((l) => l.zone === sim.save.zone)!;
+  sim.hero.x = sim.hero.prevX = lair.x; sim.hero.y = sim.hero.prevY = lair.y;
+  sim.tick();
+}
+
 function play(minutes: number, seed = 1) {
   const sim = new Sim(freshSave(), seed);
+  sim.clock = () => 1e12 + sim.time * 1000; // boss cooldowns on simulated time: runs repeat exactly
   const steps = minutes * 60 * 30;
   for (let i = 0; i < steps; i++) {
     sim.tick();
@@ -76,9 +84,10 @@ describe('simulation', () => {
   it('progresses at a reasonable pace with greedy upgrades', () => {
     const at5 = play(5);
     const at20 = play(20);
-    // Pace targets: into the second zone within ~5 min, a few zones further by 20 min.
+    // Pace targets: into the second region within ~5 min, the whole forest open by 20 min.
     expect(at5.maxZone).toBeGreaterThanOrEqual(1);
-    expect(at20.maxZone).toBeGreaterThan(at5.maxZone + 1);
+    expect(at20.maxZone).toBe(PLAYABLE_ZONES - 1);
+    expect(at20.save.level).toBeGreaterThan(at5.save.level);
   });
 
   it('a fresh hero with no upgrades eventually dies and recovers instead of soft-locking', () => {
@@ -96,21 +105,26 @@ describe('simulation', () => {
     expect(sim.hero.hp).toBeGreaterThan(0);
   });
 
-  it('travelling into a new terrain swaps the map and monster roster', () => {
+  it('lands past the forest stay locked (coming soon)', () => {
     const save = freshSave();
     save.zoneBosses = 3; save.level = zoneLevel(3);
+    const sim = new Sim(save, 3);
+    expect(sim.zoneUnlocked(PLAYABLE_ZONES)).toBe(false);
+    expect(sim.travel(PLAYABLE_ZONES)).toBe(false);
+    expect(sim.map.forest).toBeTruthy();
+  });
+
+  it('a region boss rises in its lair and can be beaten there', () => {
+    const save = freshSave();
     save.upgrades.atk = 60; save.upgrades.hp = 40;
     const sim = new Sim(save, 3);
-    const firstMap = sim.map;
-    expect(sim.travel(3)).toBe(true);
-    expect(sim.area).toBe(1);
-    expect(sim.map).not.toBe(firstMap);
-    // The zone boss can be fought and beaten in its arena.
-    sim.challengeBoss();
+    expect(sim.challengeBoss()).toBe(true); // walks the hero toward the lair
+    expect(sim.bossActive).toBe(false);
+    enterLair(sim);
     expect(sim.bossActive).toBe(true);
-    expect(sim.map.boss).toBe(true);
-    for (let i = 0; i < 30 * 60 && save.zoneBosses === 3; i++) { sim.tick(); sim.events.clear(); }
-    expect(save.zoneBosses).toBe(4);
+    for (let i = 0; i < 30 * 60 && save.zoneBosses === 0; i++) { sim.tick(); sim.events.clear(); }
+    expect(save.zoneBosses).toBe(1);
+    expect(sim.map.forest).toBeTruthy(); // no separate arena
   });
 
   it('auto-hunt never stalls for long (obstacle steering keeps kills flowing)', () => {
@@ -183,7 +197,7 @@ describe('zone maps', () => {
 
 describe('world map zones', () => {
   const beatBoss = (sim: Sim) => {
-    sim.challengeBoss();
+    enterLair(sim);
     const boss = sim.enemies.find((e) => e.alive && e.boss)!;
     boss.hp = 0;
     (sim as unknown as { kill(e: Enemy): void }).kill(boss);
@@ -199,13 +213,17 @@ describe('world map zones', () => {
     beatBoss(sim);
     expect(save.zoneBosses).toBe(1);
     expect(sim.zoneUnlocked(1)).toBe(true);
+    // The pass into the next region opens.
+    sim.tick();
+    expect(sim.map.openGates.has(1)).toBe(true);
     expect(sim.travel(1)).toBe(true);
+    sim.tick();
     expect(save.zone).toBe(1);
     expect(save.stage).toBe(zoneStage(1));
-    expect(sim.map.zone).toBe(1);
-    // Back to an easier zone any time.
+    // Back to an easier region any time.
     expect(sim.travel(0)).toBe(true);
-    expect(sim.map.zone).toBe(0);
+    sim.tick();
+    expect(save.zone).toBe(0);
   });
 
   it('beating the boss pays a first-clear bonus once, then sends the hero back to the field', () => {
@@ -214,9 +232,10 @@ describe('world map zones', () => {
     const gems = save.missions.gems;
     beatBoss(sim);
     expect(save.missions.gems).toBe(gems + 10);
-    expect(sim.map.boss).toBe(true);
+    expect(sim.bossActive).toBe(false);
     for (let i = 0; i < 90; i++) sim.tick();
-    expect(sim.map.boss).toBe(false);
+    expect(sim.map.forest).toBeTruthy(); // stays in the forest
+    sim.clock = () => Date.now() + 1e9; // cooldown over
     beatBoss(sim); // rematch: no second bonus, no extra unlock
     expect(save.missions.gems).toBe(gems + 10);
     expect(save.zoneBosses).toBe(1);
@@ -305,12 +324,21 @@ describe('boss rematch cooldown', () => {
     const save = freshSave();
     save.zoneBosses = 1; // zone 0's boss already beaten
     const sim = new Sim(save, 3);
-    const t0 = 1_000_000;
-    expect(sim.challengeBoss(t0)).toBe(true);           // no cooldown recorded yet
-    sim.bossActive = false;                              // pretend the fight ended
-    expect(sim.challengeBoss(t0 + 1000)).toBe(false);    // recovering
-    expect(sim.bossCooldownLeft(t0 + 1000)).toBeCloseTo(119, 0);
-    expect(sim.challengeBoss(t0 + 121_000)).toBe(true);  // ready again
+    let t = 1_000_000;
+    sim.clock = () => t;
+    expect(sim.challengeBoss()).toBe(true);              // no cooldown recorded yet
+    enterLair(sim);
+    expect(sim.bossActive).toBe(true);                   // the rematch starts the cooldown
+    sim.travel(0);                                       // leave (the fight is abandoned)
+    sim.hero.x = sim.hero.prevX = 750; sim.hero.y = sim.hero.prevY = 1570; sim.tick();
+    expect(sim.bossActive).toBe(false);
+    t += 1000;
+    expect(sim.challengeBoss()).toBe(false);             // recovering
+    expect(sim.bossCooldownLeft()).toBeCloseTo(119, 0);
+    enterLair(sim);
+    expect(sim.bossActive).toBe(false);                  // the lair stays quiet
+    t += 120_000;
+    expect(sim.challengeBoss()).toBe(true);              // ready again
   });
 
   it('never blocks a boss that has not been beaten yet', () => {

@@ -1,5 +1,5 @@
 import { DEFAULT_SKIN } from '../sim/skins';
-import { zoneLevel, zoneStage } from '../sim/zones';
+import { PLAYABLE_ZONES, zoneLevel, zoneStage } from '../sim/zones';
 import { freshMaterials } from '../sim/gather';
 import { freshSave, type SaveData } from '../sim/sim';
 import { FORMS, INVENTORY_SIZE, INVENTORY_STEP, MAX_INVENTORY, starterWeapon, upgradeOldWeapon, type Weapon } from '../sim/weapons';
@@ -183,6 +183,8 @@ export function migrate(input: unknown): SaveData {
     save.quests = save.quests.filter((q) => (q.kind as string) !== 'stages');
   }
   save.zone = Number.isFinite(save.zone) ? Math.max(0, Math.floor(save.zone)) : 0;
+  // Only the Greenwood (zones 0-2) is playable for now: anyone further on goes to its last region.
+  if (save.zone >= PLAYABLE_ZONES) { save.zone = PLAYABLE_ZONES - 1; save.stage = zoneStage(save.zone); save.farming = false; }
   save.zoneBosses = Number.isFinite(save.zoneBosses) ? Math.max(0, Math.floor(save.zoneBosses)) : 0;
   save.zoneBest = Math.max(save.zone, Number.isFinite(save.zoneBest) ? save.zoneBest : 0);
   save.bossReady = save.bossReady && typeof save.bossReady === 'object' ? save.bossReady : {};
