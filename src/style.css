@@ -263,7 +263,10 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
   animation: page-in 0.18s ease-out;
 }
 #panel[hidden] { display: none; }
-@keyframes page-in { from { transform: translateY(26px); opacity: 0; } }
+/* Grows in from its bottom edge (which stays put): sliding up from below would poke the page's
+   edge out between the bottom buttons for a moment, a flashing bar. */
+@keyframes page-in { from { transform: scale(0.96); opacity: 0; } }
+#panel { transform-origin: 50% 100%; }
 .page-top { position: relative; flex: 0 0 auto; display: flex; justify-content: center; padding: 10px 52px 8px; }
 #page-title { margin: 0; font-size: 24px; letter-spacing: 0.04em; }
 .page-top .sheet-x { top: 7px; right: 8px; }
