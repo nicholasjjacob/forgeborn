@@ -1,4 +1,5 @@
 import { areaFor, areaName } from './areas';
+import { BIOMES, REGION_MONSTERS } from './forest';
 
 /**
  * The world map: zones you travel between. Every terrain (area) has three zones, each a step
@@ -11,13 +12,22 @@ import { areaFor, areaName } from './areas';
  */
 
 export const ZONES_PER_AREA = 3;
-/** Zones that can be played: the Greenwood's three. The other terrains arrive with their art packs. */
-export const PLAYABLE_ZONES = 3;
+/**
+ * Zones per terrain: the Greenwood is one big world of nine regions, each its own zone (a long
+ * climb); every other terrain has three. Past the last listed terrain they repeat in threes.
+ */
+const AREA_ZONES: readonly number[] = [9, 3, 3, 3, 3, 3];
+const AREA_START: readonly number[] = AREA_ZONES.map((_, i) => AREA_ZONES.slice(0, i).reduce((a, b) => a + b, 0));
+const LISTED_ZONES = AREA_ZONES.reduce((a, b) => a + b, 0);
+/** Zones that can be played: the Greenwood's nine. The other terrains arrive with their art packs. */
+export const PLAYABLE_ZONES = 9;
 /** Zones with their own names; past this the terrains repeat as "+" tiers. */
-export const NAMED_ZONES = 18;
+export const NAMED_ZONES = LISTED_ZONES;
 
+/** The Greenwood's zones are its regions, easiest first (forest.ts lays them out). */
 const ZONE_NAMES: readonly string[] = [
-  'Meadow Outskirts', 'Bloomwood Groves', 'Old Mill Crossing',
+  'Meadow Outskirts', 'Goldenrod Fields', 'Mistwater Glade', 'Emberleaf Woods', 'Bloomwood Groves',
+  'Tidepine Thicket', 'Crimson Hollow', 'Old Mill Crossing', 'Emerald Mere',
   'Mirewood Edge', 'Sunken Grove', 'Bogroot Crossing',
   'Dune Approach', 'Oasis Thicket', 'Sunscar Crossroads',
   'Hollow Mouth', 'Crystal Garden', 'Deep Junction',
@@ -29,16 +39,27 @@ const ZONE_NAMES: readonly string[] = [
 export const AREA_ICONS: readonly string[] = ['🌿', '🍄', '🌵', '💎', '❄️', '🌋'];
 
 /** The terrain (area index) a zone belongs to. */
-export const zoneArea = (zone: number) => Math.floor(zone / ZONES_PER_AREA);
+export function zoneArea(zone: number): number {
+  if (zone >= LISTED_ZONES) return AREA_ZONES.length + Math.floor((zone - LISTED_ZONES) / ZONES_PER_AREA);
+  let a = 0;
+  while (a + 1 < AREA_START.length && AREA_START[a + 1] <= zone) a++;
+  return a;
+}
+/** Which of its terrain's zones this is (0 = the first). */
+function zoneIndex(zone: number): number {
+  return zone >= LISTED_ZONES ? (zone - LISTED_ZONES) % ZONES_PER_AREA : zone - AREA_START[zoneArea(zone)];
+}
+/** How many zones the zone's terrain has. */
+const zonesIn = (zone: number) => (zone >= LISTED_ZONES ? ZONES_PER_AREA : AREA_ZONES[zoneArea(zone)]);
 
 /** Zone difficulty in stage units: zone 0 → 1, zone 3 → 13, zone 6 → 25, … (×~2 monster HP per zone) */
 export const zoneStage = (zone: number) => 1 + zone * 4;
 
 /**
- * Hero level needed to enter each named zone, tuned so a steady player opens a new zone every
- * few minutes early on and every 10-20 minutes later. Past the named zones, level 100.
+ * Hero level needed to enter each named zone: the Greenwood's nine regions climb steadily (a
+ * new region every while, slower as it goes), then the later terrains. Past them, level 100.
  */
-const ZONE_LEVELS: readonly number[] = [1, 4, 6, 8, 10, 12, 15, 18, 22, 26, 31, 37, 44, 52, 60, 70, 80, 90];
+const ZONE_LEVELS: readonly number[] = [1, 5, 9, 14, 19, 25, 31, 38, 46, 50, 54, 58, 62, 66, 70, 74, 78, 82, 86, 90, 93, 95, 97, 99];
 export function zoneLevel(zone: number): number {
   if (zone <= 0) return 1;
   return zone < ZONE_LEVELS.length ? ZONE_LEVELS[zone] : 100;
@@ -53,13 +74,22 @@ export function zoneName(zone: number): string {
 /** "Sunscar Dunes" etc. for the zone's terrain. */
 export const zoneTerrain = (zone: number) => areaName(zoneArea(zone));
 
-/** True for the third zone of a terrain: its boss is the terrain's own boss. */
-export const isTerrainBossZone = (zone: number) => zone % ZONES_PER_AREA === ZONES_PER_AREA - 1;
+/** True for a terrain's last zone: its boss is the terrain's own boss. */
+export const isTerrainBossZone = (zone: number) => zoneIndex(zone) === zonesIn(zone) - 1;
 
-/** Roster slot of a zone's boss: a champion of one of the terrain's monsters, or the terrain boss (3). */
-export function zoneBossMonster(zone: number): number {
-  const i = zone % ZONES_PER_AREA;
-  return i === 0 ? 0 : i === 1 ? 1 : 3;
+/**
+ * A zone's boss as [terrain, roster slot]: the terrain's own boss (slot 3) in its last zone,
+ * otherwise a champion of a regular monster: in the Greenwood, one of the region's own monsters.
+ */
+export function zoneBoss(zone: number): { area: number; slot: number } {
+  const area = zoneArea(zone);
+  if (isTerrainBossZone(zone)) return { area, slot: 3 };
+  if (area === 0) {
+    const b = BIOMES.findIndex((x) => x.zone === zone);
+    const [a, s] = REGION_MONSTERS[b][zone % 3];
+    return { area: a, slot: s };
+  }
+  return { area, slot: zoneIndex(zone) };
 }
 
 /**
@@ -72,7 +102,7 @@ export function bossCooldown(zone: number): number {
 }
 
 export function zoneBossName(zone: number): string {
-  const { def } = areaFor(zoneArea(zone));
-  const m = zoneBossMonster(zone);
-  return m === 3 ? def.boss.name : `${def.monsters[m].name} Champion`;
+  const { area, slot } = zoneBoss(zone);
+  const { def } = areaFor(area);
+  return slot === 3 ? def.boss.name : `${def.monsters[slot].name} Champion`;
 }

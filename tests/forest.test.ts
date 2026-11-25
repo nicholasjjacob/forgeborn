@@ -6,8 +6,12 @@ describe('the forest world', () => {
   it('every region touches the neighbours it should open onto', () => {
     expect(MISSING_LINKS).toEqual([]);
     expect(FOREST.passes.length).toBe(12);
-    expect(FOREST.gates.filter((g) => g.zone === 1).length).toBe(3);
-    expect(FOREST.gates.filter((g) => g.zone === 2).length).toBe(3);
+    // Every pass is barricaded for the harder side, and every region past the first has a way in.
+    expect(FOREST.gates.length).toBe(12);
+    for (let z = 1; z < 9; z++) expect(FOREST.gates.some((g) => g.zone === z), `zone ${z}`).toBe(true);
+    // One region per zone, each with its own boss lair.
+    expect(new Set(BIOMES.map((b) => b.zone)).size).toBe(9);
+    expect(FOREST.lairs.map((l) => l.zone)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
   });
 
   it('places landmarks, haunts and lairs inside their own regions, clear of the borders', () => {
@@ -57,13 +61,14 @@ describe('forest borders', () => {
     return regions;
   };
 
-  it('barricades hold: the start tier is sealed until its passes open, then every region is reachable', () => {
+  it('barricades hold: each region opens in turn, and with all open every region is reachable', () => {
     const map = new GameMap(0);
-    expect([...reachable(map)].sort()).toEqual([0, 1, 2]);
-    map.openGates.add(1);
-    expect([...reachable(map)].sort()).toEqual([0, 1, 2, 3, 4, 5]);
-    map.openGates.add(2);
-    expect([...reachable(map)].sort()).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+    const zonesReached = () => [...reachable(map)].map((b) => BIOMES[b].zone).sort((a, b) => a - b);
+    expect(zonesReached()).toEqual([0]);
+    for (let z = 1; z < 9; z++) {
+      map.openGates.add(z);
+      expect(zonesReached()).toEqual(Array.from({ length: z + 1 }, (_, i) => i));
+    }
   });
 });
 

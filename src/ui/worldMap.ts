@@ -412,9 +412,10 @@ export class WorldMapUI {
       if (el.innerHTML !== html) el.innerHTML = html;
       el.classList.toggle('locked', !open);
       el.classList.toggle('here', here);
-      // A region holding a boss lair: the tag sits a little lower, clear of the lair's skull.
+      // A region whose boss lair is near its heart: the tag moves off it, clear of the lair's skull.
       const lair = f.lairs.find((l) => l.biome === b);
-      const p = at(bm.x, bm.y + (lair && Math.hypot(lair.x - bm.x, lair.y - bm.y) < 260 ? 120 : 0));
+      const near = lair && Math.hypot(lair.x - bm.x, lair.y - bm.y) < 260;
+      const p = at(bm.x, bm.y + (near ? (lair.y > bm.y ? -120 : 120) : 0)); // away from the lair
       el.style.left = `${(p.x / W) * 100}%`;
       el.style.top = `${(p.y / H) * 100}%`;
     });
@@ -534,7 +535,7 @@ export class WorldMapUI {
         : `<button type="button" class="zone-lock" data-act="locked:${z}">${gi('padlock', 'grey')} ${this.lockText(z)}</button>`;
     return `
       <div class="wm-region-info">
-        <div class="wm-ri-head"><b>${bm.name}</b><span>${zoneName(z)} · Lv ${zoneLevel(z)}+ · XP <b>${fmt(xpForKill(zoneStage(z), false))}</b>/kill</span></div>
+        <div class="wm-ri-head"><b>${bm.name}</b><span>Zone ${z + 1} · Lv ${zoneLevel(z)}+ · XP <b>${fmt(xpForKill(zoneStage(z), false))}</b>/kill</span></div>
         <div class="wm-ri-row">${gi('skull-crossed-bones', 'white')} <b>${zoneBossName(z)}</b> <span>${bossState}</span></div>
         <div class="wm-ri-row"><span class="map-mons">${mons}</span><span>Haunts found: <b>${found}/${haunts.length}</b>${hordes ? ` · <b class="wm-horde">${hordes} overrun</b>` : ''}</span></div>
         <div class="wm-ri-act">${action}</div>

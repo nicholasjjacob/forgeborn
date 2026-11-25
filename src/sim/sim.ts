@@ -19,7 +19,7 @@ import { MissionSystem } from './missionSystem';
 import { GameMap, MAP_H, MAP_W } from './map';
 import { BIOMES, FOREST_H, FOREST_W, biomeArrival, forestRegion, forestZone, type Territory } from './forest';
 import { MAX_LEVEL, levelBonus, milestoneReward, xpForKill, xpToNext, MILESTONES, type MilestoneReward } from './level';
-import { PLAYABLE_ZONES, zoneArea, zoneBossMonster, zoneBossName, zoneLevel, zoneName, zoneStage, bossCooldown } from './zones';
+import { PLAYABLE_ZONES, zoneArea, zoneBoss, zoneBossName, zoneLevel, zoneName, zoneStage, bossCooldown } from './zones';
 import {
   forgeCost, forgeLevelCap, INVENTORY_SIZE, INVENTORY_STEP, MAX_FORGE_LEVEL, MAX_INVENTORY, inventoryExpandCost, mergeCount, bonusWeapon, compareWeapons, forgeAtkBonus, forgeUpgradeCost, forgeWeapon, matchingSlots, mergePartners, mergeWeapons,
   salvageValue, starterWeapon, weaponStats, type RangedDef, type Weapon,
@@ -461,7 +461,7 @@ export class Sim {
       if (this.biome >= 0) this.events.push(Ev.RegionEnter, this.hero.x, this.hero.y, b);
       this.biome = b;
     }
-    if (z !== s.zone) {
+    if (z >= 0 && z !== s.zone) {
       s.zone = z;
       s.stage = zoneStage(z);
     }
@@ -526,7 +526,8 @@ export class Sim {
     this.bossActive = true;
     this.bossT = BOSS_TIME;
     const b = this.enemies.find((e) => !e.alive) ?? this.enemies[0];
-    this.setEnemy(b, zoneBossMonster(z), true, lair.x, lair.y - lair.r * 0.3, false, zoneStage(z));
+    const boss = zoneBoss(z);
+    this.setEnemy(b, boss.slot, true, lair.x, lair.y - lair.r * 0.3, false, zoneStage(z), boss.area);
     b.homeX = lair.x; b.homeY = lair.y; b.homeR = lair.r;
     this.events.push(Ev.BossSpawn);
   }
@@ -1734,7 +1735,8 @@ export class Sim {
     let x = h.x + 70, y = h.y;
     const p = this.findSpawnPoint(60, 90);
     if (p) { x = p.x; y = p.y; }
-    this.setEnemy(this.enemies[0], zoneBossMonster(this.save.zone), true, x, y);
+    const boss = zoneBoss(this.save.zone);
+    this.setEnemy(this.enemies[0], boss.slot, true, x, y, false, this.save.stage, boss.area);
     this.events.push(Ev.BossSpawn);
   }
 

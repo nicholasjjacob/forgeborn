@@ -84,9 +84,11 @@ describe('simulation', () => {
   it('progresses at a reasonable pace with greedy upgrades', () => {
     const at5 = play(5);
     const at20 = play(20);
-    // Pace targets: into the second region within ~5 min, the whole forest open by 20 min.
+    // Pace targets: into the second region within ~5 min, a few regions by 20 min, but the
+    // Greenwood's nine take hours, not minutes.
     expect(at5.maxZone).toBeGreaterThanOrEqual(1);
-    expect(at20.maxZone).toBe(PLAYABLE_ZONES - 1);
+    expect(at20.maxZone).toBeGreaterThanOrEqual(2);
+    expect(at20.maxZone).toBeLessThan(PLAYABLE_ZONES - 2);
     expect(at20.save.level).toBeGreaterThan(at5.save.level);
   });
 
@@ -299,7 +301,7 @@ describe('monster skills', () => {
   });
 
   it('spitters hit the hero from range with projectiles', () => {
-    const { sim, s } = setup(0, 3); // mirewood: the spider spits
+    const { sim, s } = setup(0, 9); // Mirewood's first zone: the spider spits
     const e = s.enemies[0];
     s.setEnemy(e, 1, false, sim.hero.x + 60, sim.hero.y);
     e.spawnT = 0; e.aggro = true; e.skillCd = 0;
@@ -324,8 +326,8 @@ describe('monster skills', () => {
 describe('boss rematch cooldown', () => {
   it('lets a beaten boss be rematched only after a cooldown that grows with the zone', () => {
     expect(bossCooldown(0)).toBe(120);
-    expect(bossCooldown(2)).toBeGreaterThan(bossCooldown(1) * 1.4); // terrain boss: +50%
-    expect(bossCooldown(17)).toBeGreaterThan(bossCooldown(5));
+    expect(bossCooldown(8)).toBeGreaterThan(bossCooldown(7) * 1.4); // the Greenwood's own boss: +50%
+    expect(bossCooldown(23)).toBeGreaterThan(bossCooldown(5));
     const save = freshSave();
     save.zoneBosses = 1; // zone 0's boss already beaten
     const sim = new Sim(save, 3);
