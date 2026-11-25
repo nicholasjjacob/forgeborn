@@ -12,9 +12,7 @@ export const Ev = {
   Shard: 11,     // x, y, value = shard count
   Shock: 12,     // x, y = chained enemy; x2, y2 = where the arc came from
   LevelUp: 13,   // x, y = hero; value = new level
-  Chop: 14,      // x, y = prop; value = prop index (a swing clipped a tree/rock)
-  Drop: 15,      // x, y; value = 0 wood / 1 stone (a material piece appeared)
-  Pickup: 16,    // x, y; value = 0 wood / 1 stone (the hero collected it)
+  // 14-16: retired (wood / stone gathering)
   Telegraph: 17, // x, y; value = radius; flag = 1 boss slam wind-up / 0 dash wind-up
   Slam: 18,      // x, y; value = radius (a boss slam landed)
   Shoot: 19,     // x, y (a monster spat a projectile)

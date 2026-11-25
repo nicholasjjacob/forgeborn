@@ -31,8 +31,6 @@ export function chips(r: Reward): string {
   if (r.gems) c.push(`<span class="rchip"><i class="jewel"></i>${fmt(r.gems)}</span>`);
   if (r.embers) c.push(`<span class="rchip"><i class="ember"></i>${fmt(r.embers)}</span>`);
   if (r.xp) c.push(`<span class="rchip"><i class="xp-ico">XP</i>${fmt(r.xp)}</span>`);
-  if (r.wood) c.push(`<span class="rchip"><i class="log"></i>${fmt(r.wood)}</span>`);
-  if (r.stone) c.push(`<span class="rchip"><i class="rock"></i>${fmt(r.stone)}</span>`);
   return c.join('');
 }
 
@@ -369,7 +367,6 @@ export class MissionsUI {
     const g = this.sim.save.missions.gems;
     const icon: Record<string, string> = {
       gold: '<i class="coin big"></i>', shards: '<i class="gem big"></i>', warp: gi('hourglass', 'cyan'), xp: gi('book-cover', 'blue'), embers: '<i class="ember big"></i>',
-      mats: '<span class="mats-ico"><i class="log"></i><i class="rock"></i></span>',
     };
     return `
       <div class="gem-balance"><i class="jewel"></i>${fmt(g)} <span>gems</span></div>

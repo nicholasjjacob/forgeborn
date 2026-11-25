@@ -117,8 +117,6 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 .gold { font-size: 17px; }
 .embers { display: none; }
 .embers.show { display: flex; }
-.log { display: inline-block; width: 16px; height: 9px; border-radius: 5px 3px 3px 5px; background: linear-gradient(#b0743c, #6e3e1a); box-shadow: inset -4px 0 0 #f0cf98, 0 0 0 1.5px #3a1e0a; }
-.rock { display: inline-block; width: 13px; height: 11px; clip-path: polygon(12% 85%, 6% 45%, 28% 12%, 62% 5%, 92% 32%, 94% 72%, 70% 95%, 30% 97%); background: linear-gradient(160deg, #e2e8ee, #9aa4b0 55%, #5e6672); }
 .coin, .gem, .ember, .jewel { display: inline-block; flex: 0 0 auto; }
 .coin { width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff6c0 0 18%, var(--gold) 22% 58%, #c47f0e 62%); box-shadow: 0 0 0 2px #7a4a12; }
 .gem { width: 12px; height: 12px; rotate: 45deg; border-radius: 2px; background: linear-gradient(135deg, #f6e6ff, #b06cff 50%, #4a1a8a); box-shadow: 0 0 0 1.5px #2a0a5a; margin: 0 2px; }
@@ -728,9 +726,6 @@ html.icons3d .dock-ico[data-ico="scroll"] { background-image: var(--ico-scroll);
 .offer-buy { width: 100%; margin-top: 2px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
 .offer.cant .offer-ico { opacity: 0.6; }
 .ember.big { width: 22px; height: 28px; }
-.mats-ico { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.mats-ico .log { width: 22px; height: 12px; }
-.mats-ico .rock { width: 18px; height: 15px; }
 
 @media (prefers-reduced-motion: reduce) {
   #progress.boss, .slot.mergeable, .slot.new, .slot.pop, .dot, .track-card.ready, .chest.ready .chest-ico, .chest.ready::before, .chest.ready::after, .day-cell.today, #vignette.boss { animation: none; }
@@ -806,8 +801,6 @@ html.icons3d .dock-ico[data-ico="scroll"] { background-image: var(--ico-scroll);
 
 /* Reward chip icons for XP and materials */
 .xp-ico { display: inline-grid; place-items: center; font-style: normal; font-size: 7px; font-weight: 900; width: 15px; height: 12px; border-radius: 3px; color: #fff; background: linear-gradient(#7fd0ff, #2a6fd0); text-shadow: none; }
-.rchip .log { width: 13px; height: 7px; }
-.rchip .rock { width: 10px; height: 9px; }
 /* Readable disabled buttons (e.g. shop prices you can't afford yet). */
 .btn.btn:disabled { color: #fff; text-shadow: 0 1px 0 #0007; }
 .btn.btn:disabled .jewel { filter: grayscale(0.6); }
@@ -830,14 +823,10 @@ html.icons3d .dock-ico[data-ico="scroll"] { background-image: var(--ico-scroll);
 .bag-ico .gem { width: 16px; height: 16px; }
 .bag-ico .jewel { width: 22px; height: 20px; }
 .bag-ico .ember { width: 18px; height: 23px; }
-.bag-ico .log { width: 26px; height: 14px; }
-.bag-ico .rock { width: 22px; height: 19px; }
 .bag-ico.big .coin { width: 34px; height: 34px; }
 .bag-ico.big .gem { width: 24px; height: 24px; }
 .bag-ico.big .jewel { width: 32px; height: 29px; }
 .bag-ico.big .ember { width: 26px; height: 33px; }
-.bag-ico.big .log { width: 38px; height: 20px; }
-.bag-ico.big .rock { width: 32px; height: 27px; }
 .bag-name { font-size: 11px; color: var(--ink-soft); }
 .bag-amt { font-size: 14px; font-variant-numeric: tabular-nums; }
 .bag-weapons { display: flex; flex-direction: column; gap: 5px; padding: 10px 12px; border-radius: 14px; background: linear-gradient(var(--card-hi), var(--cream-2)); box-shadow: inset 0 0 0 2px var(--wood), 0 3px 0 var(--wood-dark); font-size: 13px; }

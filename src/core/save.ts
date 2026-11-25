@@ -1,6 +1,5 @@
 import { DEFAULT_SKIN } from '../sim/skins';
 import { PLAYABLE_ZONES, zoneLevel, zoneStage } from '../sim/zones';
-import { freshMaterials } from '../sim/gather';
 import { freshSave, type SaveData } from '../sim/sim';
 import { FORMS, INVENTORY_SIZE, INVENTORY_STEP, MAX_INVENTORY, starterWeapon, upgradeOldWeapon, type Weapon } from '../sim/weapons';
 import { canWield, skinDef } from '../sim/skins';
@@ -160,7 +159,6 @@ export function migrate(input: unknown): SaveData {
     achievements: { ...data.achievements },
     quests: Array.isArray(data.quests) ? data.quests : [],
     levelClaimed: Array.isArray(data.levelClaimed) ? data.levelClaimed : [],
-    materials: { ...freshMaterials(), ...data.materials },
   } as SaveData;
   save.embersEarned = Math.max(save.embersEarned ?? 0, save.embers ?? 0);
   save.level = Number.isFinite(save.level) ? Math.max(1, Math.min(100, Math.floor(save.level))) : 1;

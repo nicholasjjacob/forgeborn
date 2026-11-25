@@ -136,11 +136,10 @@ describe('gem shop', () => {
     expect(sim.save.missions.gems).toBe(10);
   });
 
-  it('new offers grant materials, XP and embers', () => {
+  it('new offers grant XP and embers', () => {
     const sim = new Sim(freshSave(), 9);
     sim.save.missions.gems = 1000;
-    expect(sim.missions.buy('mats')).not.toBeNull();
-    expect(sim.save.materials).toEqual({ wood: 20, stone: 20 });
+    expect(sim.missions.buy('mats')).toBeNull(); // the Builder's Crate is gone with wood and stone
     const lv = sim.save.level;
     expect(sim.missions.buy('xp')).not.toBeNull();
     expect(sim.save.level).toBeGreaterThan(lv);

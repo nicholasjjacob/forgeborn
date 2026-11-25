@@ -5,8 +5,8 @@ import { RARITY_NAMES, weaponName, weaponPower } from '../sim/weapons';
 import { bindSheetTaps } from './tap';
 
 /**
- * The Bag: everything the hero is carrying. Materials (wood, stone) and treasures (gold,
- * shards, gems, embers) as item tiles; tap a tile for what it is and where it comes from.
+ * The Bag: everything the hero is carrying. Treasures (gold, shards, gems, embers) as item
+ * tiles; tap a tile for what it is and where it comes from.
  * A weapons summary links to the Forge, where weapons are managed.
  */
 
@@ -20,17 +20,6 @@ interface ItemDef {
 }
 
 const ITEMS: { title: string; items: ItemDef[] }[] = [
-  {
-    title: 'Materials',
-    items: [
-      { id: 'wood', name: 'Wood', icon: '<i class="log"></i>', amount: (s) => s.save.materials.wood,
-        about: 'Sturdy logs for building. Building is coming soon: start stockpiling!',
-        source: 'Lies near trees; swing at trees to knock more loose.' },
-      { id: 'stone', name: 'Stone', icon: '<i class="rock"></i>', amount: (s) => s.save.materials.stone,
-        about: 'Solid stone for building. Building is coming soon: start stockpiling!',
-        source: 'Lies near rocks and crystals; swing at them to chip more loose.' },
-    ],
-  },
   {
     title: 'Treasures',
     items: [
@@ -53,7 +42,7 @@ const ITEMS: { title: string; items: ItemDef[] }[] = [
 export class BagUI {
   private wrap: HTMLElement | null = null;
   private sig = '';
-  private selected = 'wood';
+  private selected = 'gold';
 
   constructor(private readonly sim: Sim, private readonly openForge: () => void) {}
 

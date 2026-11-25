@@ -5,7 +5,6 @@ import { areaFor, type PropKind } from '../sim/areas';
 import { MAP_H, MAP_W, type GameMap } from '../sim/map';
 import { FOREST_GRASS, FOREST_MODELS, FOREST_PATHS } from '../sim/forest';
 import { ELITE, MAX_ENEMIES, MAX_HERO_SHOTS, MAX_SHOTS, SLAM_RADIUS, SLAM_WIND, STYLE_DASHER, type Enemy, type Sim } from '../sim/sim';
-import { MAX_PICKUPS } from '../sim/gather';
 import { cloneActor, findClip, loadModel, measure, model } from './models';
 import { Fx3D } from './fx3d';
 import { BOLT_MODEL, arrowModel, buildKitWeapon, holdWeapon, idleTilt, buildWeapon, weaponTrailColor, type WeaponView } from './weapons3d';
@@ -162,7 +161,6 @@ export class World3D {
   private builtMap: GameMap | null = null;
   private mapPending = false;
   private propRefs: (PropRef | null)[] = [];
-  private readonly shaking = new Map<number, number>();
   private readonly partCache = new Map<string, Part[]>();
   private readonly tintCache = new Map<string, THREE.Material>();
 
@@ -215,7 +213,6 @@ export class World3D {
   private heroModelSkin = '';
   /** Hero projectiles: an arrow, a crossbow bolt and a magic orb per slot (one shown at a time). */
   private readonly heroShotViews: { root: THREE.Group; arrow: THREE.Group; bolt: THREE.Group; magic: THREE.Mesh; core: THREE.Mesh; kit?: string }[] = [];
-  private readonly pickupMeshes: { wood: THREE.Mesh; stone: THREE.Mesh }[] = [];
   private area = -1;
 
   private low = false;
@@ -308,19 +305,6 @@ export class World3D {
       }
     }
 
-    const logGeo = new THREE.CylinderGeometry(1, 1, 5.5, 7);
-    logGeo.rotateZ(Math.PI / 2);
-    const logMat = new THREE.MeshLambertMaterial({ color: 0xa06a3a });
-    const stoneGeo = new THREE.DodecahedronGeometry(2, 0);
-    const stoneMat = new THREE.MeshLambertMaterial({ color: 0xb0b8c4, flatShading: true });
-    for (let i = 0; i < MAX_PICKUPS; i++) {
-      const wood = new THREE.Mesh(logGeo, logMat);
-      const stone = new THREE.Mesh(stoneGeo, stoneMat);
-      wood.castShadow = stone.castShadow = true;
-      wood.visible = stone.visible = false;
-      this.scene.add(wood, stone);
-      this.pickupMeshes.push({ wood, stone });
-    }
   }
 
   setLow(low: boolean): void {
@@ -472,7 +456,6 @@ export class World3D {
   private buildProps(map: GameMap): void {
     for (const c of this.propGroup.children) (c as THREE.InstancedMesh).dispose();
     this.propGroup.clear();
-    this.shaking.clear();
     const look = LOOKS[map.area % LOOKS.length];
     const groups = new Map<string, { parts: Part[]; shadow: boolean; items: { idx: number; m: THREE.Matrix4; x: number; y: number; rot: number; s: number }[] }>();
     const add = (name: string, parts: Part[], shadow: boolean, idx: number, x: number, y: number, rot: number, s: number) => {
@@ -616,10 +599,6 @@ export class World3D {
     }
   }
 
-  /** A tree or rock that was just chopped/mined shakes for a moment. */
-  chop(propIndex: number): void {
-    if (this.propRefs[propIndex]) this.shaking.set(propIndex, 0.3);
-  }
 
   // --- Actors ------------------------------------------------------------------------------
 
@@ -812,19 +791,6 @@ export class World3D {
     const hx = h.prevX + (h.x - h.prevX) * alpha;
     const hy = h.prevY + (h.y - h.prevY) * alpha;
     const dead = sim.phase === 'dead';
-
-    // Shaking scenery
-    for (const [idx, left] of this.shaking) {
-      const ref = this.propRefs[idx];
-      const nl = left - dt;
-      const tilt = nl > 0 ? Math.sin(nl * 60) * 0.06 * (nl / 0.3) : 0;
-      if (ref) {
-        const m = propMatrix(ref.x, ref.y, ref.rot, ref.s, tilt);
-        const tmp = new THREE.Matrix4();
-        ref.meshes.forEach((im, k) => { im.setMatrixAt(ref.index, tmp.multiplyMatrices(m, ref.parts[k].m)); im.instanceMatrix.needsUpdate = true; });
-      }
-      if (nl <= 0) this.shaking.delete(idx); else this.shaking.set(idx, nl);
-    }
 
     if (sim.map.forest) this.syncGates(sim.map);
     // Hero
@@ -1020,20 +986,6 @@ export class World3D {
         v.core.scale.setScalar(s.splash > 0 ? 1 : 0.65);
         this.fx.mote(v.root.position.x, v.root.position.z, 9, c);
       }
-    }
-
-    // Wood / stone pickups
-    const pk = sim.gather.pickups;
-    for (let i = 0; i < MAX_PICKUPS; i++) {
-      const p = pk[i], v = this.pickupMeshes[i];
-      if (!p.alive) { v.wood.visible = v.stone.visible = false; continue; }
-      const m = p.kind === 'wood' ? v.wood : v.stone;
-      (p.kind === 'wood' ? v.stone : v.wood).visible = false;
-      m.visible = true;
-      const pop = Math.min(1, p.age / 0.25);
-      m.position.set(p.prevX + (p.x - p.prevX) * alpha, 1.5 + Math.abs(Math.sin(t * 3 + i)) * 1.2, p.prevY + (p.y - p.prevY) * alpha);
-      m.rotation.y = t * 1.5 + i;
-      m.scale.setScalar(1.2 * (0.6 + 0.4 * pop) * (p.age > 110 ? Math.max(0, (120 - p.age) / 10) : 1));
     }
   }
 

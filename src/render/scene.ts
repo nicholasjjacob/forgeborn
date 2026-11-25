@@ -35,7 +35,6 @@ export interface SceneHooks {
   /** A forest pass opened (its barricade came down). */
   onGateOpen?(zone: number): void;
   onLevelUp?(level: number): void;
-  onPickup?(kind: 'wood' | 'stone'): void;
 }
 
 export class Scene {
@@ -314,19 +313,6 @@ export class Scene {
           this.levelPop = 0.6;
           haptic(40);
           this.hooks.onLevelUp?.(v);
-          break;
-        case Ev.Chop:
-          this.world3d.chop(v);
-          fx3.hit(x, y, 9, false, 0xd8c8a0);
-          break;
-        case Ev.Drop:
-          fx.burst(x, y, v ? 0xc8d0dc : 0xd8a868, 5, 25);
-          break;
-        case Ev.Pickup:
-          sfx.play('shard', 0.6);
-          fx.burst(x, y, v ? 0xe8eef6 : 0xf0c890, 6, 35);
-          fx.text(x, y - 4, 1, v ? 0xd8e0ea : 0xf0b070, false, '+');
-          this.hooks.onPickup?.(v ? 'stone' : 'wood');
           break;
         case Ev.Telegraph:
           if (f === 1) sfx.play('boss', 0.5);

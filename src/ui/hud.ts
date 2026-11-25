@@ -232,15 +232,6 @@ export class Hud {
     if (el.classList.contains(cls) !== on) el.classList.toggle(cls, on);
   }
 
-  /** Pop the Bag icon when a wood/stone piece is collected. */
-  bumpMaterial(_kind: 'wood' | 'stone'): void {
-    const el = document.getElementById('side-bag');
-    if (!el) return;
-    el.classList.remove('fx-bump');
-    void el.offsetWidth;
-    el.classList.add('fx-bump');
-  }
-
   toast(msg: string, kind: 'good' | 'bad' | 'boss' = 'good'): void {
     const t = this.el.toast;
     t.textContent = msg;

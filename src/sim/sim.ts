@@ -18,7 +18,6 @@ import { addRewards, freshMissions, type MissionSave } from './missions';
 import { MissionSystem } from './missionSystem';
 import { GameMap, MAP_H, MAP_W } from './map';
 import { FOREST_H, FOREST_W, forestRegion, type Territory } from './forest';
-import { Gatherer, freshMaterials, type Materials } from './gather';
 import { MAX_LEVEL, levelBonus, milestoneReward, xpForKill, xpToNext, MILESTONES, type MilestoneReward } from './level';
 import { PLAYABLE_ZONES, zoneArea, zoneBossMonster, zoneBossName, zoneLevel, zoneName, zoneStage, bossCooldown } from './zones';
 import {
@@ -105,8 +104,6 @@ export interface SaveData {
   level: number;
   xp: number;                // progress toward the next level
   levelClaimed: number[];    // Level Road milestones already claimed (5, 10, …)
-  // Building materials, gathered from the ground and by chopping trees/rocks. Kept through Reforge.
-  materials: Materials;
   // World map (v6). `stage` is now the current zone's difficulty in stage units (zoneStage).
   zone: number;              // the zone the hero is in
   zoneBosses: number;        // zone bosses beaten, in order: zone z's boss is down when z < zoneBosses
@@ -136,7 +133,7 @@ export function freshSave(): SaveData {
     rates: { gold: 0, shards: 0 },
     embers: 0, embersEarned: 0, perks: freshPerks(), bestEver: 1, stats: freshStats(), quests: [], achievements: {},
     missions: freshMissions(),
-    level: 1, xp: 0, levelClaimed: [], materials: freshMaterials(),
+    level: 1, xp: 0, levelClaimed: [],
     zone: 0, zoneBosses: 0, zoneBest: 0,
     skin: DEFAULT_SKIN, skins: [DEFAULT_SKIN], looks: {}, palettes: {}, bossReady: {}, explored: '',
     savedAt: Date.now(),
@@ -261,7 +258,6 @@ export class Sim {
   /** Messages for the HUD (quest complete, achievement unlocked). Drained by the UI. */
   readonly notices: string[] = [];
   readonly missions = new MissionSystem(this);
-  readonly gather = new Gatherer(this);
   private metaT = 0;
 
   // Rolling window of recent earnings: 60 buckets × 5 s = the last 5 minutes of play.
@@ -302,7 +298,6 @@ export class Sim {
     this.map = new GameMap(zoneArea(save.zone), save.zone);
     this.placeHeroAtSpawn();
     this.knownMaxZone = this.maxZone;
-    this.gather.reset();
     this.fillQuests();
     this.recalc();
     this.hero.hp = this.hero.maxHp;
@@ -805,7 +800,6 @@ export class Sim {
     this.updateShots(dt);
     this.updateHeroShots(dt);
     this.heroAttack();
-    this.gather.update(dt);
     this.spawn(dt);
 
     if (this.returnT > 0) {
@@ -1127,8 +1121,6 @@ export class Sim {
     h.swingAngle = ang;
     h.faceX = Math.cos(ang) >= 0 ? 1 : -1;
     this.events.push(Ev.Swing, h.x, h.y, ang, this.ranged ? 1 : 0);
-    // Ranged heroes still clip trees and rocks right next to them.
-    this.gather.chop(ang, this.ranged ? Math.min(this.range, 22) : this.range, this.ranged ? 1.0 : this.arc);
 
     const isCrit = this.rng.chance(this.crit);
     const dmg = this.atk * this.rageMult() * (isCrit ? this.critMult : 1);
@@ -1695,7 +1687,6 @@ export class Sim {
     h.hp = h.maxHp;
     this.input.hasTarget = false;
     this.spawnT = 1;
-    this.gather.reset();
   }
 
   /** Build the current zone's (field) map. `announce` shows the zone's name banner. */
