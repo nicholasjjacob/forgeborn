@@ -32,6 +32,7 @@ export function openSettings(sim: Sim, act: SettingsActions): void {
       <div class="set-row"><span>Graphics<small>Low: sharper on weak phones, fewer particles, no shake</small></span><div class="seg" data-key="quality"><button data-v="high">High</button><button data-v="low">Low</button></div></div>
       <div class="set-row"><span>Frame rate<small>30 saves battery</small></span><div class="seg" data-key="fps"><button data-v="60">60</button><button data-v="30">30</button></div></div>
       <div class="set-row"><span>Reforge<small>Restart stronger: trade this run for embers and perks</small></span><button type="button" class="btn small primary" id="open-reforge">Open<span class="badge" id="set-reforge-badge"></span></button></div>
+      <div class="set-row"><span>Minimap<small>Circle: around your hero · Square: the whole forest</small></span><div class="seg" data-key="minimap"><button data-v="circle">Circle</button><button data-v="square">Square</button></div></div>
       <div class="set-row fullscreen-row" hidden><span>Full screen<small>Hide the browser bars (Esc leaves)</small></span><div class="seg" data-key="fullscreen"><button data-v="on">On</button><button data-v="off">Off</button></div></div>
       <div class="set-row install-row" hidden><span>Install<small class="install-note"></small></span><button type="button" class="btn small primary" id="install-btn">Install</button></div>
       <div class="set-actions">
@@ -42,7 +43,7 @@ export function openSettings(sim: Sim, act: SettingsActions): void {
     </div>`;
 
   const sync = () => {
-    const val: Record<string, string> = { sound: s.sound ? 'on' : 'off', quality: s.quality, fps: String(s.fps), fullscreen: document.fullscreenElement ? 'on' : 'off' };
+    const val: Record<string, string> = { sound: s.sound ? 'on' : 'off', quality: s.quality, fps: String(s.fps), minimap: s.minimap, fullscreen: document.fullscreenElement ? 'on' : 'off' };
     for (const seg of wrap.querySelectorAll<HTMLElement>('.seg')) {
       for (const b of seg.querySelectorAll<HTMLButtonElement>('button')) {
         const on = b.dataset.v === val[seg.dataset.key!];
@@ -60,6 +61,7 @@ export function openSettings(sim: Sim, act: SettingsActions): void {
       case 'sound': s.sound = v === 'on'; act.applySound(s.sound); break;
       case 'quality': s.quality = v as 'high' | 'low'; act.applyQuality(s.quality); break;
       case 'fps': s.fps = Number(v) as 30 | 60; act.applyFps(s.fps); break;
+      case 'minimap': s.minimap = v as 'circle' | 'square'; break;
       case 'fullscreen':
         if (v === 'on' && !document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => { /* refused */ });
         if (v === 'off' && document.fullscreenElement) document.exitFullscreen().catch(() => { /* already out */ });

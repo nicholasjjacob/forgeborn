@@ -162,6 +162,7 @@ async function boot() {
 
     hudT += dt;
     if (hudT >= HUD_INTERVAL) { hudT = 0; hud!.refresh(); }
+    hud!.frame(acc / TICK);
     saveT += dt;
     if (saveT >= AUTOSAVE_INTERVAL) { saveT = 0; save(); sim.missions.update(new Date()); }
   });

@@ -246,6 +246,9 @@ export class Hud {
     this.toastUntil = performance.now() + 1900;
   }
 
+  /** Called every frame: the minimap redraws itself up to 30× a second (smooth fog and arrow). */
+  frame(alpha = 1): void { this.minimap.update(performance.now(), alpha); }
+
   /** Called ~10× per second. */
   refresh(): void {
     const sim = this.sim;
@@ -311,7 +314,6 @@ export class Hud {
       this.toast(lair ? `The ${zoneBossName(s.zone)} awaits at the ${lair.name}` : `${zoneBossName(s.zone)} awaits!`, 'boss');
     }
     this.worldMap.refresh();
-    this.minimap.update();
 
     for (const b of document.querySelectorAll<HTMLElement>('[data-buy-mode]')) {
       this.toggle(b, 'active', b.dataset.buyMode === String(s.buyMode));

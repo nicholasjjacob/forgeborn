@@ -1,20 +1,27 @@
 import { areaFor } from '../sim/areas';
-import { EXPLORE_CELL, type Explored } from '../sim/explore';
+import { EXPLORE_CELL, EXPLORE_RADIUS, type Explored } from '../sim/explore';
 import { FOREST_PATHS, regionRaster, type ForestInfo } from '../sim/forest';
 import type { Sim } from '../sim/sim';
 
 /**
- * Round minimap of the forest world, centred on the hero (bottom-left): regions in their colours,
- * trails, cliff walls, closed passes (red), monster territories, boss lairs and the hero (white
- * arrow). Only the part around the hero shows, and anything not yet explored is greyed out until
- * the hero has been there. Tap it to open the World Map. Hidden off the forest.
+ * Minimap of the forest world (bottom-left): regions in their colours, trails, closed passes
+ * (red X), monster territories, boss lairs and the hero (white arrow); anything not yet explored
+ * is greyed out until the hero has been there. Two shapes (Settings):
+ *  - circle: a round window centred on the hero, showing the land around them;
+ *  - square: the whole forest at once, the hero moving across it.
+ * Tap it to open the World Map. Hidden off the forest.
+ *
+ * The fog is one persistent layer: built from the explored cells once, then every frame a soft
+ * circle is wiped away around the hero, so it clears smoothly as they walk (not in cell steps).
  */
 
 const FOG = '#4a505e';
-/** World units from the centre of the minimap to its rim. */
+/** World units from the centre of the round minimap to its rim. */
 const VIEW_R = 300;
-/** Fog layer pixels per explore cell (soft, round edges). */
+/** Fog layer pixels per explore cell. */
 const FOG_RES = 6;
+/** About this many redraws per second (smooth, but no more than needed). */
+const FRAME_MS = 1000 / 60;
 
 export class Minimap {
   readonly el: HTMLCanvasElement;
@@ -23,7 +30,6 @@ export class Minimap {
   private bgK = 0;
   private fog: HTMLCanvasElement | null = null;
   private fogFor: Explored | null = null;
-  private fogVersion = -1;
   private drawnAt = 0;
   private heading = -Math.PI / 2;
 
@@ -35,43 +41,46 @@ export class Minimap {
     this.el.addEventListener('click', onTap);
   }
 
-  /** Redraw (a few times a second). */
-  update(now = performance.now()): void {
+  /** Redraw (every frame); `alpha` places the hero between the last two sim ticks, like the 3D view. */
+  update(now = performance.now(), alpha = 1): void {
     const f = this.sim.map.forest;
     this.el.hidden = !f;
-    if (!f || now - this.drawnAt < 120) return;
+    const square = this.sim.save.minimap === 'square';
+    this.el.classList.toggle('square', square);
+    if (!f || now - this.drawnAt < FRAME_MS - 2) return;
     this.drawnAt = now;
     const map = this.sim.map;
-    const css = this.el.clientWidth || 104;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const W = Math.round(css * dpr);
-    if (this.el.width !== W || this.el.height !== W) { this.el.width = W; this.el.height = W; }
-    const k = W / (2 * VIEW_R); // canvas px per world unit
-    if (!this.bg || this.bgFor !== f || this.bgK !== k) this.bg = this.background(f, map.w, map.h, k);
+    const W = Math.round((this.el.clientWidth || 104) * dpr), H = Math.round((this.el.clientHeight || 104) * dpr);
+    if (this.el.width !== W || this.el.height !== H) { this.el.width = W; this.el.height = H; }
+    // Canvas px per world unit, and where the map's origin sits on the canvas.
+    const h = this.sim.hero;
+    const hx = h.prevX + (h.x - h.prevX) * alpha, hy = h.prevY + (h.y - h.prevY) * alpha;
+    let k: number, ox: number, oy: number;
+    if (square) {
+      k = Math.min(W / map.w, H / map.h);
+      ox = (W - map.w * k) / 2; oy = (H - map.h * k) / 2;
+    } else {
+      k = W / (2 * VIEW_R);
+      ox = W / 2 - hx * k; oy = H / 2 - hy * k;
+    }
+    if (!this.bg || this.bgFor !== f || Math.abs(this.bgK - k) > 1e-6) this.bg = this.background(f, map.w, map.h, k);
     const ex = this.sim.explored;
-    if (ex && (this.fogFor !== ex || this.fogVersion !== ex.version)) this.fog = this.fogLayer(ex);
+    if (ex && this.fogFor !== ex) this.fog = this.fogLayer(ex);
+    if (ex && this.fog) this.clearAround(hx, hy);
 
     const g = this.el.getContext('2d')!;
-    const h = this.sim.hero;
-    const c = W / 2;
-    g.clearRect(0, 0, W, W);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, W, H);
     g.save();
-    g.beginPath(); g.arc(c, c, c, 0, Math.PI * 2); g.clip();
+    if (!square) { g.beginPath(); g.arc(W / 2, H / 2, W / 2, 0, Math.PI * 2); g.clip(); }
     g.fillStyle = '#2c4a2a'; // beyond the map's edge: deep forest
-    g.fillRect(0, 0, W, W);
-    g.translate(c - h.x * k, c - h.y * k);
+    g.fillRect(0, 0, W, H);
+    g.translate(ox, oy);
     g.drawImage(this.bg, 0, 0);
     const seen = (x: number, y: number) => !ex || ex.seen(x, y);
+    const dot = square ? 0.75 : 1; // markers a touch smaller on the whole-map view
 
-    // Closed passes: a red bar across the gap.
-    g.lineCap = 'round';
-    for (const gate of f.gates) {
-      if (map.openGates.has(gate.zone) || !seen(gate.x, gate.y)) continue;
-      // A red X over the barricade.
-      const x = gate.x * k, y = gate.y * k, d = 3.5 * dpr;
-      g.strokeStyle = '#ff3b3b'; g.lineWidth = 2.5 * dpr;
-      g.beginPath(); g.moveTo(x - d, y - d); g.lineTo(x + d, y + d); g.moveTo(x + d, y - d); g.lineTo(x - d, y + d); g.stroke();
-    }
     // Territories: the monster's colour, once found.
     for (const t of f.territories) {
       if (!seen(t.x, t.y)) continue;
@@ -79,12 +88,20 @@ export class Minimap {
       g.globalAlpha = 0.35;
       g.beginPath(); g.arc(t.x * k, t.y * k, t.r * k, 0, Math.PI * 2); g.fill();
       g.globalAlpha = 1;
-      g.beginPath(); g.arc(t.x * k, t.y * k, 2.4 * dpr, 0, Math.PI * 2); g.fill();
+      g.beginPath(); g.arc(t.x * k, t.y * k, 2.4 * dpr * dot, 0, Math.PI * 2); g.fill();
     }
-    // Fog over everything not yet explored (soft-edged: the cell grid is scaled up smoothly).
+    // Fog over everything not yet explored.
     if (this.fog && ex) {
       g.imageSmoothingEnabled = true;
       g.drawImage(this.fog, 0, 0, ex.cols * EXPLORE_CELL * k, ex.rows * EXPLORE_CELL * k);
+    }
+    // Closed passes (found ones): a red X over the barricade.
+    g.lineCap = 'round';
+    for (const gate of f.gates) {
+      if (map.openGates.has(gate.zone) || !seen(gate.x, gate.y)) continue;
+      const x = gate.x * k, y = gate.y * k, d = 3.5 * dpr * dot;
+      g.strokeStyle = '#ff3b3b'; g.lineWidth = 2.5 * dpr * dot;
+      g.beginPath(); g.moveTo(x - d, y - d); g.lineTo(x + d, y + d); g.moveTo(x + d, y - d); g.lineTo(x - d, y + d); g.stroke();
     }
     // Boss lairs (once found): red when the boss is ready (or fighting), grey while it recovers.
     const s = this.sim.save;
@@ -94,17 +111,17 @@ export class Minimap {
       const fighting = this.sim.bossActive && l.zone === s.zone;
       g.fillStyle = fighting ? (Math.floor(now / 250) % 2 ? '#ffd23f' : '#ff3b3b') : ready ? '#e0283a' : '#777';
       g.strokeStyle = '#fff'; g.lineWidth = 1.2 * dpr;
-      g.beginPath(); g.arc(l.x * k, l.y * k, 4.2 * dpr, 0, Math.PI * 2); g.fill(); g.stroke();
+      g.beginPath(); g.arc(l.x * k, l.y * k, 4.2 * dpr * dot, 0, Math.PI * 2); g.fill(); g.stroke();
     }
     g.restore();
 
-    // The hero, always in the middle: a white arrow pointing the way they face.
+    // The hero: a white arrow pointing the way they face (the centre of the round view).
     const mvx = h.x - h.prevX, mvy = h.y - h.prevY;
     if (Math.abs(mvx) + Math.abs(mvy) > 0.01) this.heading = Math.atan2(mvy, mvx);
     g.save();
-    g.translate(c, c);
+    g.translate(ox + hx * k, oy + hy * k);
     g.rotate(this.heading + Math.PI / 2);
-    const a = Math.max(1, W / 110);
+    const a = Math.max(1, Math.min(W, H) / 110) * dot;
     g.fillStyle = '#fff'; g.strokeStyle = '#0a1035'; g.lineWidth = 1.5 * dpr;
     g.beginPath(); g.moveTo(0, -6 * a); g.lineTo(4.5 * a, 5 * a); g.lineTo(0, 2.5 * a); g.lineTo(-4.5 * a, 5 * a); g.closePath();
     g.fill(); g.stroke();
@@ -135,23 +152,22 @@ export class Minimap {
     g.drawImage(img, 0, 0, R.cols * R.cell * k, R.rows * R.cell * k);
     g.fillStyle = '#4aa6e0';
     for (const p of f.ponds) { g.beginPath(); g.arc(p.x * k, p.y * k, p.r * k, 0, Math.PI * 2); g.fill(); }
-    g.strokeStyle = 'rgba(244, 222, 170, 0.85)'; g.lineWidth = Math.max(1.5, 14 * k); g.lineCap = 'round';
+    g.strokeStyle = 'rgba(244, 222, 170, 0.85)'; g.lineWidth = Math.max(1, 14 * k); g.lineCap = 'round';
     g.beginPath();
     for (const [x0, y0, x1, y1] of FOREST_PATHS) { g.moveTo(x0 * k, y0 * k); g.lineTo(x1 * k, y1 * k); }
     g.stroke();
     g.fillStyle = 'rgba(255,255,255,0.8)';
-    for (const l of f.landmarks) { g.beginPath(); g.arc(l.x * k, l.y * k, Math.max(2, 9 * k), 0, Math.PI * 2); g.fill(); }
+    for (const l of f.landmarks) { g.beginPath(); g.arc(l.x * k, l.y * k, Math.max(1.5, 9 * k), 0, Math.PI * 2); g.fill(); }
     return c;
   }
 
-  /** Grey everywhere, with a soft round hole punched for each explored cell (FOG_RES px per cell). */
+  /** The fog, built once from the explored cells: grey, with a soft hole for each explored cell. */
   private fogLayer(ex: Explored): HTMLCanvasElement {
-    this.fogFor = ex; this.fogVersion = ex.version;
-    const c = this.fog ?? document.createElement('canvas');
+    this.fogFor = ex;
+    const c = document.createElement('canvas');
     const R = FOG_RES;
     c.width = ex.cols * R; c.height = ex.rows * R;
     const g = c.getContext('2d')!;
-    g.globalCompositeOperation = 'source-over';
     g.fillStyle = FOG;
     g.fillRect(0, 0, c.width, c.height);
     g.globalCompositeOperation = 'destination-out';
@@ -171,5 +187,20 @@ export class Minimap {
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.globalCompositeOperation = 'source-over';
     return c;
+  }
+
+  /** Wipe the fog away around the hero (a soft-edged circle the size of what they can see). */
+  private clearAround(x: number, y: number): void {
+    const c = this.fog!;
+    const g = c.getContext('2d')!;
+    const s = FOG_RES / EXPLORE_CELL; // fog px per world unit
+    const cx = x * s, cy = y * s, r = EXPLORE_RADIUS * s;
+    const grad = g.createRadialGradient(cx, cy, r * 0.55, cx, cy, r);
+    grad.addColorStop(0, 'rgba(0,0,0,1)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    g.globalCompositeOperation = 'destination-out';
+    g.fillStyle = grad;
+    g.fillRect(cx - r, cy - r, r * 2, r * 2);
+    g.globalCompositeOperation = 'source-over';
   }
 }

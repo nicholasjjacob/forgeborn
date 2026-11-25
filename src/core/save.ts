@@ -187,6 +187,7 @@ export function migrate(input: unknown): SaveData {
   save.zoneBest = Math.max(save.zone, Number.isFinite(save.zoneBest) ? save.zoneBest : 0);
   save.bossReady = save.bossReady && typeof save.bossReady === 'object' ? save.bossReady : {};
   save.explored = typeof save.explored === 'string' ? save.explored : '';
+  save.minimap = save.minimap === 'square' ? 'square' : 'circle';
   // Skins: always own the default; the selected skin must be owned.
   save.skins = Array.isArray(save.skins) ? [...new Set([DEFAULT_SKIN, ...save.skins.filter((x) => typeof x === 'string')])] : [DEFAULT_SKIN];
   if (typeof save.skin !== 'string' || !save.skins.includes(save.skin)) save.skin = DEFAULT_SKIN;

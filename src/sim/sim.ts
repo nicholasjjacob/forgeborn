@@ -83,6 +83,8 @@ export interface SaveData {
   auto: boolean;
   sound: boolean;
   quality: 'high' | 'low';
+  /** Minimap shape: a round view around the hero, or the whole forest in a square. */
+  minimap: 'circle' | 'square';
   shards: number;
   forgeLevel: number;
   weapons: (Weapon | null)[];   // fixed-size inventory grid
@@ -128,7 +130,7 @@ export function freshSave(): SaveData {
   return {
     v: 7, stage: 1, highestStage: 1, gold: 0, kills: 0, farming: false,
     upgrades: { atk: 0, hp: 0, aspd: 0, crit: 0, gold: 0 },
-    buyMode: 1, fps: 60, auto: true, sound: true, quality: 'high',
+    buyMode: 1, fps: 60, auto: true, sound: true, quality: 'high', minimap: 'circle',
     shards: 0, forgeLevel: 1, weapons: Array(INVENTORY_SIZE).fill(null), equipped: starterWeapon(), gear: {}, nextWeaponId: 2,
     rates: { gold: 0, shards: 0 },
     embers: 0, embersEarned: 0, perks: freshPerks(), bestEver: 1, stats: freshStats(), quests: [], achievements: {},
