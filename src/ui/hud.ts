@@ -76,14 +76,12 @@ export class Hud {
       ember: $('#ember-label'),
       emberPill: $('.embers'),
       buyModes: $('.buy-modes'),
-      challenge: $('#challenge-btn'),
       toast: $('#toast'),
       settings: $('#settings-btn'),
       vignette: $('#vignette'),
       list: $('#upgrade-list'),
     };
 
-    this.el.challenge.addEventListener('click', () => { sim.challengeBoss(); });
     this.el.settings.addEventListener('click', () => onSettings());
     // UI click sound for every panel button.
     $('#panel').addEventListener('click', (e) => { if ((e.target as HTMLElement).closest('button:not(:disabled)')) sfx.play('tick'); });
@@ -222,7 +220,6 @@ export class Hud {
     this.toggle(el, 'show', text !== '');
   }
 
-  private challengeHtml = '';
   private bossAnnounced = -1;
 
   private set(el: HTMLElement, text: string): void {
@@ -313,17 +310,12 @@ export class Hud {
     this.missions.refreshMain(now);
     this.missions.refresh();
 
-    // Boss button: only while the region's boss is still standing, a big glowing, bouncing call to
-    // action with the boss's name (announced once per zone) that walks the hero to its lair. A
-    // beaten boss has no button: the player walks back to its lair for a rematch.
-    const fresh = !sim.zoneBossBeaten;
-    this.toggle(this.el.challenge, 'show', fresh && !sim.isBossStage && !sim.bossActive && sim.phase === 'playing');
-    this.toggle(this.el.challenge, 'ready', fresh);
-    const cbHtml = `<span class="cb-main">${gi('skull-crossed-bones', 'white')} Fight Boss!</span><span class="cb-sub">${zoneBossName(s.zone)}</span>`;
-    if (cbHtml !== this.challengeHtml) { this.challengeHtml = cbHtml; this.el.challenge.innerHTML = cbHtml; }
-    if (fresh && !sim.isBossStage && this.bossAnnounced !== s.zone && performance.now() > this.toastUntil) {
+    // No boss button: bosses wait in their lairs and the player walks there (minimap: red dots).
+    // A region's unbeaten boss is announced once, with where to find it.
+    if (!sim.zoneBossBeaten && !sim.bossActive && this.bossAnnounced !== s.zone && performance.now() > this.toastUntil) {
       this.bossAnnounced = s.zone;
-      this.toast(`${zoneBossName(s.zone)} awaits! Tap Fight Boss`, 'boss');
+      const lair = sim.map.forest?.lairs.find((l) => l.zone === s.zone);
+      this.toast(lair ? `The ${zoneBossName(s.zone)} awaits at the ${lair.name}` : `${zoneBossName(s.zone)} awaits!`, 'boss');
     }
     this.worldMap.refresh();
     this.minimap.update();

@@ -210,13 +210,6 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 .bar-fill { position: absolute; inset: 0; transform-origin: left; transform: scaleX(0); background: linear-gradient(#9cf06a, #48b335); will-change: transform; }
 .bar-text { position: relative; display: block; text-align: center; font-size: 11px; line-height: 16px; color: #fff; text-shadow: 0 1px 0 #000c; font-variant-numeric: tabular-nums; }
 
-#challenge-btn {
-  position: absolute; right: 10px; bottom: 14px; z-index: 1;
-  border: 0; border-radius: 14px; padding: 10px 16px; font-size: 16px; color: #fff; text-shadow: var(--outline);
-  background: linear-gradient(var(--red-1), var(--red-2)); box-shadow: inset 0 0 0 2px var(--red-edge), 0 4px 0 var(--red-edge), 0 8px 14px #0006;
-  display: none; animation: pulse 1s ease-in-out infinite alternate;
-}
-#challenge-btn.show { display: block; }
 
 #toast {
   position: absolute; left: 50%; top: 40%; translate: -50% -50%;
@@ -740,7 +733,7 @@ html.icons3d .dock-ico[data-ico="scroll"] { background-image: var(--ico-scroll);
 .mats-ico .rock { width: 18px; height: 15px; }
 
 @media (prefers-reduced-motion: reduce) {
-  #progress.boss, #challenge-btn, .slot.mergeable, .slot.new, .slot.pop, .dot, .track-card.ready, .chest.ready .chest-ico, .chest.ready::before, .chest.ready::after, .day-cell.today, #vignette.boss { animation: none; }
+  #progress.boss, .slot.mergeable, .slot.new, .slot.pop, .dot, .track-card.ready, .chest.ready .chest-ico, .chest.ready::before, .chest.ready::after, .day-cell.today, #vignette.boss { animation: none; }
 }
 
 /* --- Reward spill (ui/rewardFx.ts) ------------------------------------------------------ */
@@ -890,7 +883,7 @@ html.icons3d .dock-ico[data-ico="scroll"] { background-image: var(--ico-scroll);
 /* --- Super casual finish ------------------------------------------------------------------- */
 /* Heavy rounded display type for everything that's a label, number or title. */
 .btn, .buy, .tabs button, .sheet-tabs button, .ribbon-text, #stage-label, .modal-card h2, .gold, .gems, .shards, .embers,
-.side-lbl, .chip, #challenge-btn, #toast, .lv-badge, .flc-level, .rf-embers, .gem-balance, .day-label, .ditem,
+.side-lbl, .chip, #toast, .lv-badge, .flc-level, .rf-embers, .gem-balance, .day-label, .ditem,
 .section-title, .codex-area, .bag-title, .task-pts b, .ptrack-pts b, .ach-tier, .bag-amt,
 .map-area-head, .jday, .update-banner, .lv-medal, .slot .tier, .badge, .dot, .level-chip, #area-label {
   font-family: var(--font-display); font-weight: 400; letter-spacing: 0.035em;
@@ -900,17 +893,17 @@ html.icons3d .dock-ico[data-ico="scroll"] { background-image: var(--ico-scroll);
   font-family: var(--font); font-weight: 600; letter-spacing: 0.01em;
 }
 /* Every button gets the pack's thick dark outline and a glossy top band. */
-.btn, .buy, .tabs button, .sheet-tabs button, #challenge-btn, .jday, #panel-toggle, .chip, .sheet-x, .update-banner, .flb-go {
+.btn, .buy, .tabs button, .sheet-tabs button, .jday, #panel-toggle, .chip, .sheet-x, .update-banner, .flb-go {
   outline: 2px solid var(--wood); outline-offset: 0;
 }
 .btn, .buy, .tabs button, .sheet-tabs button, .jday { position: relative; overflow: hidden; }
-#challenge-btn, .sheet-x { overflow: hidden; } /* already absolutely positioned */
-.btn::after, .buy::after, .tabs button::after, .sheet-tabs button::after, #challenge-btn::after, .jday::after, .sheet-x::after {
+.sheet-x { overflow: hidden; } /* already absolutely positioned */
+.btn::after, .buy::after, .tabs button::after, .sheet-tabs button::after, .jday::after, .sheet-x::after {
   content: ''; position: absolute; left: 4px; right: 4px; top: 3px; height: 42%; border-radius: 8px 8px 50% 50% / 8px 8px 30% 30%;
   background: linear-gradient(#ffffff66, #ffffff0d); pointer-events: none;
 }
 .tabs button:not([aria-selected="true"])::after, .sheet-tabs button:not([aria-selected="true"])::after { opacity: 0.35; }
-.btn, .buy, #challenge-btn { text-shadow: var(--outline); }
+.btn, .buy { text-shadow: var(--outline); }
 .tabs button, .sheet-tabs button { color: var(--ink-soft); }
 .tabs .badge, .sheet-tabs .dot { z-index: 1; }
 .tabs button, .sheet-tabs button { overflow: visible; }
@@ -973,26 +966,7 @@ html.icons3d .dock-ico[data-ico="scroll"] { background-image: var(--ico-scroll);
 .hero-tag .gi { width: 12px; height: 12px; }
 .hero-tag .jewel { width: 11px; height: 10px; }
 
-/* Zone boss still standing: the Fight Boss button glows gold, bounces and names the boss. */
-#challenge-btn.ready {
-  padding: 9px 18px 8px; display: none; flex-direction: column; align-items: center; line-height: 1.05;
-  background: linear-gradient(#ff8a5a, #e8283a 60%, #b0102a);
-  animation: boss-bounce 1.1s ease-in-out infinite;
-  box-shadow: inset 0 0 0 2px var(--red-edge), 0 4px 0 var(--red-edge), 0 0 0 4px #ffd84a, 0 0 22px 6px #ffb000aa;
-}
-#challenge-btn.ready.show { display: flex; }
-#challenge-btn .cb-main { display: flex; align-items: center; gap: 6px; font-size: 19px; }
-#challenge-btn .cb-main .gi { width: 22px; height: 22px; }
-#challenge-btn .cb-sub { font-size: 12px; color: #ffe9a0; margin-top: 2px; }
-@keyframes boss-bounce {
-  0%, 100% { transform: translateY(0) scale(1); }
-  12% { transform: translateY(-6px) scale(1.06); }
-  24% { transform: translateY(0) scale(1); }
-  32% { transform: translateY(-3px) scale(1.03); }
-  40% { transform: translateY(0) scale(1); }
-}
 #progress.ready { animation: pulse 0.8s ease-in-out infinite alternate; }
-@media (prefers-reduced-motion: reduce) { #challenge-btn.ready { animation: none; } }
 
 
 /* --- Codex: land list, then one land's monsters --------------------------------------------- */
@@ -1243,7 +1217,6 @@ html.icons3d .chest.ready .chest-ico { width: 38px; height: 38px; filter: drop-s
 #dock button { pointer-events: auto; width: 70px; height: 70px; padding: 2px 0 4px; border-radius: 16px; }
 #dock .dock-ico { width: 40px; height: 40px; }
 #dock .dock-lbl { font-size: 12px; }
-#challenge-btn { bottom: calc(var(--dock-h) + var(--safe-bottom) + 4px); }
 /* 7-Day Journey: day buttons show their badge outside the corner (the gloss is inset, so no
    clipping is needed), with room above and beside the row so it isn't cut by the page edge. */
 .jday { overflow: visible; }
