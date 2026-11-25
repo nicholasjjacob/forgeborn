@@ -458,6 +458,7 @@ export class Sim {
     }
   }
   private gateHintT = 0;
+  private lairHintT = 0;
 
   /** Forest boss lairs: walking into the current region's lair calls up its boss. */
   private updateLair(): void {
@@ -475,7 +476,16 @@ export class Sim {
     if (d > lair.r * 0.75) return;
     const now = this.clock();
     if (this.zoneBossBeaten) {
-      if (this.bossCooldownLeft(now) > 0) return;
+      const left = this.bossCooldownLeft(now);
+      if (left > 0) {
+        // A recovering boss: say when it will be back (now and then, while the hero waits here).
+        if (this.time > this.lairHintT) {
+          this.lairHintT = this.time + 8;
+          const secs = Math.ceil(left), m = Math.floor(secs / 60), sec = secs % 60;
+          this.notices.push(`The ${zoneBossName(z)} is recovering: back in ${m}:${String(sec).padStart(2, '0')}`);
+        }
+        return;
+      }
       this.save.bossReady[z] = now + bossCooldown(z) * 1000;
     }
     // One on one: the lair's surroundings are cleared, then the boss rises at its heart.
