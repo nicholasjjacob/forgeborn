@@ -152,6 +152,13 @@ export const SHOP: ShopOffer[] = [
   { id: 'embers', name: 'Ember Spark', desc: 'Embers for Reforge perks', cost: 150 },
 ];
 
+/** Two rewards added together (for collecting several gifts at once). */
+export function addRewards(a: Reward, b: Reward): Reward {
+  const out: Reward = { ...a };
+  for (const k of Object.keys(b) as (keyof Reward)[]) out[k] = (out[k] ?? 0) + (b[k] ?? 0);
+  return out;
+}
+
 export function describeReward(r: Reward): string {
   const parts: string[] = [];
   if (r.gold) parts.push(`${fmt(r.gold)} gold`);

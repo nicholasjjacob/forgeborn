@@ -14,7 +14,7 @@ import {
   type AchStat, type PerkId, type Perks, type Quest, type QuestKind, type Stats,
 } from './meta';
 import { OFFLINE_CAP_HOURS } from './offline';
-import { freshMissions, type MissionSave } from './missions';
+import { addRewards, freshMissions, type MissionSave } from './missions';
 import { MissionSystem } from './missionSystem';
 import { GameMap, MAP_H, MAP_W } from './map';
 import { FOREST_H, FOREST_W, forestRegion, type Territory } from './forest';
@@ -1652,6 +1652,25 @@ export class Sim {
    * Claim a Level Road milestone. Returns the reward, 'full' if a weapon reward needs a free
    * inventory slot, or null if it isn't claimable.
    */
+  /**
+   * Claim every Level Road milestone that is ready (tapping any ready one), lowest first. Bonus
+   * weapons need free slots: stops at the first that doesn't fit ('full' if none could be claimed).
+   */
+  claimReadyLevelRewards(): { reward: MilestoneReward; weapons: number[] } | 'full' | null {
+    let total: MilestoneReward | null = null;
+    const weapons: number[] = [];
+    for (const lv of MILESTONES) {
+      if (lv > this.save.level || this.save.levelClaimed.includes(lv)) continue;
+      const r = this.claimLevelReward(lv);
+      if (r === 'full') return total ? { reward: total, weapons } : 'full';
+      if (!r) continue;
+      if (r.weapon) weapons.push(r.weapon.rarity);
+      const { weapon: _w, ...rest } = r;
+      total = total ? addRewards(total, rest) : rest;
+    }
+    return total ? { reward: total, weapons } : null;
+  }
+
   claimLevelReward(level: number): MilestoneReward | 'full' | null {
     const s = this.save;
     if (!MILESTONES.includes(level) || level > s.level || s.levelClaimed.includes(level)) return null;

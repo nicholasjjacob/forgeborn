@@ -135,14 +135,15 @@ export class MissionsUI {
         if (m.claimTask(a as BoardKind, b, now)) { sfx.play('coin'); starBurst(el); this.toast('Mission complete!'); }
         break;
       case 'chest':
-        if (m.canClaimChest(a as BoardKind, Number(b))) reward = m.claimChest(a as BoardKind, Number(b));
+        // Any ready gift opens every ready gift on the board, all collected at once.
+        if (m.canClaimChest(a as BoardKind, Number(b))) reward = m.claimReadyChests(a as BoardKind);
         else if (!m.board(a as BoardKind).chests.includes(Number(b))) {
           sfx.play('tick');
           this.toast(`🎁 at ${m.milestones(a as BoardKind)[Number(b)]} ★: ${describeReward(m.chestReward(a as BoardKind, Number(b)))}`);
         }
         break;
       case 'login': reward = m.claimAttendance(now); break;
-      case 'codex': reward = m.claimCodex(Number(a), Number(b)); break;
+      case 'codex': reward = m.claimCodexAll(Number(a), Number(b)); break; // every tier reached
       case 'carea': this.codexArea = a === 'back' ? null : Number(a); sfx.play('tick'); this.scrollTop = true; break;
       case 'buy': reward = m.buy(a); if (!reward) this.toast('Not enough gems'); break;
     }

@@ -63,14 +63,17 @@ export class LevelRoad {
     if (!el || (el as HTMLButtonElement).disabled) return;
     const [act, a] = action.split(':');
     if (act !== 'lvclaim') return;
-    const r = this.sim.claimLevelReward(Number(a));
-    if (r === 'full') { sfx.play('tick'); this.toast('Inventory full: free a slot in the Forge', 'bad'); return; }
-    if (!r) return;
+    // Any ready milestone collects every ready milestone at once.
+    if (!Number(a)) return;
+    const got = this.sim.claimReadyLevelRewards();
+    if (got === 'full') { sfx.play('tick'); this.toast('Inventory full: free a slot in the Forge', 'bad'); return; }
+    if (!got) return;
     sfx.play('achieve');
     haptic(25);
-    rewardSpill(r, el);
-    const parts = [describeReward(r)];
-    if (r.weapon) parts.push(`${RARITY_NAMES[r.weapon.rarity]} weapon`);
+    rewardSpill(got.reward, el);
+    const parts = [describeReward(got.reward)];
+    if (got.weapons.length === 1) parts.push(`${RARITY_NAMES[got.weapons[0]]} weapon`);
+    else if (got.weapons.length > 1) parts.push(`${got.weapons.length} bonus weapons`);
     this.toast(`+ ${parts.filter(Boolean).join(' · ')}`);
     this.sig = '';
     this.refresh();

@@ -162,3 +162,40 @@ describe('migration', () => {
     expect(s.missions.attendance.day).toBe(0);
   });
 });
+
+describe('collecting several ready gifts at once', () => {
+  it('tapping any ready chest opens every ready chest on the board', () => {
+    const sim = new Sim(freshSave(), 1);
+    const m = sim.missions;
+    m.update(new Date());
+    m.board('daily').points = 60; // the 20, 40 and 60 chests are ready
+    const gems = sim.save.missions.gems;
+    const r = m.claimReadyChests('daily')!;
+    expect(m.board('daily').chests.sort()).toEqual([0, 1, 2]);
+    const sum = [0, 1, 2].reduce((t, i) => t + (m.chestReward('daily', i).gems ?? 0), 0);
+    expect(r.gems ?? 0).toBe(sum);
+    expect(sim.save.missions.gems).toBe(gems + sum);
+    expect(m.claimReadyChests('daily')).toBeNull(); // nothing left
+  });
+
+  it('a codex entry pays every tier reached in one go', () => {
+    const sim = new Sim(freshSave(), 1);
+    const m = sim.missions;
+    for (let i = 0; i < 5000; i++) m.recordKill(0, 0);
+    const r = m.claimCodexAll(0, 0)!;
+    expect(r.gems).toBeGreaterThan(0);
+    expect(m.canClaimCodex(0, 0)).toBe(false);
+    expect(m.codexClaimed(0, 0)).toBeGreaterThan(1);
+  });
+
+  it('the Level Road collects every ready milestone at once', () => {
+    const save = freshSave();
+    save.level = 15;
+    const sim = new Sim(save, 1);
+    const got = sim.claimReadyLevelRewards();
+    expect(got).not.toBeNull();
+    expect(got).not.toBe('full');
+    expect(save.levelClaimed.sort((a, b) => a - b)).toEqual([5, 10, 15]);
+    expect(sim.claimReadyLevelRewards()).toBeNull();
+  });
+});

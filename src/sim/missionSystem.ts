@@ -3,7 +3,7 @@ import { xpForKill } from './level';
 import {
   DAILY_TASKS, JOURNEY_DAYS, JOURNEY_MILESTONES, JOURNEY_TASKS, MILESTONES, SHOP, WEEKLY_TASKS,
   attendanceReward, boardChestReward, codexReward, codexTiers, dayKey, daysBetween, freshBoard, weekKey,
-  type Board, type MStat, type Reward, type TaskDef,
+  type Board, type MStat, type Reward, type TaskDef, addRewards,
 } from './missions';
 import { offlineReward } from './offline';
 import { zoneArea } from './zones';
@@ -110,6 +110,16 @@ export class MissionSystem {
     return r;
   }
 
+  /** Open every gift on this board that is ready, at once (tapping any ready one). */
+  claimReadyChests(kind: BoardKind): Reward | null {
+    let total: Reward | null = null;
+    this.milestones(kind).forEach((_, i) => {
+      const r = this.claimChest(kind, i);
+      if (r) total = total ? addRewards(total, r) : r;
+    });
+    return total;
+  }
+
   // --- Attendance ----------------------------------------------------------------
 
   canClaimAttendance(now: Date): boolean {
@@ -154,6 +164,13 @@ export class MissionSystem {
     row[slot]++;
     this.apply(r);
     return r;
+  }
+
+  /** Claim every tier of this monster's codex entry that has been reached, at once. */
+  claimCodexAll(area: number, slot: number): Reward | null {
+    let total: Reward | null = null;
+    for (let r = this.claimCodex(area, slot); r; r = this.claimCodex(area, slot)) total = total ? addRewards(total, r) : r;
+    return total;
   }
 
   /** Areas the player has reached (codex pages). */
