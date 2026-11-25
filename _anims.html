@@ -1,0 +1,66 @@
+<!doctype html>
+<html><body style="margin:0;background:#223;font:11px sans-serif;color:#fff">
+<div id="g"></div>
+<script type="module">
+// Dev-only: every hero's Heroes-screen idle, from the front, at 4 moments.  /_anims.html
+import * as THREE from 'three';
+import { cloneActor, loadModel, measure } from '/src/render/models.ts';
+import { SKINS } from '/src/sim/skins.ts';
+import { heroClip, heroScale, heroWeaponScale, loadHeroAnims, showcaseIdle, weaponAnims } from '/src/render/heroRig.ts';
+import { buildKitWeapon, holdWeapon, idleTilt, kitModels } from '/src/render/weapons3d.ts';
+const qs = new URLSearchParams(location.search);
+const only = qs.get('h')?.split(',');
+const S = 150;
+const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+r.setSize(S, S);
+r.outputColorSpace = THREE.SRGBColorSpace;
+const scene = new THREE.Scene();
+scene.add(new THREE.HemisphereLight(0xdfe8ff, 0x3a4a7a, 2.2));
+const sun = new THREE.DirectionalLight(0xffffff, 2); sun.position.set(2, 4, 5); scene.add(sun);
+const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
+for (const def of SKINS) {
+  if (only && !only.includes(def.id)) continue;
+  const forms = qs.get('f') ? def.forms.filter((x) => qs.get('f').split(',').includes(String(x))) : def.forms;
+  for (const form of forms) for (const cand of (qs.get('c')?.split(',') ?? [null])) {
+    const id = def.id;
+    const [g, rig] = await Promise.all([loadModel(`hero_${id}`), loadHeroAnims(id)]);
+    const inner = cloneActor(g);
+    inner.traverse((o) => { if (o.isSkinnedMesh) o.skeleton.pose(); });
+    const dims = measure(inner);
+    const k = (1.5 * heroScale(id)) / dims.h;
+    inner.scale.setScalar(k);
+    inner.position.set(-dims.cx * k, -dims.minY * k, -dims.cz * k);
+    await Promise.all(kitModels(form, 0).map((n) => loadModel(n).catch(() => null)));
+    const kit = buildKitWeapon(form, 0);
+    if (kit) {
+      kit.group.scale.multiplyScalar(heroWeaponScale(id));
+      const nm = cand ?? showcaseIdle(id, form);
+      const tilt = qs.has('t') ? Number(qs.get('t')) : (weaponAnims(id, form).upright && /^Idle_/.test(nm) ? idleTilt(form) : 0);
+      holdWeapon(kit.group, form, tilt);
+      kit.off?.scale.multiplyScalar(heroWeaponScale(id));
+      inner.getObjectByName('handslotr')?.add(kit.group);
+      if (kit.off) inner.getObjectByName('handslotl')?.add(kit.off);
+    }
+    const obj = new THREE.Group(); obj.add(inner); scene.add(obj);
+    const name = cand ?? showcaseIdle(id, form);
+    const clip = heroClip(rig.anims, name);
+    const mixer = new THREE.AnimationMixer(inner);
+    mixer.clipAction(clip).play();
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:2px';
+    const lab = document.createElement('div'); lab.style.width = "90px";
+    lab.textContent = `${id} f${form} ${name} (${clip.duration.toFixed(2)}s)`;
+    row.append(lab);
+    const h = 1.5 * heroScale(id);
+    cam.position.set(0.7, h * 0.7, h * 1.9 + 0.6); cam.lookAt(0, h * 0.5, 0);
+    for (const f of [0, 0.25, 0.5, 0.75, 0.99]) {
+      mixer.setTime(clip.duration * f);
+      r.render(scene, cam);
+      const img = new Image(); img.src = r.domElement.toDataURL(); row.append(img);
+    }
+    document.getElementById('g').append(row);
+    scene.remove(obj);
+  }
+}
+document.title = 'done';
+</script></body></html>

@@ -1,0 +1,47 @@
+<!doctype html>
+<html><body style="margin:0;background:#334">
+<div id="g" style="display:grid;grid-template-columns:repeat(6,200px);gap:4px;padding:4px;font:11px sans-serif;color:#fff"></div>
+<script type="module">
+// Dev-only test page: hero:form:rarity:pose(idle|run|attack0|attack1):t:grip(1=game grip,0=pack grip)
+import * as THREE from 'three';
+import { cloneActor, loadModel, measure } from '/src/render/models.ts';
+import { buildKitWeapon, kitModels, holdWeapon, idleTilt } from '/src/render/weapons3d.ts';
+import { loadHeroAnims, heroClip, weaponAnims } from '/src/render/heroRig.ts';
+const q = new URLSearchParams(location.search).get('n').split(',');
+const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+r.setSize(200, 200);
+const scene = new THREE.Scene();
+scene.add(new THREE.HemisphereLight(0xffffff, 0x666688, 2.2));
+const sun = new THREE.DirectionalLight(0xffffff, 2); sun.position.set(-2, 3, 5); scene.add(sun);
+const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+for (const item of q) {
+  const [hero, form, rarity, pose, t, grip] = item.split(':');
+  const g = await loadModel('hero_' + hero);
+  const { anims } = await loadHeroAnims(hero);
+  await Promise.all(kitModels(+form, +rarity).map((n) => loadModel(n)));
+  const o = cloneActor(g);
+  const set = weaponAnims(hero, +form);
+  const name = pose === 'run' ? set.run : pose?.startsWith('attack') ? set.attacks[+pose.slice(6) % set.attacks.length] : set.idle;
+  const clip = heroClip(anims, name);
+  const d = measure(o);
+  const mixer = new THREE.AnimationMixer(o);
+  mixer.clipAction(clip).play(); mixer.setTime(clip.duration * +(t || 0.5));
+  const kit = buildKitWeapon(+form, +rarity);
+  const holder = new THREE.Group();
+  if (grip !== '0') holdWeapon(holder, +form, pose === 'idle' && set.upright ? idleTilt(+form) : 0);
+  holder.add(kit.group);
+  o.getObjectByName('handslotr').add(holder);
+  if (kit.off) o.getObjectByName('handslotl').add(kit.off);
+  scene.add(o);
+  for (const yaw of [0, Math.PI / 2, -Math.PI / 4]) {
+    o.rotation.y = yaw;
+    cam.position.set(0, d.h * 0.55, d.h * 2.6); cam.lookAt(0, d.h * 0.45, 0);
+    r.render(scene, cam);
+    const cell = document.createElement('div');
+    const img = new Image(); img.src = r.domElement.toDataURL(); cell.append(img, document.createElement('br'), `${item} ${name} y${Math.round(yaw * 57)}`);
+    document.getElementById('g').append(cell);
+  }
+  scene.remove(o);
+}
+document.title = 'done';
+</script></body></html>

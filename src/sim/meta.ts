@@ -1,9 +1,7 @@
-import type { Rng } from '../core/rng';
 import { fmt } from '../core/format';
-import { enemyGold } from './balance';
 
 /**
- * Long-term progression: Reforge (prestige) with ember perks, rolling quests, and
+ * Long-term progression: Reforge (prestige) with ember perks, region quests (regionQuests.ts), and
  * achievements that grant small permanent bonuses. All pure data + functions.
  */
 
@@ -13,7 +11,7 @@ export type StatKey = 'stages' | 'elites' | 'bosses' | 'forged' | 'merges' | 'go
 export type Stats = Record<StatKey, number>;
 export const freshStats = (): Stats => ({
   stages: 0, elites: 0, bosses: 0, forged: 0, merges: 0, gold: 0, reforges: 0, legendaries: 0,
-  quests: 0,   // bounty quests claimed
+  quests: 0,   // quest tiers (stars) claimed
   play: 0,     // seconds of active play
   logins: 0,   // distinct calendar days played
 });
@@ -83,6 +81,7 @@ export const ACHIEVEMENTS: readonly AchDef[] = [
   { id: 'alchemist', name: 'Alchemist', stat: 'merges', tiers: [5, 50, 500, 2500], verb: 'Merge {n} times' },
   { id: 'tycoon', name: 'Tycoon', stat: 'gold', tiers: [1e4, 1e6, 1e9, 1e12, 1e15], verb: 'Earn {n} gold' },
   { id: 'reborn', name: 'Reborn', stat: 'reforges', tiers: [1, 5, 25, 100], verb: 'Reforge {n} times' },
+  { id: 'quester', name: 'Quest Master', stat: 'quests', tiers: [5, 25, 75, 162], verb: 'Earn {n} quest stars' },
   { id: 'legend', name: 'Legend Wielder', stat: 'legendaries', tiers: [1, 10, 50], verb: 'Obtain {n} legendary weapons' },
 ];
 
@@ -93,41 +92,4 @@ export function achGoal(a: AchDef, tier: number): string {
   if (n !== 1) return text;
   // Singular forms for the first tiers ("Defeat 1 boss", "Reforge once").
   return text.replace('1 bosses', '1 boss').replace('1 legendary weapons', '1 legendary weapon').replace('1 times', 'once');
-}
-
-// --- Quests ---------------------------------------------------------------------
-
-export type QuestKind = 'kills' | StatKey;
-export interface Quest { kind: QuestKind; start: number; target: number; gold: number; shards: number }
-
-export const QUEST_SLOTS = 3;
-
-interface QuestTemplate { kind: QuestKind; target: (s: number) => number; gold: number; shards: (s: number) => number; minStage: number; text: string }
-
-const round5 = (n: number) => Math.max(5, Math.round(n / 5) * 5);
-const QUEST_TEMPLATES: QuestTemplate[] = [
-  { kind: 'kills', target: (s) => round5(25 + s * 1.5), gold: 40, shards: (s) => 4 * (8 + Math.floor(s / 3)), minStage: 1, text: 'Defeat {n} monsters' },
-  { kind: 'elites', target: () => 3, gold: 60, shards: (s) => 4 * (12 + Math.floor(s / 2)), minStage: 4, text: 'Defeat {n} elites' },
-  { kind: 'bosses', target: () => 1, gold: 100, shards: (s) => 4 * (20 + Math.floor(s / 2)), minStage: 6, text: 'Defeat {n} boss' },
-  { kind: 'forged', target: () => 5, gold: 80, shards: () => 40, minStage: 1, text: 'Forge {n} weapons' },
-  { kind: 'merges', target: () => 2, gold: 60, shards: () => 10, minStage: 3, text: 'Merge weapons {n} times' },
-  { kind: 'gold', target: (s) => enemyGold(s) * 120, gold: 0, shards: (s) => 15 + Math.floor(s / 2), minStage: 1, text: 'Earn {n} gold' },
-];
-
-export function questText(q: Quest): string {
-  const t = QUEST_TEMPLATES.find((x) => x.kind === q.kind)!;
-  return t.text.replace('{n}', fmt(q.target));
-}
-
-/** Make a new quest for the current stage, avoiding kinds already active. */
-export function makeQuest(rng: Rng, stage: number, statValue: (k: QuestKind) => number, exclude: readonly QuestKind[]): Quest {
-  const pool = QUEST_TEMPLATES.filter((t) => stage >= t.minStage && !exclude.includes(t.kind));
-  const t = pool.length ? pool[rng.int(pool.length)] : QUEST_TEMPLATES[0];
-  return {
-    kind: t.kind,
-    start: statValue(t.kind),
-    target: t.target(stage),
-    gold: enemyGold(stage) * t.gold,
-    shards: t.shards(stage),
-  };
 }

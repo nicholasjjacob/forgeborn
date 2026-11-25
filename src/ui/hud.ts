@@ -18,7 +18,7 @@ import { BagUI } from './bag';
 import { MAX_LEVEL, levelTier } from '../sim/level';
 
 type Tab = 'upgrades' | 'forge' | 'quests' | 'reforge';
-const PAGE_TITLE: Record<Tab, string> = { upgrades: 'Upgrades', forge: 'Forge', quests: 'Quests', reforge: 'Reforge' };
+const PAGE_TITLE: Record<Tab, string> = { upgrades: 'Upgrades', forge: 'Forge', quests: 'Quest Book', reforge: 'Reforge' };
 /** Stand-in icons for the bottom bar until the 3D ones are rendered (see render/currencyIcons.ts). */
 const DOCK_ICONS: [string, string, 'white' | 'gold' | 'grey' | 'green'][] = [['up', 'sprint', 'green'], ['anvil', 'anvil-impact', 'grey'], ['scroll', 'checklist', 'gold']];
 

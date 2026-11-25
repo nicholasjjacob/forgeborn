@@ -1,7 +1,7 @@
 import { zoneLevel } from '../src/sim/zones';
 import { describe, expect, it } from 'vitest';
 import { migrate } from '../src/core/save';
-import { ACHIEVEMENTS, PERKS, QUEST_SLOTS, REFORGE_MIN_STAGE, embersFor } from '../src/sim/meta';
+import { ACHIEVEMENTS, PERKS, REFORGE_MIN_STAGE, embersFor } from '../src/sim/meta';
 import { Sim, freshSave } from '../src/sim/sim';
 
 const tickN = (sim: Sim, n: number) => { for (let i = 0; i < n; i++) { sim.tick(); sim.events.clear(); } };
@@ -38,7 +38,6 @@ describe('reforge', () => {
     expect(save.kills).toBe(5000);
     expect(save.stats.reforges).toBe(1);
     expect(sim.area).toBe(0);
-    expect(save.quests.length).toBe(QUEST_SLOTS);
   });
 
   it('refuses to reforge before the unlock stage', () => {
@@ -83,30 +82,6 @@ describe('reforge', () => {
   });
 });
 
-describe('quests', () => {
-  it('keeps three distinct quests and pays out on claim', () => {
-    const sim = new Sim(freshSave(), 6);
-    const qs = sim.save.quests;
-    expect(qs.length).toBe(QUEST_SLOTS);
-    expect(new Set(qs.map((q) => q.kind)).size).toBe(QUEST_SLOTS);
-    expect(sim.claimQuest(0)).toBe(false); // not done yet
-
-    // Play until some quest completes, then claim it.
-    let done = -1;
-    for (let t = 0; t < 30 * 600 && done < 0; t += 30) {
-      tickN(sim, 30);
-      done = qs.findIndex((q) => sim.questDone(q));
-    }
-    expect(done).toBeGreaterThanOrEqual(0);
-    const q = qs[done];
-    const gold = sim.save.gold, shards = sim.save.shards;
-    expect(sim.claimQuest(done)).toBe(true);
-    expect(sim.save.gold).toBeCloseTo(gold + q.gold, 6);
-    expect(sim.save.shards).toBe(shards + q.shards);
-    expect(qs[done]).not.toBe(q);
-    expect(new Set(qs.map((x) => x.kind)).size).toBe(QUEST_SLOTS);
-  });
-});
 
 describe('achievements', () => {
   it('unlock tiers from lifetime stats and add a damage bonus', () => {

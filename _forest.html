@@ -1,0 +1,34 @@
+<!doctype html>
+<html><body style="margin:0;background:#111;color:#fff;font:12px sans-serif">
+<canvas id="c"></canvas><div id="s"></div>
+<script type="module">
+// Dev-only: the forest layout from above.  /_forest.html
+import { MISSING_LINKS, FOREST, FOREST_W, FOREST_H, FOREST_PATHS, BIOMES, regionRaster, buildForest } from '/src/sim/forest.ts';
+import { Rng } from '/src/core/rng.ts';
+const k = 0.2, c = document.getElementById('c');
+c.width = FOREST_W * k; c.height = FOREST_H * k;
+const g = c.getContext('2d');
+const R = regionRaster();
+for (let r = 0; r < R.rows; r++) for (let q = 0; q < R.cols; q++) {
+  const v = R.data[r * R.cols + q];
+  g.fillStyle = v < 0 ? '#1d2a1d' : R.border[r * R.cols + q] ? '#6a6a6a' : BIOMES[v].map;
+  g.fillRect(q * R.cell * k, r * R.cell * k, R.cell * k + 0.5, R.cell * k + 0.5);
+}
+g.strokeStyle = 'rgba(250,230,180,0.9)'; g.lineWidth = 2; g.beginPath();
+for (const [a, b, x, y] of FOREST_PATHS) { g.moveTo(a * k, b * k); g.lineTo(x * k, y * k); } g.stroke();
+for (const p of FOREST.ponds) { g.fillStyle = '#3a8fd0'; g.beginPath(); g.arc(p.x * k, p.y * k, p.r * k, 0, 7); g.fill(); }
+for (const t of FOREST.territories) { g.strokeStyle = t.horde ? '#ff2020' : '#fff'; g.lineWidth = t.horde ? 2.5 : 1; g.beginPath(); g.arc(t.x * k, t.y * k, t.r * k, 0, 7); g.stroke(); }
+for (const p of FOREST.passes) { g.fillStyle = p.gate ? '#ff3030' : '#30ff60'; g.fillRect(p.x * k - 5, p.y * k - 5, 10, 10); }
+for (const l of FOREST.lairs) { g.fillStyle = '#000'; g.beginPath(); g.arc(l.x * k, l.y * k, 8, 0, 7); g.fill(); }
+g.font = '11px sans-serif'; g.textAlign = 'center';
+for (const l of FOREST.landmarks) { g.fillStyle = '#fff'; g.fillRect(l.x * k - 2, l.y * k - 2, 4, 4); g.fillText(l.name, l.x * k, l.y * k - 5); }
+g.font = 'bold 15px sans-serif';
+BIOMES.forEach((b) => { g.fillStyle = '#000a'; g.fillText(b.name, b.x * k + 1, b.y * k + 1); g.fillStyle = '#fff'; g.fillText(b.name, b.x * k, b.y * k); });
+FOREST.spawns.forEach((s, i) => { g.fillStyle = '#ff0'; g.beginPath(); g.arc(s.x * k, s.y * k, 6, 0, 7); g.fill(); });
+const t0 = performance.now();
+const built = buildForest(new Rng(1));
+const ms = performance.now() - t0;
+const solid = built.props.filter((p) => p.r > 0).length;
+document.getElementById('s').textContent = `props ${built.props.length} (solid ${solid}) cover ${built.cover.length} built in ${ms.toFixed(0)} ms; models ${new Set(built.props.map(p=>p.model)).size}; missing: ${MISSING_LINKS.join(', ')}`;
+document.title = 'done';
+</script></body></html>

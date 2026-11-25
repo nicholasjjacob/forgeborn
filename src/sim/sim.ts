@@ -10,9 +10,11 @@ import {
 } from './balance';
 import { Ev, EventQueue } from './events';
 import {
-  ACHIEVEMENTS, ACH_BONUS_PER_TIER, GLOW_DMG, GLOW_HP, PERKS, QUEST_SLOTS, ROMAN, embersFor, freshPerks, freshStats, makeQuest, perkCost,
-  type AchStat, type PerkId, type Perks, type Quest, type QuestKind, type Stats,
+  ACHIEVEMENTS, ACH_BONUS_PER_TIER, GLOW_DMG, GLOW_HP, PERKS, ROMAN, embersFor, freshPerks, freshStats, perkCost,
+  type AchStat, type PerkId, type Perks, type Stats,
 } from './meta';
+import * as RQ from './regionQuests';
+import type { Reward } from './missions';
 import { OFFLINE_CAP_HOURS } from './offline';
 import { addRewards, freshMissions, type MissionSave } from './missions';
 import { MissionSystem } from './missionSystem';
@@ -98,7 +100,8 @@ export interface SaveData {
   perks: Perks;
   bestEver: number;          // highest stage across all runs (highestStage is this run's best)
   stats: Stats;
-  quests: Quest[];
+  /** Region quests (the Quest Book): lifetime progress per zone. Kept through Reforge. */
+  regions: RQ.RegionProgress[];
   achievements: Record<string, number>; // tiers unlocked per achievement id
   // Engagement (v4): gems, login calendar, daily/weekly boards, 7-day journey, codex
   missions: MissionSave;
@@ -133,7 +136,7 @@ export function freshSave(): SaveData {
     buyMode: 1, fps: 60, auto: true, sound: true, quality: 'high', minimap: 'circle',
     shards: 0, forgeLevel: 1, weapons: Array(INVENTORY_SIZE).fill(null), equipped: starterWeapon(), gear: {}, nextWeaponId: 2,
     rates: { gold: 0, shards: 0 },
-    embers: 0, embersEarned: 0, perks: freshPerks(), bestEver: 1, stats: freshStats(), quests: [], achievements: {},
+    embers: 0, embersEarned: 0, perks: freshPerks(), bestEver: 1, stats: freshStats(), regions: RQ.freshRegions(), achievements: {},
     missions: freshMissions(),
     level: 1, xp: 0, levelClaimed: [],
     zone: 0, zoneBosses: 0, zoneBest: 0,
@@ -302,7 +305,8 @@ export class Sim {
     this.map = new GameMap(zoneArea(save.zone), save.zone);
     this.placeHeroAtSpawn();
     this.knownMaxZone = this.maxZone;
-    this.fillQuests();
+    // Quests already claimable when the game opens aren't announced again.
+    for (const k of this.claimableQuestKeys()) this.notifiedQuests.add(k);
     this.recalc();
     this.hero.hp = this.hero.maxHp;
   }
@@ -597,7 +601,7 @@ export class Sim {
     const p = this.save.perks;
     let tiers = 0;
     for (const id in this.save.achievements) tiers += this.save.achievements[id];
-    this.achBonus = 1 + tiers * ACH_BONUS_PER_TIER;
+    this.achBonus = (1 + tiers * ACH_BONUS_PER_TIER) * (1 + RQ.MASTERY_BONUS * RQ.masteredRegions(this.save.regions));
     const swift = 1 + 0.04 * p.swift;
     const glow = this.save.embersEarned;
     const lb = levelBonus(this.save.level);
@@ -623,7 +627,7 @@ export class Sim {
     const s = this.save, p = s.perks, w = weaponStats(weapon);
     let tiers = 0;
     for (const id in s.achievements) tiers += s.achievements[id];
-    const ach = 1 + tiers * ACH_BONUS_PER_TIER;
+    const ach = (1 + tiers * ACH_BONUS_PER_TIER) * (1 + RQ.MASTERY_BONUS * RQ.masteredRegions(s.regions));
     return UPGRADES.atk.value(s.upgrades.atk) * w.mult * w.form.dmg * (1 + 0.25 * p.might) * ach
       * (1 + GLOW_DMG * s.embersEarned) * levelBonus(s.level).atk * forgeAtkBonus(s.forgeLevel) * (skinDef(s.skin).mods.dmg ?? 1);
   }
@@ -844,7 +848,7 @@ export class Sim {
 
   // --- Meta: quests, achievements, perks, reforge -------------------------------
 
-  statValue(k: QuestKind | AchStat): number {
+  statValue(k: AchStat): number {
     const s = this.save;
     if (k === 'kills') return s.kills;
     if (k === 'bestEver') return s.bestEver;
@@ -852,35 +856,102 @@ export class Sim {
     return s.stats[k];
   }
 
-  questProgress(q: Quest): number {
-    return Math.max(0, this.statValue(q.kind) - q.start);
+  // --- Region quests (the Quest Book) ---
+
+  private exploreCache: { ver: number; ex: Explored | null; pct: number[] } | null = null;
+
+  /** Percent of each zone's region explored (cached until the fog changes). */
+  explorePercents(): number[] {
+    if (!this.explored && this.map.forest) this.explored = new Explored(this.map.w, this.map.h, this.save.explored);
+    const ex = this.explored, ver = ex?.version ?? -1;
+    if (!this.exploreCache || this.exploreCache.ex !== ex || this.exploreCache.ver !== ver) {
+      this.exploreCache = { ver, ex, pct: RQ.explorePercents(ex) };
+    }
+    return this.exploreCache.pct;
   }
 
-  questDone(q: Quest): boolean {
-    return this.questProgress(q) >= q.target;
+  /** A region's quests can be claimed once it has been opened. */
+  regionOpen(zone: number): boolean {
+    return zone >= 0 && zone < PLAYABLE_ZONES && zone <= this.save.zoneBest;
   }
 
-  private fillQuests(): void {
-    const qs = this.save.quests;
-    while (qs.length < QUEST_SLOTS) {
-      qs.push(makeQuest(this.rng, this.save.stage, (k) => this.statValue(k), qs.map((q) => q.kind)));
+  /** Current value of quest `qi` in `zone`. */
+  regionQuestValue(zone: number, qi: number): number {
+    const q = RQ.regionQuests(zone)[qi];
+    return q ? RQ.questValue(q, this.save.regions[zone], this.explorePercents()[zone]) : 0;
+  }
+
+  canClaimRegionQuest(zone: number, qi: number): boolean {
+    if (!this.regionOpen(zone)) return false;
+    const q = RQ.regionQuests(zone)[qi], tier = this.save.regions[zone].claimed[qi];
+    return !!q && tier < q.tiers.length && this.regionQuestValue(zone, qi) >= q.tiers[tier];
+  }
+
+  /** Claim the next tier of a region quest: one star, gold, shards (and gems on the last tier). */
+  claimRegionQuest(zone: number, qi: number): Reward | null {
+    if (!this.canClaimRegionQuest(zone, qi)) return null;
+    const r = this.save.regions[zone];
+    const reward = RQ.tierReward(zone, r.claimed[qi]);
+    r.claimed[qi]++;
+    this.save.stats.quests++;
+    this.missions.apply(reward);
+    return reward;
+  }
+
+  canClaimRegionMilestone(zone: number, i: number): boolean {
+    const r = this.save.regions[zone];
+    return this.regionOpen(zone) && i === r.milestones && i < RQ.MILESTONES.length && RQ.regionStars(r) >= RQ.MILESTONES[i].stars;
+  }
+
+  claimRegionMilestone(zone: number, i: number): Reward | null {
+    if (!this.canClaimRegionMilestone(zone, i)) return null;
+    const m = RQ.milestoneReward(zone, i);
+    this.save.regions[zone].milestones++;
+    this.missions.apply(m.reward);
+    if (m.mastery) {
+      this.recalc();
+      this.notices.push(`👑 ${RQ.regionName(zone)} mastered! +${Math.round(RQ.MASTERY_BONUS * 100)}% dmg & gold`);
+    }
+    return m.reward;
+  }
+
+  /** Claimable quest tiers and milestones in a zone's region. */
+  regionClaimable(zone: number): number {
+    let n = 0;
+    for (let qi = 0; qi < RQ.QUESTS_PER_REGION; qi++) if (this.canClaimRegionQuest(zone, qi)) n++;
+    if (this.canClaimRegionMilestone(zone, this.save.regions[zone].milestones)) n++;
+    return n;
+  }
+
+  /** Everything claimable in the Quest Book (the Quests button's badge). */
+  questBadge(): number {
+    let n = 0;
+    for (let z = 0; z < PLAYABLE_ZONES; z++) n += this.regionClaimable(z);
+    return n;
+  }
+
+  /** Record a kill in its region's quest progress. */
+  private recordRegionKill(e: Enemy): void {
+    if (!this.map.forest) return;
+    const zone = e.boss ? this.save.zone : forestZone(e.x, e.y);
+    const r = this.save.regions[zone];
+    if (!r) return;
+    if (e.boss) { r.bosses++; return; }
+    if (e.elite) r.elites++;
+    const slot = RQ.huntSlot(zone, e.area, e.monster);
+    if (slot >= 0) r.hunt[slot]++;
+  }
+
+  private *claimableQuestKeys(): Generator<string> {
+    for (let z = 0; z < PLAYABLE_ZONES; z++) {
+      if (!this.regionOpen(z)) continue;
+      const r = this.save.regions[z];
+      for (let qi = 0; qi < RQ.QUESTS_PER_REGION; qi++) if (this.canClaimRegionQuest(z, qi)) yield `${z}:${qi}:${r.claimed[qi]}`;
+      if (this.canClaimRegionMilestone(z, r.milestones)) yield `${z}:m:${r.milestones}`;
     }
   }
 
-  claimQuest(i: number): boolean {
-    const qs = this.save.quests;
-    const q = qs[i];
-    if (!q || !this.questDone(q)) return false;
-    this.save.gold += q.gold;
-    this.save.shards += q.shards;
-    this.save.stats.quests++;
-    const others = qs.filter((_, j) => j !== i).map((x) => x.kind);
-    qs[i] = makeQuest(this.rng, this.save.stage, (k) => this.statValue(k), [...others, q.kind]);
-    this.notifiedQuests.delete(q);
-    return true;
-  }
-
-  private readonly notifiedQuests = new Set<Quest>();
+  private readonly notifiedQuests = new Set<string>();
 
   /** Unlock achievement tiers and announce finished quests (runs twice a second). */
   private checkMeta(): void {
@@ -897,11 +968,13 @@ export class Sim {
       s.achievements[a.id] = tier;
     }
     if (changed) this.recalc();
-    for (const q of s.quests) {
-      if (!this.notifiedQuests.has(q) && this.questDone(q)) {
-        this.notifiedQuests.add(q);
-        this.notices.push('Quest complete! Claim it in Quests');
-      }
+    for (const k of this.claimableQuestKeys()) {
+      if (this.notifiedQuests.has(k)) continue;
+      this.notifiedQuests.add(k);
+      const [z, q] = k.split(':');
+      const zone = Number(z);
+      const what = q === 'm' ? 'Milestone reached' : `Quest done: ${RQ.regionQuests(zone)[Number(q)].name}`;
+      this.notices.push(`📜 ${what} · ${RQ.regionName(zone)}. Claim it in Quests`);
     }
   }
 
@@ -1005,9 +1078,6 @@ export class Sim {
     s.equipped = starterWeapon(skinDef(s.skin).forms[0], s.nextWeaponId++);
     s.gear = {};
     s.forgeLevel = Math.min(MAX_FORGE_LEVEL, 1 + s.perks.forgemaster);
-    s.quests = [];
-    this.notifiedQuests.clear();
-    this.fillQuests();
     this.bossActive = false;
     this.returnT = 0;
     this.phase = 'playing';
@@ -1596,6 +1666,7 @@ export class Sim {
     this.save.kills++;
     this.events.push(Ev.Kill, e.x, e.y, gold, e.boss ? 1 : 0);
     this.missions.recordKill(e.area, e.monster);
+    this.recordRegionKill(e);
     if (e.elite) this.save.stats.elites++;
     this.gainXp(xpForKill(e.stage, e.boss));
 

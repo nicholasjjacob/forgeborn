@@ -84,7 +84,7 @@ export const DAILY_TASKS: TaskDef[] = [
   { id: 'd-boss', text: 'Defeat a boss', stat: 'bosses', target: 1, points: 15 },
   { id: 'd-forge', text: 'Forge 5 weapons', stat: 'forged', target: 5, points: 10 },
   { id: 'd-merge', text: 'Merge weapons 3 times', stat: 'merges', target: 3, points: 10 },
-  { id: 'd-quests', text: 'Complete 2 quests', stat: 'quests', target: 2, points: 10 },
+  { id: 'd-hunt', text: 'Defeat 1,000 monsters', stat: 'kills', target: 1000, points: 10 },
   { id: 'd-play', text: 'Play for 10 minutes', stat: 'play', target: 600, points: 15 },
 ];
 
@@ -103,11 +103,11 @@ export const JOURNEY_MILESTONES = [40, 80, 120, 160, 200, 240, 280];
 const J = (day: number, i: number, text: string, stat: MStat, target: number): TaskDef =>
   ({ id: `j${day}-${i}`, text, stat, target, points: 10 });
 export const JOURNEY_TASKS: TaskDef[][] = [
-  [J(1, 0, 'Defeat 100 monsters', 'kills', 100), J(1, 1, 'Defeat 3 elites', 'elites', 3), J(1, 2, 'Forge 3 weapons', 'forged', 3), J(1, 3, 'Complete a quest', 'quests', 1)],
+  [J(1, 0, 'Defeat 100 monsters', 'kills', 100), J(1, 1, 'Defeat 3 elites', 'elites', 3), J(1, 2, 'Forge 3 weapons', 'forged', 3), J(1, 3, 'Earn a quest star', 'quests', 1)],
   [J(2, 0, 'Defeat 300 monsters', 'kills', 300), J(2, 1, 'Defeat 6 elites', 'elites', 6), J(2, 2, 'Merge 3 times', 'merges', 3), J(2, 3, 'Defeat a boss', 'bosses', 1)],
-  [J(3, 0, 'Defeat 600 monsters', 'kills', 600), J(3, 1, 'Defeat 10 elites', 'elites', 10), J(3, 2, 'Forge 15 weapons', 'forged', 15), J(3, 3, 'Complete 4 quests', 'quests', 4)],
+  [J(3, 0, 'Defeat 600 monsters', 'kills', 600), J(3, 1, 'Defeat 10 elites', 'elites', 10), J(3, 2, 'Forge 15 weapons', 'forged', 15), J(3, 3, 'Earn 4 quest stars', 'quests', 4)],
   [J(4, 0, 'Defeat 1,000 monsters', 'kills', 1000), J(4, 1, 'Defeat 3 bosses', 'bosses', 3), J(4, 2, 'Merge 10 times', 'merges', 10), J(4, 3, 'Play for 30 minutes', 'play', 1800)],
-  [J(5, 0, 'Defeat 1,500 monsters', 'kills', 1500), J(5, 1, 'Defeat 20 elites', 'elites', 20), J(5, 2, 'Forge 40 weapons', 'forged', 40), J(5, 3, 'Complete 8 quests', 'quests', 8)],
+  [J(5, 0, 'Defeat 1,500 monsters', 'kills', 1500), J(5, 1, 'Defeat 20 elites', 'elites', 20), J(5, 2, 'Forge 40 weapons', 'forged', 40), J(5, 3, 'Earn 8 quest stars', 'quests', 8)],
   [J(6, 0, 'Defeat 2,200 monsters', 'kills', 2200), J(6, 1, 'Defeat 6 bosses', 'bosses', 6), J(6, 2, 'Merge 25 times', 'merges', 25), J(6, 3, 'Log in on 5 days', 'logins', 5)],
   [J(7, 0, 'Defeat 3,000 monsters', 'kills', 3000), J(7, 1, 'Defeat 30 elites', 'elites', 30), J(7, 2, 'Reforge once', 'reforges', 1), J(7, 3, 'Forge 80 weapons', 'forged', 80)],
 ];

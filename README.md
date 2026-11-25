@@ -11,7 +11,6 @@ A 3D top-down action idle RPG that runs in the browser and installs as an app on
   - Each region has its own colours, three monsters of its own and a boss lair.
   - Regions are separated by rocky borders, and the passes stay barricaded until you reach the region's level and beat the boss before it.
   - Monsters live in haunts around landmarks, and some areas are overrun with hordes.
-  - Outgrown a region? It pays less, so move on.
 - **Maps:**
   - A minimap that shows either the land around you (circle) or the whole forest (square).
   - A 3D World Map of the whole forest, greyed out until explored, with a close-up of each region and fast travel.
@@ -19,7 +18,8 @@ A 3D top-down action idle RPG that runs in the browser and installs as an app on
 - **Forge:** turn monster shards into class weapons, then merge three of a kind into the next rarity (Common → Uncommon → Rare → Epic → Legendary → Mythic → Divine).
 - **Grow:**
   - Progression: upgrades, the Level Road and Reforge (restart for embers that buy permanent perks).
-  - Goals: quests, achievements, daily and weekly missions, a 7-day journey and the Monster Codex.
+  - Goals: the Quest Book, achievements, daily and weekly missions, a 7-day journey and the Monster Codex.
+- **Quest Book:** every region has its own quests: hunt each of its monsters, slay its elites, beat its boss and explore it. Each quest has three tiers that earn stars, stars unlock region milestones (gems, gold), and mastering a region gives a permanent +5% damage and gold. Progress is kept for good, so it pays to go back to old regions.
 - **Keep earning:** progress saves automatically, and the hero earns while you're away.
 
 ## Run it

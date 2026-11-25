@@ -1,0 +1,33 @@
+<!doctype html>
+<html><body style="margin:0;background:#223">
+<div id="g" style="display:grid;grid-template-columns:repeat(10,120px);gap:2px;padding:2px;font:10px sans-serif;color:#fff"></div>
+<script type="module">
+// Dev-only contact sheet: /_sheet.html?dir=_nf&n=a,b,c
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+const qs = new URLSearchParams(location.search);
+const names = qs.get('n').split(','), dir = qs.get('dir') || '_nf';
+const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+r.setSize(120, 120);
+const scene = new THREE.Scene();
+scene.add(new THREE.HemisphereLight(0xffffff, 0x666688, 2.5));
+const sun = new THREE.DirectionalLight(0xffffff, 2); sun.position.set(-2, 3, 5); scene.add(sun);
+const cam = new THREE.PerspectiveCamera(30, 1, 0.01, 1000);
+const loader = new GLTFLoader();
+for (const n of names) {
+  const g = await loader.loadAsync(`/${dir}/${n}.glb`).catch(() => null);
+  const cell = document.createElement('div');
+  if (g) {
+    const o = g.scene; scene.add(o);
+    const b = new THREE.Box3().setFromObject(o); const c = b.getCenter(new THREE.Vector3()); const s = b.getSize(new THREE.Vector3());
+    const rad = Math.max(s.x, s.y, s.z) * 0.9;
+    cam.position.set(c.x + rad * 1.2, c.y + rad * 1.0, c.z + rad * 1.9); cam.lookAt(c);
+    r.render(scene, cam);
+    const img = new Image(); img.src = r.domElement.toDataURL(); cell.append(img);
+    scene.remove(o);
+  }
+  cell.append(document.createElement('br'), n.replace(/_Color\d/, ''));
+  document.getElementById('g').append(cell);
+}
+document.title = 'done';
+</script></body></html>

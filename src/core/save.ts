@@ -5,6 +5,7 @@ import { FORMS, INVENTORY_SIZE, INVENTORY_STEP, MAX_INVENTORY, starterWeapon, up
 import { canWield, skinDef } from '../sim/skins';
 import { freshPerks, freshStats } from '../sim/meta';
 import { freshMissions } from '../sim/missions';
+import { cleanRegions } from '../sim/regionQuests';
 
 const KEY = 'forgeborn.save';
 const DB_NAME = 'forgeborn';
@@ -157,9 +158,10 @@ export function migrate(input: unknown): SaveData {
     perks: { ...freshPerks(), ...data.perks },
     stats: { ...freshStats(), ...data.stats },
     achievements: { ...data.achievements },
-    quests: Array.isArray(data.quests) ? data.quests : [],
+    regions: cleanRegions((data as { regions?: unknown }).regions),
     levelClaimed: Array.isArray(data.levelClaimed) ? data.levelClaimed : [],
   } as SaveData;
+  delete (save as { quests?: unknown }).quests; // the old rolling quests (now region quests)
   save.embersEarned = Math.max(save.embersEarned ?? 0, save.embers ?? 0);
   save.level = Number.isFinite(save.level) ? Math.max(1, Math.min(100, Math.floor(save.level))) : 1;
   save.xp = Number.isFinite(save.xp) ? Math.max(0, save.xp) : 0;
@@ -178,7 +180,6 @@ export function migrate(input: unknown): SaveData {
     while (zoneStage(best + 1) <= save.bestEver) best++;
     save.zoneBest = Math.max(zone, best);
     save.farming = false;
-    save.quests = save.quests.filter((q) => (q.kind as string) !== 'stages');
   }
   save.zone = Number.isFinite(save.zone) ? Math.max(0, Math.floor(save.zone)) : 0;
   // Only the Greenwood (zones 0-2) is playable for now: anyone further on goes to its last region.
