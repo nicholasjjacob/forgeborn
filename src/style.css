@@ -1304,3 +1304,9 @@ html.icons3d .chest.ready .chest-ico { width: 38px; height: 38px; filter: drop-s
 .heroes-sheet .hero-card-role { display: none; }
 .heroes-sheet .hero-tag { font-size: 9.5px; white-space: nowrap; }
 .heroes-sheet .hero-lock .gi { width: 14px; height: 14px; }
+/* Wide but short windows (a laptop): the cards would grow with the width and push the second
+   row off the bottom. Portraits are capped by the window's height instead, and the sheet may
+   use the full height. */
+.sheet.heroes-sheet { height: min(100%, 940px); }
+.heroes-sheet .hero-card { align-items: center; }
+.heroes-sheet .hero-portrait { width: min(100%, 10.5dvh); }
