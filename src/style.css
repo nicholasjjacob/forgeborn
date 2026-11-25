@@ -186,16 +186,6 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 #auto-btn.on { color: #4a2400; text-shadow: none; background: linear-gradient(var(--orange-1), var(--orange-2)); box-shadow: inset 0 0 0 2px var(--orange-edge), 0 3px 0 var(--orange-edge); }
 .icon-chip { font-size: 17px; padding: 3px 9px; color: #fff; }
 
-/* Pinned under Auto/settings so the top row stays narrow on phones. */
-/* Starts below the zone capsule (which is taller than the Auto/settings column) so they never overlap. */
-  display: block; width: 100%; border: 0; font: inherit; text-align: left; cursor: pointer;
-  padding: 5px 8px 6px;
-  border-radius: 10px;
-  background: linear-gradient(#3a4cabf2, #2a3888f2);
-  box-shadow: inset 0 0 0 2px var(--wood), 0 2px 0 var(--wood-dark);
-  color: var(--ink);
-}
-
 /* Bars (shared) */
 .bar { position: relative; height: 16px; border-radius: 8px; overflow: hidden; background: #0a1035; box-shadow: inset 0 2px 0 #0006; }
 .bar.thin { height: 6px; border-radius: 3px; }
