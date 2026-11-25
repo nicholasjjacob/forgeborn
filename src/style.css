@@ -1323,3 +1323,56 @@ html.pc .side-btn:hover, html.pc #dock button:hover, html.pc .chip:hover { filte
   html.pc #panel { width: min(600px, 40vw); }
   html.pc .sheet { width: min(600px, 100%); }
 }
+
+/* World Map: the forest as one big 3D picture (tap a region to fly in, drag to pan). */
+.wm-view {
+  position: relative; width: min(100%, calc(58dvh * var(--ar, 1))); aspect-ratio: var(--ar, 1); margin: 4px auto 8px;
+  border-radius: 14px; overflow: hidden; background: #1b2a1c;
+  box-shadow: 0 0 0 3px var(--wood), 0 4px 0 3px var(--wood-dark);
+}
+.wm-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: pointer; }
+.wm-labels { position: absolute; inset: 0; pointer-events: none; }
+.wm-region {
+  position: absolute; translate: -50% -50%; pointer-events: auto;
+  display: flex; flex-direction: column; align-items: center; gap: 0; padding: 5px 14px 6px; border: 0; border-radius: 12px;
+  background: #0a1035cc; color: #fff; font-size: 15px; line-height: 1.1; text-shadow: var(--outline);
+  box-shadow: inset 0 0 0 2px #ffffff66, 0 3px 0 #0008;
+}
+.wm-region b { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.wm-region small { font-size: 11px; color: var(--ink-soft); }
+.wm-region .gi { width: 16px; height: 16px; margin-bottom: -2px; }
+.wm-region.here { box-shadow: inset 0 0 0 2.5px #ffd23f, 0 3px 0 #0008; }
+.wm-region.locked { background: #2a2e3ccc; }
+.wm-region.locked b { color: #d4d8e6; }
+.wm-back {
+  position: absolute; left: 8px; top: 8px; border: 0; border-radius: 10px; padding: 6px 11px; font-size: 13px; color: #fff;
+  background: linear-gradient(var(--blue-1), var(--blue-2)); box-shadow: inset 0 0 0 2px var(--blue-edge), 0 3px 0 var(--blue-edge); text-shadow: var(--outline);
+}
+.wm-back[hidden], .wm-wait[hidden] { display: none; }
+.wm-wait { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; font-size: 14px; color: var(--ink-soft); }
+.map-area.mystery.compact { margin: 6px 0 4px; padding: 8px 10px; }
+.wm-region-info {
+  display: flex; flex-direction: column; gap: 7px; padding: 10px 12px 12px; border-radius: 14px;
+  background: linear-gradient(var(--card-hi), var(--cream-2)); box-shadow: inset 0 0 0 2px var(--wood), 0 3px 0 var(--wood-dark);
+}
+.wm-ri-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.wm-ri-head > b { font-size: 18px; color: #fff; text-shadow: var(--outline); }
+.wm-ri-head span { font-size: 12px; color: var(--ink-soft); }
+.wm-ri-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; }
+.wm-ri-row > span:not(.map-mons) { color: var(--ink-soft); }
+.wm-ri-row .gi { width: 18px; height: 18px; }
+.wm-ri-row .map-mons { margin-left: 0; }
+.wm-ri-act { display: flex; justify-content: center; }
+.wm-ri-act .btn { min-width: 60%; font-size: 17px; padding: 10px; }
+.wm-ri-act .zone-lock { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.wm-ri-act .zone-lock .gi { width: 16px; height: 16px; }
+/* PC: the map as big as the window's height allows, with the details in a column beside it. */
+html.pc .sheet.map-sheet { width: fit-content; max-width: 96vw; }
+html.pc .map-sheet .sheet-body {
+  display: grid; grid-template-columns: auto 290px; grid-template-rows: auto 1fr; column-gap: 16px; align-items: start; padding-bottom: 16px;
+}
+html.pc .map-sheet .map-you { grid-column: 1 / -1; }
+html.pc .wm-view { grid-column: 1; grid-row: 2; width: calc(min(70dvh, 820px) * var(--ar, 1)); max-width: calc(96vw - 340px); margin: 4px 0 0; }
+html.pc .wm-info { grid-column: 2; grid-row: 2; align-self: center; }
+html.pc .wm-info .sheet-note { text-align: left; font-size: 13px; }
+html.pc .wm-ri-act .btn { min-width: 100%; }

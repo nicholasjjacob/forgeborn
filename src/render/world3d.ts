@@ -27,6 +27,27 @@ const VIEW_H = 90;                     // …and at least this many vertically
 const CHUNK = 160;                     // props are instanced per chunk so off-screen chunks are culled
 const HERO_H = 17;
 const HERO_LAYER = 1;
+/** The scenery (ground, trails, props) is also on this layer, so the World Map can draw just it. */
+const MAP_LAYER = 2;
+/** World Map camera angle above the horizon (90° would be straight down). */
+export const OVERVIEW_ELEV = (58 * Math.PI) / 180;
+
+/**
+ * A picture of the whole map from high above (orthographic, tilted by OVERVIEW_ELEV): just the
+ * scenery, no monsters, hero or effects. `vTop`/`k` place ground points on it (overviewPoint).
+ */
+export interface Overview { canvas: HTMLCanvasElement; k: number; vTop: number; mapW: number; mapH: number }
+
+/** Where the ground point (x, y), raised by `h`, lands on an overview image (image pixels). */
+export function overviewPoint(o: Overview, x: number, y: number, h = 0): { u: number; v: number } {
+  const up = h * Math.cos(OVERVIEW_ELEV) - (y - o.mapH / 2) * Math.sin(OVERVIEW_ELEV);
+  return { u: x * o.k, v: (o.vTop - up) * o.k };
+}
+
+/** The ground y under an image row (inverse of overviewPoint at h = 0). */
+export function overviewGroundY(o: Overview, v: number): number {
+  return o.mapH / 2 + (v / o.k - o.vTop) / Math.sin(OVERVIEW_ELEV);
+}
 /** Where the attack clip (KayKit "Throw") reaches the top of its wind-up; the strike follows. */
 /** Weapon orientation in the hero's hand slot (blade along the holder's +y). */
 const HAND_ROT: [number, number, number] = [0, 0, 0];
@@ -217,6 +238,8 @@ export class World3D {
     // and the sun's shadow camera see both layers.
     this.sun.layers.enable(HERO_LAYER);
     this.hemi.layers.enable(HERO_LAYER);
+    this.sun.layers.enable(MAP_LAYER);
+    this.hemi.layers.enable(MAP_LAYER);
     this.sun.shadow.camera.layers.enable(HERO_LAYER);
 
     this.fx = new Fx3D(this.scene);
@@ -432,6 +455,7 @@ export class World3D {
     outer.receiveShadow = true;
     this.groundGroup.add(ground, outer);
     if (map.forest) this.groundGroup.add(trailMesh(MW, MH));
+    for (const c of this.groundGroup.children) c.layers.enable(MAP_LAYER);
 
     // Light: terrain look × the zone's time of day.
     const sunCol = new THREE.Color(look.sun).multiply(tint);
@@ -508,6 +532,7 @@ export class World3D {
         im.computeBoundingSphere();
         im.castShadow = g.shadow && !this.low;
         im.receiveShadow = false;
+        im.layers.enable(MAP_LAYER);
         this.propGroup.add(im);
         meshes.push(im);
       }
@@ -1050,6 +1075,66 @@ export class World3D {
    * Three passes: the world without the hero; the hero as a pale silhouette wherever scenery
    * is in front of it (depth test "greater", against world depth only); then the hero itself.
    */
+  /**
+   * Draw the whole map from high above into an image `widthPx` wide (for the World Map): scenery
+   * only, lit by a sun whose shadows cover the whole map. Null until the scenery has loaded.
+   */
+  renderOverview(widthPx: number): Overview | null {
+    const map = this.builtMap;
+    if (!map || this.mapPending) return null;
+    const r = this.renderer;
+    const W = map.w, H = map.h;
+    const sinE = Math.sin(OVERVIEW_ELEV), cosE = Math.cos(OVERVIEW_ELEV);
+    const vTop = (H / 2) * sinE + 40 * cosE + 6, vBot = -(H / 2) * sinE - 4;
+    const maxTex = r.capabilities.maxTextureSize;
+    const k = Math.min(widthPx / W, maxTex / W, maxTex / (vTop - vBot));
+    const iw = Math.round(W * k), ih = Math.round((vTop - vBot) * k);
+
+    const cam = new THREE.OrthographicCamera(-W / 2, W / 2, vTop, vBot, 1, 8000);
+    const cx = W / 2, cz = H / 2, D = 3000;
+    cam.position.set(cx, sinE * D, cz + cosE * D);
+    cam.lookAt(cx, 0, cz);
+    cam.updateMatrixWorld();
+    cam.layers.set(MAP_LAYER);
+
+    // A sun over the middle of the map whose shadow camera covers all of it, and no distance fog.
+    const sun = this.sun, sc = sun.shadow.camera;
+    const keep = { pos: sun.position.clone(), tgt: sun.target.position.clone(), l: sc.left, rt: sc.right, t: sc.top, b: sc.bottom, n: sc.near, f: sc.far };
+    sun.position.set(cx - 480, 1040, cz + 360);
+    sun.target.position.set(cx, 0, cz);
+    sun.target.updateMatrixWorld();
+    sc.left = -1300; sc.right = 1300; sc.top = 1300; sc.bottom = -1300; sc.near = 10; sc.far = 3500;
+    sc.updateProjectionMatrix();
+    const fog = this.scene.fog instanceof THREE.Fog ? this.scene.fog : null;
+    const fogKeep = fog ? [fog.near, fog.far] : null;
+    if (fog) { fog.near = 1e6; fog.far = 2e6; }
+
+    const rt = new THREE.WebGLRenderTarget(iw, ih, { samples: 2 });
+    rt.texture.colorSpace = THREE.SRGBColorSpace;
+    r.setRenderTarget(rt);
+    r.render(this.scene, cam);
+    const px = new Uint8Array(iw * ih * 4);
+    r.readRenderTargetPixels(rt, 0, 0, iw, ih, px);
+    r.setRenderTarget(null);
+    rt.dispose();
+
+    sun.position.copy(keep.pos); sun.target.position.copy(keep.tgt); sun.target.updateMatrixWorld();
+    sc.left = keep.l; sc.right = keep.rt; sc.top = keep.t; sc.bottom = keep.b; sc.near = keep.n; sc.far = keep.f;
+    sc.updateProjectionMatrix();
+    if (fog && fogKeep) { fog.near = fogKeep[0]; fog.far = fogKeep[1]; }
+    r.shadowMap.needsUpdate = true;
+
+    // Pixels come bottom row first: flip them into a canvas.
+    const c = document.createElement('canvas');
+    c.width = iw; c.height = ih;
+    const ctx = c.getContext('2d')!;
+    const img = ctx.createImageData(iw, ih);
+    for (let y = 0; y < ih; y++) img.data.set(px.subarray((ih - 1 - y) * iw * 4, (ih - y) * iw * 4), y * iw * 4);
+    for (let i = 3; i < img.data.length; i += 4) img.data[i] = 255;
+    ctx.putImageData(img, 0, 0);
+    return { canvas: c, k, vTop, mapW: W, mapH: H };
+  }
+
   render(): void {
     const r = this.renderer, cam = this.camera;
     r.render(this.scene, cam);

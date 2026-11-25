@@ -111,6 +111,7 @@ async function boot() {
     openReforge: () => hud?.openPage('reforge'),
     reforgeBadge: () => hud?.reforgeBadge() ?? '',
   }));
+  hud.worldMap.overview = (w) => scene.world3d.renderOverview(w);
   installCurrencyIcons(); // 3D coin / shard / gem / ember icons for the whole UI
   applyFps();
   applyQuality();
