@@ -161,7 +161,8 @@ export class MissionsUI {
     const body = this.wrap.querySelector<HTMLElement>('.sheet-body')!;
     // The login calendar and a land's monster cards stretch to fill the (fixed-height) sheet
     // instead of leaving a gap.
-    body.classList.toggle('fill', this.tab === 'login' || (this.tab === 'codex' && this.codexArea !== null));
+    // Fill pages: the content stretches to the sheet and scales to it (no scrolling, no gaps).
+    body.classList.toggle('fill', this.tab === 'login' || this.tab === 'daily' || this.tab === 'weekly' || this.tab === 'journey' || this.tab === 'shop' || (this.tab === 'codex' && this.codexArea !== null));
     const scroll = this.scrollTop ? 0 : body.scrollTop;
     this.scrollTop = false;
     body.innerHTML =

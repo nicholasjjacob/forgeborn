@@ -571,9 +571,9 @@ html.pc #quests-root { --qb-h: min(600px, calc(100dvh - var(--safe-top) - 160px)
 .rq.done { box-shadow: inset 0 0 0 3px var(--green-2), 0 2px 0 var(--green-edge); }
 .rq.maxed { opacity: 0.7; }
 .rq-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.rq-top { display: flex; align-items: center; height: 20px; justify-content: space-between; gap: 6px; }
+.rq-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .rq-name { font-size: 14px; color: #fff; text-shadow: 0 1px 0 #0a103580; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rq-pips { flex: 0 0 auto; display: flex; gap: 2px; height: 18px; align-items: center; }
+.rq-pips { flex: 0 0 auto; display: flex; gap: 2px; align-items: center; }
 /* Tier stars: the same glyph filled gold (earned) or dark with a faint rim (not yet). */
 .pip { display: block; width: 17px; height: 17px; font-style: normal; font-size: 17px; line-height: 17px; text-align: center; color: #141b4e; text-shadow: 0 0 1px #ffd23f99, 0 0 1px #ffd23f99; }
 .pip.on { color: #ffd23f; text-shadow: 0 1px 0 #7a4a00, 0 0 6px #ffd23f88; }
@@ -1524,6 +1524,120 @@ html.pc .level-chip { width: 210px; }
 html.pc .level-chip .xp-bar { height: 8px; }
 
 /* Quest Book on PC: bigger tier stars. */
-html.pc .rq-pips { height: 22px; gap: 3px; }
-html.pc .pip { width: 21px; height: 21px; font-size: 21px; line-height: 21px; }
-html.pc .rq-top { height: 24px; }
+
+/* --- Fit every screen ----------------------------------------------------------------------
+   Rows and cards that share a fixed-height page are size containers: what's inside scales with the
+   space each one actually gets (1cqh = 1% of its height), between a readable minimum and the full
+   size, so the same layout fits a small phone in Safari (browser bars), a big phone, a tablet and
+   a PC window without squeezing or overflowing. */
+#quests-root > [data-seg-page] { container: qbp / size; }
+.rq { container: rq / size; padding: clamp(2px, 8cqh, 9px) 10px; gap: 8px; }
+.rq-main { gap: clamp(1px, 4cqh, 4px); }
+.rq-name { font-size: clamp(11.5px, 23.5cqh, 16px); line-height: 1.12; }
+.rq-goal { font-size: clamp(9.5px, 18cqh, 12.5px); line-height: 1.15; }
+.rq .bar { height: clamp(9px, 22cqh, 16px); border-radius: 99px; }
+.rq .bar-text { font-size: clamp(8.5px, 16cqh, 11.5px); line-height: clamp(9px, 22cqh, 16px); }
+.rq-pips { gap: clamp(1px, 3cqh, 3px); }
+.pip { width: clamp(12px, 30cqh, 22px); height: clamp(12px, 30cqh, 22px); font-size: clamp(12px, 30cqh, 22px); line-height: 1; }
+.rq-side { height: auto; align-self: stretch; width: clamp(66px, 22cqw, 86px); gap: clamp(1px, 5cqh, 4px); }
+.rq-reward .rchip { font-size: clamp(9px, 17cqh, 12px); margin: 0 1px; }
+.rq .btn { flex: 0 0 auto; padding: clamp(3px, 10cqh, 8px) clamp(8px, 4cqw, 13px); font-size: clamp(11px, 19cqh, 15px); line-height: 1.2; }
+
+#quests-root .ach { container: ach / size; padding: clamp(2px, 9cqh, 6px) 12px; row-gap: clamp(1px, 5cqh, 3px); column-gap: clamp(7px, 3cqw, 12px); grid-template-columns: auto minmax(0, 1fr); }
+#quests-root .ach-tier { width: clamp(22px, 62cqh, 36px); height: clamp(22px, 62cqh, 36px); font-size: clamp(10px, 24cqh, 14px); }
+#quests-root .ach-name { font-size: clamp(11.5px, 29cqh, 16px); }
+#quests-root .ach-name small { font-size: clamp(9.5px, 21cqh, 12px); }
+#quests-root .ach-goal { font-size: clamp(9.5px, 23cqh, 12.5px); }
+#quests-root .ach .bar.thin { height: clamp(5px, 14cqh, 9px); }
+
+/* Short pages (phones with browser bars, small phones): a slimmer region header and milestones,
+   leaving the room to the quests. */
+@container qbp (max-height: 540px) {
+  .qb-head { margin-bottom: 5px; gap: 6px; }
+  .qb-back { padding: 4px 9px; font-size: 13px; }
+  .qb-name { font-size: 15px; }
+  .qb-sub { font-size: 10px; }
+  .qb-stars { font-size: 14px; }
+  .qb-miles { gap: 5px; margin-bottom: 5px; }
+  .qb-mile { min-height: 0; padding: 3px 4px; gap: 1px; border-radius: 10px; }
+  .qbm-need { font-size: 11.5px; }
+  .qbm-reward { gap: 0 4px; }
+  .qbm-reward .rchip { font-size: 10px; padding: 0 5px 0 2px; }
+  .qbm-bonus { font-size: 9px; }
+  .qb-mile .btn { padding: 2px 10px; font-size: 12px; }
+  .qb-quests, #quests-root .ach-list { gap: 4px; }
+  .qb-grid { gap: 6px; }
+  .qbr-name { font-size: 12px; }
+}
+
+/* Very short rows (the smallest phones): drop the goal line; the name and the bar's count say it. */
+@container rq (max-height: 44px) { .rq-goal { display: none; } }
+@container ach (max-height: 34px) { #quests-root .ach-goal { display: none; } }
+/* The zone name shrinks to fit narrow phones instead of wrapping onto two lines. */
+#stage-label { font-size: clamp(14px, 5.2vw, 19px); white-space: nowrap; }
+#area-label { white-space: nowrap; }
+
+/* Mission boards (daily, weekly, 7-day) and the Gem Shop fill their sheet: the list takes what's
+   left under the header, and each row or card scales to the space it gets. */
+.sheet-body.fill > .timer, .sheet-body.fill > .ptrack, .sheet-body.fill > .jdays, .sheet-body.fill > .gem-balance, .sheet-body.fill > .jnote { flex: 0 0 auto; }
+.sheet-body.fill > .task-list { flex: 1 1 auto; min-height: 0; display: grid; grid-auto-rows: minmax(0, 1fr); gap: 6px; padding-bottom: 4px; }
+.task { container: task / size; min-height: 0; padding: clamp(2px, 10cqh, 10px) 10px; }
+.task-pts { width: clamp(24px, 64cqh, 44px); height: clamp(24px, 64cqh, 44px); }
+.task-pts b { font-size: clamp(10px, 25cqh, 15px); }
+.task-pts .star { font-size: clamp(7px, 15cqh, 10px); }
+.task-main { gap: clamp(1px, 6cqh, 5px); }
+.task-text { font-size: clamp(11px, 23cqh, 15px); line-height: 1.15; }
+.task .bar { height: clamp(8px, 24cqh, 16px); }
+.task .bar-text { font-size: clamp(8px, 17cqh, 11.5px); line-height: clamp(8px, 24cqh, 16px); }
+.task .btn { padding: clamp(2px, 10cqh, 8px) 12px; font-size: clamp(11px, 21cqh, 15px); }
+.task-end.pct { font-size: clamp(11px, 23cqh, 14px); }
+.task-end.done { font-size: clamp(14px, 38cqh, 24px); }
+
+.sheet-body.fill > .shop { flex: 1 1 auto; min-height: 0; grid-auto-rows: minmax(0, 1fr); padding-bottom: 4px; }
+.offer { container: offer / size; min-height: 0; justify-content: center; gap: clamp(1px, 2.5cqh, 4px); padding: clamp(4px, 5cqh, 10px) 8px; }
+.offer-ico { width: clamp(26px, 30cqh, 54px); height: clamp(26px, 30cqh, 54px); font-size: clamp(16px, 16cqh, 28px); }
+.offer-ico .gi { width: 70%; height: 70%; }
+/* Currency icons scale with their box too (they're fixed-size elsewhere). */
+.offer-ico .coin.big { width: 63%; height: 63%; }
+.offer-ico .gem.big { width: 44%; height: 44%; }
+.offer-ico .ember.big { width: 41%; height: 52%; }
+.offer-name { font-size: clamp(11.5px, 9cqh, 15px); line-height: 1.1; }
+.offer-desc { font-size: clamp(9px, 6.5cqh, 11px); min-height: 0; }
+.offer-gets { flex: 0 0 auto; }
+.offer-buy { padding: clamp(2px, 4cqh, 8px) 8px; }
+@container offer (max-height: 150px) { .offer-desc { display: none; } }
+/* An odd last offer takes the whole row (no empty slot beside it), laid out sideways. */
+.shop > .offer:last-child:nth-child(odd) {
+  grid-column: 1 / -1; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: auto auto auto;
+  column-gap: 12px; row-gap: 2px; align-content: center; justify-items: start; text-align: left; padding: 6px 14px;
+}
+.shop > .offer:last-child:nth-child(odd) .offer-ico { grid-column: 1; grid-row: 1 / span 3; width: clamp(26px, 45cqh, 54px); height: clamp(26px, 45cqh, 54px); }
+.shop > .offer:last-child:nth-child(odd) .offer-name { grid-column: 2; grid-row: 1; font-size: clamp(11.5px, 17cqh, 15px); }
+.shop > .offer:last-child:nth-child(odd) .offer-desc { grid-column: 2; grid-row: 2; display: block; font-size: clamp(9px, 12cqh, 11px); }
+.shop > .offer:last-child:nth-child(odd) .offer-gets { grid-column: 2; grid-row: 3; justify-content: flex-start; }
+.shop > .offer:last-child:nth-child(odd) .offer-buy { grid-column: 3; grid-row: 1 / span 3; width: auto; min-width: 88px; }
+@container offer (max-height: 60px) { .shop > .offer:last-child:nth-child(odd) .offer-desc { display: none; } }
+
+/* Sheet tab bars share the sheet's width evenly (never wider than the screen); labels shrink a
+   little on narrow phones instead of scrolling sideways. */
+.sheet-tabs { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: clamp(2px, 0.8cqw, 4px); padding-left: clamp(5px, 2cqw, 10px); padding-right: clamp(5px, 2cqw, 10px); overflow: visible; container-type: inline-size; }
+.sheet-tabs button { min-width: 0; padding-left: 1px; padding-right: 1px; white-space: nowrap; font-size: clamp(9px, 4.2cqw, 14px); }
+
+/* Heroes: the cards wrap in centred rows (nine heroes: five, then four centred, no empty slot),
+   and short screens tighten the rows above them so both card rows always fit. */
+.heroes-sheet .hero-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.heroes-sheet .hero-grid > .hero-card { flex: 0 0 calc((100% - 24px) / 5); }
+@media (max-height: 640px) {
+  .heroes-sheet .hero-stage { min-height: 56px; margin: 0 0 4px; }
+  .heroes-sheet .hero-info { margin-bottom: 3px; gap: 0; }
+  .heroes-sheet .hero-name { font-size: 18px; }
+  .heroes-sheet .hero-perk, .heroes-sheet .hero-blurb { font-size: 11px; }
+  .heroes-sheet .hero-looks { min-height: 25px; margin-bottom: 4px; }
+  .heroes-sheet .hero-looks button { padding: 3px 8px; font-size: 11px; }
+  .heroes-sheet .hero-palettes { min-height: 40px; gap: 8px; margin-bottom: 4px; }
+  .heroes-sheet .hero-palettes button { width: 38px; height: 38px; }
+  .heroes-sheet .hero-action { margin-bottom: 5px; }
+  .heroes-sheet .hero-action .btn { padding: 6px; font-size: 15px; }
+  .heroes-sheet .hero-grid { gap: 4px; }
+  .heroes-sheet .hero-grid > .hero-card { flex-basis: calc((100% - 16px) / 5); }
+}
