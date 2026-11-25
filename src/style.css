@@ -559,6 +559,9 @@ html.icons3d .dock-ico[data-ico="scroll"] { background-image: var(--ico-scroll);
   /* Fixed height (not sized to content) so the tab bar stays in the same spot on every tab. */
   position: relative; width: min(520px, 100%); margin: auto; flex: 0 0 auto; height: min(100%, 760px); min-height: 0;
   display: flex; flex-direction: column;
+  /* Its own layer group: the ribbon's folded ends (z-index -1) sit behind the ribbon but in front
+     of the sheet, the same before, during and after the pop-in animation (no flash, no cut-off). */
+  isolation: isolate;
   border-radius: 22px;
   background: linear-gradient(#2a3888, var(--cream) 20%);
   box-shadow: inset 0 0 0 4px var(--wood), inset 0 0 0 8px #3a4cab, 0 6px 0 var(--wood-dark), 0 20px 40px #000a;
