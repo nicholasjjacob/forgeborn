@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { migrate } from '../src/core/save';
 import { MAX_LEVEL, MILESTONES, levelBonus, milestoneReward, totalXpTo, xpForKill, xpToNext } from '../src/sim/level';
 import { Sim, freshSave } from '../src/sim/sim';
-import { outgrownRewards, zoneOutgrownAt } from '../src/sim/zones';
 
 describe('hero level curve', () => {
   it('grows steadily and stops at the cap', () => {
@@ -98,19 +97,5 @@ describe('levelling in the sim', () => {
     expect(old.v).toBe(7);
     expect(old.level).toBe(1);
     expect(old.levelClaimed).toEqual([]);
-  });
-});
-
-describe('outgrowing a zone', () => {
-  it('pays full rewards until the hero outgrows it, then less and less', () => {
-    expect(outgrownRewards(0, 5)).toEqual({ xp: 1, gold: 1, over: 0 });
-    const at = zoneOutgrownAt(0);
-    expect(outgrownRewards(0, at).xp).toBe(1);
-    const one = outgrownRewards(0, at + 1), three = outgrownRewards(0, at + 3);
-    expect(one.xp).toBeCloseTo(0.5);
-    expect(three.xp).toBeLessThan(one.xp);
-    expect(three.gold).toBeLessThan(one.gold);
-    expect(outgrownRewards(0, 99).xp).toBeGreaterThan(0); // never nothing
-    expect(zoneOutgrownAt(1)).toBeGreaterThan(zoneOutgrownAt(0));
   });
 });

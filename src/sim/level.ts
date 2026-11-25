@@ -12,11 +12,18 @@ export const MAX_LEVEL = 100;
 export const MILESTONE_STEP = 5;
 export const MILESTONES: readonly number[] = Array.from({ length: MAX_LEVEL / MILESTONE_STEP }, (_, i) => (i + 1) * MILESTONE_STEP);
 
-/** XP needed to go from `level` to `level + 1`. Early levels take minutes, the last ones days. */
+/**
+ * XP needed to go from `level` to `level + 1`. Early levels take minutes, the last ones days.
+ * The extra 12% per level is matched by kill XP rising ~2.9× per zone (xpForKill): there's no
+ * cap anywhere, but an easy zone's small XP fills ever-bigger levels, so moving on pays.
+ */
 export function xpToNext(level: number): number {
   if (level >= MAX_LEVEL) return Infinity;
-  return Math.round(20 * Math.pow(level, 1.9));
+  return Math.round(20 * Math.pow(level, 1.9) * Math.pow(XP_TUNING.levelGrowth, level - 1));
 }
+
+/** XP curve knobs: per-stage growth of kill XP (4 stages = 1 zone), extra per-level growth of the XP needed. */
+export const XP_TUNING = { killGrowth: 1.3, levelGrowth: 1.12 };
 
 /** Total XP from level 1 to `level` (for tests and tuning). */
 export function totalXpTo(level: number): number {
@@ -26,11 +33,11 @@ export function totalXpTo(level: number): number {
 }
 
 /**
- * XP for one kill, by zone difficulty (stage units): about ×1.36 per zone, so the furthest zone
- * you can handle is always the fastest place to level. Bosses give 20×.
+ * XP for one kill, by zone difficulty (stage units): about ×2.9 per zone, so the furthest zone
+ * you can handle is always by far the fastest place to level. Bosses give 20×.
  */
 export function xpForKill(stage: number, boss: boolean): number {
-  const base = Math.ceil(6 * Math.pow(1.08, stage - 1));
+  const base = Math.ceil(6 * Math.pow(XP_TUNING.killGrowth, stage - 1));
   return boss ? base * 20 : base;
 }
 
