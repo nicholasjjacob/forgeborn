@@ -1641,3 +1641,19 @@ html.pc .level-chip .xp-bar { height: 8px; }
   .heroes-sheet .hero-grid { gap: 4px; }
   .heroes-sheet .hero-grid > .hero-card { flex-basis: calc((100% - 16px) / 5); }
 }
+
+/* PC on short windows (small laptops, Windows display scaling at 125-150%): the minimap shrinks a
+   little with the window, and the side buttons get exactly the height between the currency
+   counters and the minimap, sizing themselves to fit it (never overlapping the minimap). */
+html.pc { --mm: clamp(120px, 26dvh, 176px); }
+html.pc .minimap { width: var(--mm); height: var(--mm); }
+html.pc .purse { height: calc(100dvh - var(--safe-top) - 12px - var(--mm) - 14px - var(--safe-bottom) - 14px); }
+html.pc .side-icons { flex: 1 1 auto; min-height: 0; width: 82px; container-type: size; pointer-events: none; }
+html.pc .side-icons > * { pointer-events: auto; }
+html.pc .side-btn { --sb: clamp(34px, calc((100cqh - 40px) / 6), 78px); }
+@media (min-height: 950px) {
+  html.pc { --mm: 210px; }
+  /* The top bar is zoomed 1.2x here, so its own lengths are in zoomed units. */
+  html.pc .purse { height: calc((100dvh - var(--safe-top) - 12px - var(--mm) - 14px - var(--safe-bottom) - 14px) / 1.2); }
+  html.pc .side-icons { width: 82px; }
+}
