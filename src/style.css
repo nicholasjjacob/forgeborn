@@ -1582,15 +1582,15 @@ html.pc .level-chip .xp-bar { height: 8px; }
 .sheet-body.fill > .timer, .sheet-body.fill > .ptrack, .sheet-body.fill > .jdays, .sheet-body.fill > .gem-balance, .sheet-body.fill > .jnote { flex: 0 0 auto; }
 .sheet-body.fill > .task-list { flex: 1 1 auto; min-height: 0; display: grid; grid-auto-rows: minmax(0, 1fr); gap: 6px; padding-bottom: 4px; }
 .task { container: task / size; min-height: 0; padding: clamp(2px, 10cqh, 10px) 10px; }
-.task-pts { width: clamp(24px, 64cqh, 44px); height: clamp(24px, 64cqh, 44px); }
-.task-pts b { font-size: clamp(10px, 25cqh, 15px); }
-.task-pts .star { font-size: clamp(7px, 15cqh, 10px); }
+.task-pts { width: clamp(24px, 64cqh, 54px); height: clamp(24px, 64cqh, 54px); }
+.task-pts b { font-size: clamp(10px, 25cqh, 18px); }
+.task-pts .star { font-size: clamp(7px, 15cqh, 12px); }
 .task-main { gap: clamp(1px, 6cqh, 5px); }
-.task-text { font-size: clamp(11px, 23cqh, 15px); line-height: 1.15; }
-.task .bar { height: clamp(8px, 24cqh, 16px); }
-.task .bar-text { font-size: clamp(8px, 17cqh, 11.5px); line-height: clamp(8px, 24cqh, 16px); }
-.task .btn { padding: clamp(2px, 10cqh, 8px) 12px; font-size: clamp(11px, 21cqh, 15px); }
-.task-end.pct { font-size: clamp(11px, 23cqh, 14px); }
+.task-text { font-size: clamp(11px, 23cqh, 18px); line-height: 1.15; }
+.task .bar { height: clamp(8px, 24cqh, 20px); }
+.task .bar-text { font-size: clamp(8px, 17cqh, 13px); line-height: clamp(8px, 24cqh, 20px); }
+.task .btn { padding: clamp(2px, 10cqh, 10px) 14px; font-size: clamp(11px, 21cqh, 17px); }
+.task-end.pct { font-size: clamp(11px, 23cqh, 17px); }
 .task-end.done { font-size: clamp(14px, 38cqh, 24px); }
 
 .sheet-body.fill > .shop { flex: 1 1 auto; min-height: 0; grid-auto-rows: minmax(0, 1fr); padding-bottom: 4px; }
