@@ -163,6 +163,7 @@ async function boot() {
   loadingStep(0.93, 'Drawing the map…');
   await loadingPaint();
   hud.worldMap.warm();
+  if (sim.save.sound) sfx.prepare(); // audio set up now; the first tap only switches it on
   // The battlefield also changes size without a window resize (hiding/showing the menu).
   // Redraw at once: a resized canvas is blank until its next frame, which would flicker
   // while the menu slides.

@@ -24,8 +24,30 @@ class Sfx {
   private voices = 0;
   enabled = true;
 
+  /**
+   * Set up the audio graph ahead of time (behind the loading screen): starting the audio system
+   * can stall for a moment, so it shouldn't happen on the first tap. It stays paused until
+   * `unlock()` (browsers only let it run after a user gesture).
+   */
+  prepare(): void {
+    try { this.create(); } catch { /* unlock() tries again */ }
+  }
+
   /** Call from a user gesture. Safe to call repeatedly. */
   unlock(): void {
+    this.create();
+    if (!this.ctx) return;
+    // iOS also wants a sound actually started inside the gesture: play one silent sample.
+    try {
+      const b = this.ctx.createBufferSource();
+      b.buffer = this.ctx.createBuffer(1, 1, this.ctx.sampleRate);
+      b.connect(this.ctx.destination);
+      b.start(0);
+    } catch { /* ignore */ }
+    if (this.ctx.state !== 'running') void this.ctx.resume().catch(() => { /* retried on next gesture */ });
+  }
+
+  private create(): void {
     if (!this.ctx) {
       const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!AC) return;
@@ -42,14 +64,6 @@ class Sfx {
       const d = this.noise.getChannelData(0);
       for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     }
-    // iOS also wants a sound actually started inside the gesture: play one silent sample.
-    try {
-      const b = this.ctx.createBufferSource();
-      b.buffer = this.ctx.createBuffer(1, 1, this.ctx.sampleRate);
-      b.connect(this.ctx.destination);
-      b.start(0);
-    } catch { /* ignore */ }
-    if (this.ctx.state !== 'running') void this.ctx.resume().catch(() => { /* retried on next gesture */ });
   }
 
   /** True once the browser has actually let audio start. */

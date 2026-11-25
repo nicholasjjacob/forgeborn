@@ -87,11 +87,16 @@ export class WorldMapUI {
     this.sig = '';
     this.region = -1;
     this.bindCanvas(wrap.querySelector<HTMLCanvasElement>('.wm-canvas')!);
+    this.shown = false;
     this.refresh();
-    // Already drawn (warmed at load): show it in the very first frame. Otherwise draw the 3D map
-    // once the sheet is on screen (it takes a moment).
-    if (this.ov && this.ovKey === this.overviewKey()) this.prepare();
-    else requestAnimationFrame(() => requestAnimationFrame(() => this.prepare()));
+    // The work is split over two frames so neither drops: this one builds the sheet (fading in),
+    // the next draws the map. A picture warmed at load already sets the map's shape now, so
+    // nothing jumps; otherwise the 3D map is drawn once the sheet is on screen.
+    if (this.ov && this.ovKey === this.overviewKey()) {
+      wrap.querySelector<HTMLElement>('.wm-wait')!.hidden = true;
+      wrap.querySelector<HTMLElement>('.wm-view')!.style.setProperty('--ar', String(this.ov.canvas.width / this.ov.canvas.height));
+      requestAnimationFrame(() => this.prepare());
+    } else requestAnimationFrame(() => requestAnimationFrame(() => this.prepare()));
   }
 
   close(): void {
@@ -182,8 +187,12 @@ export class WorldMapUI {
   }
 
   /** Draw (or reuse) the whole-map picture. */
+  /** The map has been drawn in this sheet (the first draw waits a frame after opening). */
+  private shown = false;
+
   private prepare(): void {
     if (!this.wrap) return;
+    this.shown = true;
     if (!this.ensureOverview() || !this.ov) { setTimeout(() => this.prepare(), 400); return; }
     this.wrap.querySelector<HTMLElement>('.wm-wait')!.hidden = true;
     this.wrap.querySelector<HTMLElement>('.wm-view')!.style.setProperty('--ar', String(this.ov.canvas.width / this.ov.canvas.height));
@@ -567,7 +576,7 @@ export class WorldMapUI {
   /** Re-render when progress changes (and redraw the hero marker). Called by the HUD ~10×/s. */
   refresh(): void {
     if (!this.wrap) return;
-    if (this.ov && !this.anim) this.draw();
+    if (this.ov && !this.anim && this.shown) this.draw();
     const sim = this.sim, s = sim.save;
     const f = this.forest;
     const ex = sim.explored;
