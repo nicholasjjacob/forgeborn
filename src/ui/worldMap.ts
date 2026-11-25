@@ -167,6 +167,18 @@ export class WorldMapUI {
     this.sized(this.greyOf(this.ov), 0);
     if (this.sim.explored) this.fogMaskNow(this.sim.explored);
     for (const t of f.territories) monsterSnapshot(t.area, t.monster);
+    // Rehearse a whole open, unseen: the browser builds and lays out the sheet, creates its
+    // drawing surfaces and moves the pictures to the graphics card now, not on the first tap.
+    // The hero's region gets its close-up too.
+    this.open();
+    const wrap = this.wrap;
+    if (!wrap) return;
+    wrap.style.visibility = 'hidden';
+    wrap.style.animation = 'none';
+    this.draw(true);
+    if (this.sim.biome >= 0) this.ensureDetail(this.sim.biome);
+    this.canvas().getContext('2d')!.getImageData(0, 0, 1, 1); // run the queued drawing now
+    this.close();
   }
 
   /** Draw (or reuse) the whole-map picture. */
