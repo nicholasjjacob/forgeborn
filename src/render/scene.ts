@@ -1,3 +1,4 @@
+import { heroScale } from './heroRig';
 import { weaponTrailColor } from './weapons3d';
 import { BitmapText, Container, Sprite, type Application } from 'pixi.js';
 import { levelTier } from '../sim/level';
@@ -168,7 +169,8 @@ export class Scene {
 
     // Hero overlay: health bar and level over the head.
     const dead = sim.phase === 'dead';
-    this.place(this.hero, hx, 21, hy);
+    // (21 units above a regular hero's feet; higher over a bigger one, like the Warlord.)
+    this.place(this.hero, hx, 21 * heroScale(sim.save.skin), hy);
     this.hero.alpha = dead ? 0.4 : 1;
     if (sim.save.level !== this.shownLevel) {
       this.shownLevel = sim.save.level;

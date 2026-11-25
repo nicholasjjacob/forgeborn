@@ -3,7 +3,7 @@ import { sfx } from '../audio/sfx';
 import { cloneActor, findClip, loadModel, measure } from '../render/models';
 import { SKINS, lookOf, skinDef } from '../sim/skins';
 import { applyLook, applyPalette } from '../render/heroLook';
-import { heroWeaponScale, loadHeroAnims } from '../render/heroRig';
+import { heroScale, heroWeaponScale, loadHeroAnims } from '../render/heroRig';
 import { buildKitWeapon, kitModels } from '../render/weapons3d';
 import { FORMS } from '../sim/weapons';
 import type { Sim } from '../sim/sim';
@@ -18,6 +18,9 @@ import { bindSheetTaps } from './tap';
  */
 
 const portraits = new Map<string, string>();
+/** Stage camera: framed so a regular hero (1.5 units) and the 1.4× Warlord both fit. */
+const STAGE_CAM: [number, number, number] = [0, 1.3, 5.0];
+const STAGE_LOOK: [number, number, number] = [0, 1.0, 0];
 const AUTO_SPIN = 0.7;     // rad/s when left alone
 const DRAG_TURN = 0.012;   // radians per pixel dragged
 const MAX_FLING = 12;      // rad/s
@@ -171,8 +174,8 @@ export class HeroesUI {
     scene.add(floor);
     this.scene = scene;
     this.camera = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
-    this.camera.position.set(0, 1.25, 4.2);
-    this.camera.lookAt(0, 0.75, 0);
+    this.camera.position.set(...STAGE_CAM);
+    this.camera.lookAt(...STAGE_LOOK);
     this.last = performance.now();
     const loop = (now: number) => {
       this.raf = requestAnimationFrame(loop);
@@ -231,7 +234,7 @@ export class HeroesUI {
   }
 
   /** A posed, normalised copy of a skin (1.5 units tall, feet on the ground). */
-  private async build(id: string): Promise<{ obj: THREE.Object3D; mixer: THREE.AnimationMixer } | null> {
+  private async build(id: string, sized = true): Promise<{ obj: THREE.Object3D; mixer: THREE.AnimationMixer } | null> {
     const [g, rig] = await Promise.all([loadModel(`hero_${id}`), loadHeroAnims(id)]).catch(() => [null, null]);
     if (!g || !rig) return null;
     const anims = rig.anims;
@@ -240,14 +243,20 @@ export class HeroesUI {
     inner.position.set(0, 0, 0);
     inner.scale.setScalar(1);
     inner.rotation.set(0, 0, 0);
-    inner.traverse((o) => o.layers.set(0));
+    inner.traverse((o) => {
+      o.layers.set(0);
+      // The battlefield hero flashes red when hit: a copy made mid-flash would keep the glow.
+      const m = o as THREE.SkinnedMesh;
+      if (m.isSkinnedMesh) for (const mat of Array.isArray(m.material) ? m.material : [m.material]) (mat as THREE.MeshLambertMaterial).emissive?.setHex(0);
+    });
     for (const n of ['weapon-hand', 'weapon-kit-r', 'weapon-kit-l']) inner.getObjectByName(n)?.removeFromParent(); // the battlefield's weapon, if cloned along
     applyLook(inner, id, lookOf(id, this.sim.save.looks));
     applyPalette(inner, id, this.sim.save.palettes[id] ?? 0);
     // The clone copies whatever pose the battlefield hero was in (mid-run, mid-swing): measure it at rest.
     inner.traverse((o) => { if ((o as THREE.SkinnedMesh).isSkinnedMesh) (o as THREE.SkinnedMesh).skeleton.pose(); });
     const dims = measure(inner);
-    const k = 1.5 / dims.h;
+    // On the stage heroes keep their relative size (the Warlord towers); portraits are all fitted.
+    const k = (1.5 * (sized ? heroScale(id) : 1)) / dims.h;
     inner.scale.setScalar(k);
     inner.position.set(-dims.cx * k, -dims.minY * k, -dims.cz * k);
     // The hero holds their weapon: the equipped one, or what they would draw when picked.
@@ -289,7 +298,7 @@ export class HeroesUI {
   private async makePortraits(): Promise<void> {
     for (const k of SKINS) {
       if (portraits.has(k.id)) continue;
-      const built = await this.build(k.id);
+      const built = await this.build(k.id, false);
       if (!built || !this.renderer || !this.scene || !this.camera) return;
       const r = this.renderer;
       const keep = this.model;
@@ -307,8 +316,8 @@ export class HeroesUI {
       portraits.set(k.id, r.domElement.toDataURL('image/png'));
       this.scene.remove(built.obj);
       if (keep) keep.visible = true;
-      this.camera.position.set(0, 1.25, 4.2);
-      this.camera.lookAt(0, 0.75, 0);
+      this.camera.position.set(...STAGE_CAM);
+      this.camera.lookAt(...STAGE_LOOK);
       this.camera.aspect = aspect;
       this.camera.updateProjectionMatrix();
       r.setSize(size.x, size.y, false);
