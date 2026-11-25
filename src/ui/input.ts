@@ -55,8 +55,9 @@ export class Input {
   }
 
   private readonly onDown = (e: PointerEvent) => {
-    // Let HUD buttons on top of the battlefield handle their own taps.
-    if ((e.target as HTMLElement).closest('button')) return;
+    // Let HUD buttons on top of the battlefield (and the minimap) handle their own taps: capturing
+    // the pointer here would steal their click.
+    if ((e.target as HTMLElement).closest('button, [role="button"]')) return;
     const p = this.local(e);
     if (e.pointerType === 'mouse') {
       if (e.button !== 0) return;

@@ -31,6 +31,10 @@ export function bindSheetTaps(wrap: HTMLElement, run: (action: string) => void):
     // different button or the backdrop cancels, as with a normal click.
     if (up !== d.act && !(up === null && d.act !== 'close')) return;
     e.preventDefault();
+    // The browser still sends a click after this release. If the action closes the sheet, that
+    // click would land on whatever sits underneath (e.g. the missions tracker under a sheet's
+    // close button) and open it: swallow it.
+    swallowNextClick();
     run(d.act);
   });
   wrap.addEventListener('pointercancel', () => { down = null; });
@@ -44,4 +48,17 @@ export function bindSheetTaps(wrap: HTMLElement, run: (action: string) => void):
 /** The current element for an action (it may have been re-rendered since the press). */
 export function actionElement(wrap: HTMLElement, action: string): HTMLElement | null {
   return wrap.querySelector<HTMLElement>(`[data-act="${CSS.escape(action)}"]`);
+}
+
+/** Eat the click the browser sends right after a pointer release we already acted on. */
+function swallowNextClick(): void {
+  const eat = (e: MouseEvent) => {
+    if (e.detail === 0) return; // keyboard "clicks" are real
+    e.preventDefault();
+    e.stopPropagation();
+    done();
+  };
+  const done = () => { window.removeEventListener('click', eat, true); clearTimeout(timer); };
+  const timer = setTimeout(done, 450);
+  window.addEventListener('click', eat, true);
 }
