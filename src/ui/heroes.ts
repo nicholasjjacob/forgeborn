@@ -154,21 +154,26 @@ export class HeroesUI {
     // Styles (e.g. the Knight's visor): shown for owned heroes that have any.
     const looksEl = this.wrap.querySelector<HTMLElement>('.hero-looks')!;
     const cur = lookOf(def.id, s.looks);
-    looksEl.hidden = !owned || !def.looks;
-    looksEl.innerHTML = owned && def.looks
-      ? def.looks.map((l) => `<button type="button" role="radio" aria-checked="${l.id === cur}" class="${l.id === cur ? 'on' : ''}" data-act="look:${l.id}">${l.name}</button>`).join('')
+    // Shown for every hero (locked ones greyed out), so the screen keeps the same size whichever
+    // hero is picked.
+    const lock = owned ? '' : ' disabled';
+    looksEl.hidden = !def.looks;
+    looksEl.classList.toggle('locked', !owned);
+    looksEl.innerHTML = def.looks
+      ? def.looks.map((l) => `<button type="button" role="radio" aria-checked="${l.id === cur}" class="${l.id === cur ? 'on' : ''}" data-act="look:${l.id}"${lock}>${l.name}</button>`).join('')
       : '';
     // Colour schemes: the hero's own palette and the pack's three alternates, as 3D thumbnails.
     const palEl = this.wrap.querySelector<HTMLElement>('.hero-palettes')!;
     const pal = s.palettes[def.id] ?? 0;
-    palEl.hidden = !owned || !def.palette;
-    palEl.innerHTML = owned && def.palette
+    palEl.hidden = !def.palette;
+    palEl.classList.toggle('locked', !owned);
+    palEl.innerHTML = def.palette
       ? [0, 1, 2, 3].map((n) => {
         const img = thumbs.get(thumbKey(def.id, lookOf(def.id, s.looks), n));
-        return `<button type="button" role="radio" aria-label="Colours ${n + 1}" aria-checked="${n === pal}" class="${n === pal ? 'on' : ''}" data-act="pal:${n}">${img ? `<img alt="" src="${img}" />` : ''}</button>`;
+        return `<button type="button" role="radio" aria-label="Colours ${n + 1}" aria-checked="${n === pal}" class="${n === pal ? 'on' : ''}" data-act="pal:${n}"${lock}>${img ? `<img alt="" src="${img}" />` : ''}</button>`;
       }).join('')
       : '';
-    if (owned && def.palette) void this.makeThumbs(def.id);
+    if (def.palette) void this.makeThumbs(def.id);
     this.wrap.querySelector('.hero-grid')!.innerHTML = SKINS.map((k) => {
       const have = this.sim.ownsSkin(k.id);
       const tag = s.skin === k.id ? `${gi('check-mark', 'green')} Equipped` : have ? 'Owned'
