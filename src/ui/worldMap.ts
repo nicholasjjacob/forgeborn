@@ -136,20 +136,36 @@ export class WorldMapUI {
 
   private get pc(): boolean { return document.documentElement.classList.contains('pc'); }
 
+  /** The whole-map picture, drawn again only when the scenery changes (a pass opens). */
+  private ensureOverview(): boolean {
+    const map = this.sim.map;
+    const key = `${map.w}x${map.h}|${[...map.openGates].sort().join(',')}`;
+    if (this.ov && this.ovKey === key) return true;
+    const ov = this.overview?.(this.pc ? 2200 : 1500) ?? null;
+    if (!ov) return false; // scenery still loading
+    this.ov = ov;
+    this.ovKey = key;
+    this.detail.clear();
+    this.grey.clear();
+    this.fogged.clear();
+    return true;
+  }
+
+  /**
+   * Behind the loading screen: draw the map picture, its fogged version and the monsters' stills
+   * now, so the first time the map opens there's nothing left to draw.
+   */
+  warm(): void {
+    const f = this.sim.map.forest;
+    if (!f || !this.ensureOverview() || !this.ov) return;
+    this.foggedImage(this.ov);
+    for (const t of f.territories) monsterSnapshot(t.area, t.monster);
+  }
+
   /** Draw (or reuse) the whole-map picture. */
   private prepare(): void {
     if (!this.wrap) return;
-    const map = this.sim.map;
-    const key = `${map.w}x${map.h}|${[...map.openGates].sort().join(',')}`;
-    if (!this.ov || this.ovKey !== key) {
-      const ov = this.overview?.(this.pc ? 2200 : 1500) ?? null;
-      if (!ov) { setTimeout(() => this.prepare(), 400); return; } // scenery still loading
-      this.ov = ov;
-      this.ovKey = key;
-      this.detail.clear();
-      this.grey.clear();
-      this.fogged.clear();
-    }
+    if (!this.ensureOverview() || !this.ov) { setTimeout(() => this.prepare(), 400); return; }
     this.wrap.querySelector<HTMLElement>('.wm-wait')!.hidden = true;
     this.wrap.querySelector<HTMLElement>('.wm-view')!.style.setProperty('--ar', String(this.ov.canvas.width / this.ov.canvas.height));
     this.view = this.viewFor(this.region);

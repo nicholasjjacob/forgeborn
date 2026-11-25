@@ -4,6 +4,7 @@ import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { areaFor, type PropKind } from '../sim/areas';
 import { MAP_H, MAP_W, type GameMap } from '../sim/map';
 import { BIOMES, FOREST, FOREST_MODELS, FOREST_MONSTERS, FOREST_PATHS, forestRegion, grassAt } from '../sim/forest';
+import { PLAYABLE_ZONES, zoneBoss } from '../sim/zones';
 import { ELITE, MAX_ENEMIES, MAX_HERO_SHOTS, MAX_SHOTS, SLAM_RADIUS, SLAM_WIND, STYLE_DASHER, type Enemy, type Sim } from '../sim/sim';
 import { cloneActor, findClip, loadModel, measure, model } from './models';
 import { Fx3D } from './fx3d';
@@ -97,15 +98,31 @@ const LOOKS: AreaLook[] = [
 ];
 
 /** Start loading everything a terrain needs (hero, its monsters, scenery); resolves when done. */
-export function preloadArea(area: number, skin = 'knight'): Promise<unknown> {
-  const names = new Set<string>([`hero_${skin}`, ...heroAnimFiles(skin)]);
+/** Monster models a terrain shows: its own four, and in the forest every region's monsters and every boss. */
+export function areaMonsterModels(area: number): string[] {
+  const names = new Set<string>();
   for (let i = 0; i < 4; i++) names.add(`m${area % 6}_${i}`);
-  if (area === 0) for (const n of [...FOREST_MODELS, ...FOREST_MONSTERS]) names.add(n);
+  if (area === 0) {
+    for (const n of FOREST_MONSTERS) names.add(n);
+    for (let z = 0; z < PLAYABLE_ZONES; z++) { const b = zoneBoss(z); names.add(`m${b.area % 6}_${b.slot}`); }
+  }
+  return [...names];
+}
+
+/**
+ * Download everything a terrain needs (hero, monsters, scenery). `onProgress` gets the share of
+ * models loaded so far (0-1), for the loading screen.
+ */
+export function preloadArea(area: number, skin = 'knight', onProgress?: (f: number) => void): Promise<unknown> {
+  const names = new Set<string>([`hero_${skin}`, ...heroAnimFiles(skin), ...areaMonsterModels(area)]);
+  if (area === 0) for (const n of FOREST_MODELS) names.add(n);
   else {
     for (const p of areaFor(area).def.props) for (const n of PROP_SPECS[p.kind].models) if (!n.startsWith('@')) names.add(n);
     for (const [n] of COVER[area % COVER.length]) names.add(n);
   }
-  return Promise.all([...names].map((n) => loadModel(n).catch(() => null)));
+  let done = 0;
+  const total = names.size;
+  return Promise.all([...names].map((n) => loadModel(n).catch(() => null).finally(() => onProgress?.(++done / total))));
 }
 
 
@@ -1109,6 +1126,32 @@ export class World3D {
     for (let i = 3; i < img.data.length; i += 4) img.data[i] = 255;
     ctx.putImageData(img, 0, 0);
     return { canvas: c, k, vTop, ...area, mapW: map.w, mapH: map.h };
+  }
+
+  /** True once the current map's ground and scenery are built (all its models arrived). */
+  get mapReady(): boolean { return this.builtMap !== null && !this.mapPending; }
+
+  /**
+   * Behind the loading screen: put one of every monster `models` names in the world, compile every
+   * shader the scene uses (in the background where the browser can), and draw a frame (shadow
+   * maps), so nothing stalls the first time a monster, effect or region appears. The monsters go
+   * into their pools, ready to be reused.
+   */
+  async warmUp(models: readonly string[]): Promise<void> {
+    const made: Actor[] = [];
+    for (const key of models) {
+      const [area, slot] = key.slice(1).split('_').map(Number);
+      const fly = slot < 3 && areaFor(area).def.monsters[slot]?.shape === 'bat';
+      const a = this.acquire(key, fly);
+      if (!a) continue;
+      a.obj.position.set(0, -500, 0); // out of sight, but drawn (shaders and skinning compile)
+      this.play(a, a.idle, 0);
+      a.mixer.update(0);
+      made.push(a);
+    }
+    try { await this.renderer.compileAsync(this.scene, this.camera); } catch { /* compiled on first draw instead */ }
+    this.render();
+    for (const a of made) this.release(a);
   }
 
   render(): void {

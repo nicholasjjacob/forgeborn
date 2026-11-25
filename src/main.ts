@@ -13,7 +13,8 @@ import { installCurrencyIcons } from './render/currencyIcons';
 import { Hud } from './ui/hud';
 import { Input } from './ui/input';
 import { zoneArea, zoneName } from './sim/zones';
-import { preloadArea } from './render/world3d';
+import { areaMonsterModels, preloadArea } from './render/world3d';
+import { loadingDone, loadingFailed, loadingPaint, loadingStep } from './ui/loading';
 import { OFFLINE_CAP_HOURS, applyOfflineReward, hasReward, offlineReward } from './sim/offline';
 import { showWelcome } from './ui/welcome';
 import { openSettings } from './ui/settings';
@@ -28,6 +29,7 @@ const CATCHUP_LIMIT = 60;        // seconds simulated live after a tab switch; l
 async function boot() {
   // Smooth, shaded art (drawn at high resolution): linear filtering, sub-pixel motion.
   TextureStyle.defaultOptions.scaleMode = 'linear';
+  loadingStep(0.05, 'Starting up…');
   const savePromise = loadSave(); // read storage while the renderer starts up
 
   const host = document.getElementById('canvas-host')!;
@@ -46,6 +48,7 @@ async function boot() {
     skipExtensionImports: true,
   });
   host.appendChild(app.canvas);
+  loadingStep(0.1);
 
   // Damage numbers use the display font: wait briefly for it so the bitmap font is built from it.
   await Promise.race([document.fonts.load('32px "Lilita One"'), new Promise((r) => setTimeout(r, 1500))]).catch(() => {});
@@ -53,11 +56,17 @@ async function boot() {
   const art = buildArt();
   // Rendered 3D sprites (hero + scenery now, each area's monsters on demand). If they're slow
   // or missing, the code-drawn art is used and swapped out as soon as the sheets arrive.
+  loadingStep(0.14, 'Painting the heroes…');
   await Promise.race([loadRenderedArt(), new Promise((r) => setTimeout(r, 2500))]);
   const loaded = await savePromise;
-  // The 3D models for the hero's zone (a few MB the first time, cached after): wait a little
-  // so the game doesn't open on an empty field; anything slower pops in when it arrives.
-  await Promise.race([preloadArea(zoneArea(loaded.zone ?? 0), loaded.skin), new Promise((r) => setTimeout(r, 6000))]);
+  // Every 3D model the forest needs (a few MB the first time, cached after), with the bar
+  // following along. A very slow connection carries on after a while: the rest pops in later.
+  loadingStep(0.2, 'Loading the forest…');
+  const area = zoneArea(loaded.zone ?? 0);
+  await Promise.race([
+    preloadArea(area, loaded.skin, (f) => loadingStep(0.2 + 0.5 * f, `Loading the forest… ${Math.round(f * 100)}%`)),
+    new Promise((r) => setTimeout(r, 20000)),
+  ]);
   // Offline earnings since the last save (rewards are granted immediately, then shown).
   const bootReward = offlineReward(loaded, (Date.now() - loaded.savedAt) / 1000, OFFLINE_CAP_HOURS + loaded.perks.offline);
   if (hasReward(bootReward)) applyOfflineReward(loaded, bootReward);
@@ -137,6 +146,23 @@ async function boot() {
   const relayout = () => scene.layout(app.screen.width, app.screen.height);
   app.renderer.on('resize', relayout);
   relayout();
+
+  // Behind the loading screen: build the forest, compile every shader with one of each monster
+  // in view, draw the first frames and the World Map, so play starts without hitches.
+  loadingStep(0.74, 'Growing the trees…');
+  await loadingPaint();
+  for (let i = 0; i < 100 && !scene.world3d.mapReady; i++) {
+    scene.world3d.syncMap(sim.map);
+    if (!scene.world3d.mapReady) await new Promise((r) => setTimeout(r, 100));
+  }
+  loadingStep(0.84, 'Waking the monsters…');
+  await loadingPaint();
+  await scene.world3d.warmUp(areaMonsterModels(area));
+  scene.update(1, 0);
+  app.render();
+  loadingStep(0.93, 'Drawing the map…');
+  await loadingPaint();
+  hud.worldMap.warm();
   // The battlefield also changes size without a window resize (hiding/showing the menu).
   // Redraw at once: a resized canvas is blank until its next frame, which would flicker
   // while the menu slides.
@@ -192,6 +218,7 @@ async function boot() {
     }
   });
   window.addEventListener('pagehide', save);
+  loadingDone();
 
   if (import.meta.env.DEV) {
     // Dev-only debug handle (stripped from production builds).
@@ -201,5 +228,5 @@ async function boot() {
 
 boot().catch((err) => {
   console.error(err);
-  document.body.innerHTML = `<p style="padding:20px;color:#fff">Couldn't start the game: ${String(err?.message ?? err)}</p>`;
+  loadingFailed(String(err?.message ?? err));
 });

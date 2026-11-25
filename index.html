@@ -23,8 +23,29 @@
         q.addEventListener('change', set);
       })();
     </script>
+    <style>
+      /* Loading screen: styled here (not in style.css) so it shows on the very first paint. */
+      #loading {
+        position: fixed; inset: 0; z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+        padding: 24px; background: radial-gradient(ellipse at 50% 38%, #2c3a8c, #14193f 70%); color: #fff;
+        font-family: 'Lilita One', 'Arial Black', system-ui, sans-serif; transition: opacity 0.45s ease;
+      }
+      #loading.gone { opacity: 0; pointer-events: none; }
+      #loading img { width: 112px; height: 112px; border-radius: 26px; image-rendering: pixelated; box-shadow: 0 0 0 4px #8a5a2b, 0 8px 0 4px #4a2c12, 0 14px 30px #0008; animation: ld-bob 1.6s ease-in-out infinite alternate; }
+      #loading h1 { margin: 6px 0 0; font-size: 44px; font-weight: 400; letter-spacing: 0.04em; text-shadow: 0 3px 0 #0a1035, 0 0 18px #6f8cff66; }
+      .ld-bar { position: relative; width: min(300px, 74vw); height: 18px; border-radius: 10px; overflow: hidden; background: #0a1035; box-shadow: 0 0 0 3px #8a5a2b, 0 4px 0 3px #4a2c12, inset 0 2px 0 #0008; }
+      .ld-fill { position: absolute; inset: 0; transform-origin: left; transform: scaleX(0.03); background: linear-gradient(#ffe85a, #ffb81c 60%, #e8901c); transition: transform 0.35s ease-out; }
+      .ld-text { min-height: 1.2em; font-family: Fredoka, system-ui, sans-serif; font-weight: 600; font-size: 14px; color: #a9b8ee; }
+      @keyframes ld-bob { to { transform: translateY(-6px); } }
+    </style>
   </head>
   <body>
+    <div id="loading" role="progressbar" aria-label="Loading Forgeborn">
+      <img src="./icons/icon-192.png" alt="" />
+      <h1>Forgeborn</h1>
+      <div class="ld-bar"><div class="ld-fill"></div></div>
+      <div class="ld-text">Loading…</div>
+    </div>
     <main id="app">
       <p id="hint" class="hint">Drag to move · tap Auto to let the hero hunt on their own</p>
       <section id="battle" aria-label="Battlefield">
