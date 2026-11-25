@@ -7,7 +7,7 @@ import { ELITE, MAX_ENEMIES, MAX_HERO_SHOTS, MAX_SHOTS, SLAM_RADIUS, SLAM_WIND, 
 import { MAX_PICKUPS } from '../sim/gather';
 import { cloneActor, findClip, loadModel, measure, model } from './models';
 import { Fx3D } from './fx3d';
-import { BOLT_MODEL, arrowModel, buildKitWeapon, buildWeapon, weaponTrailColor, type WeaponView } from './weapons3d';
+import { BOLT_MODEL, arrowModel, buildKitWeapon, idleTilt, buildWeapon, weaponTrailColor, type WeaponView } from './weapons3d';
 import { applyLook, applyPalette } from './heroLook';
 import { heroAnimFiles, heroScale, heroWeaponScale, loadHeroAnims, type HeroAnims } from './heroRig';
 import { lookOf } from '../sim/skins';
@@ -786,6 +786,10 @@ export class World3D {
         if (this.heroAct.run) this.heroAct.run.timeScale = 1.25;
       }
       this.heroMixer.update(dt);
+      // Standing idle: blades held upright; attacking or running: the pack's own grip (see idleTilt).
+      const attacking = h.swingT > 0 || this.heroCur === this.heroAct.attack;
+      const tilt = attacking || h.moving || dead ? 0 : idleTilt(eq?.form ?? 0);
+      this.kitHand.rotation.z += (tilt - this.kitHand.rotation.z) * (1 - Math.exp(-dt * (attacking ? 30 : 8)));
     }
     this.heroDead = dead;
     this.heroSwing = h.swingT;

@@ -210,6 +210,15 @@ const ROT: Record<string, [number, number, number]> = {
   fw_bow_A_withString: [0, -Math.PI / 2, 0], fw_bow_B_withString: [0, -Math.PI / 2, 0], fw_bow_C_withString: [0, -Math.PI / 2, 0],
 };
 
+/**
+ * The packs' idle animation is unarmed: the hand points weapons straight ahead at the waist,
+ * which reads as an upside-down grip. While standing idle, blades, axes, hammers and staffs are
+ * tilted upright by this much (radians about the hand slot's z axis); attacks and running use
+ * the pack's own grip. Bows, crossbows, the shotgun and claws are held as they are.
+ */
+const NO_TILT = new Set([5, 6, 7, 11, 13]);
+export const idleTilt = (form: number) => (NO_TILT.has(form) ? 0 : 1.0);
+
 /** Rarity tier (0-3) for the model ladder. */
 export const kitTier = (rarity: number) => (rarity >= 6 ? 3 : rarity >= 4 ? 2 : rarity >= 2 ? 1 : 0);
 

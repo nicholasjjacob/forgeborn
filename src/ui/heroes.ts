@@ -4,7 +4,7 @@ import { cloneActor, findClip, loadModel, measure } from '../render/models';
 import { SKINS, lookOf, skinDef } from '../sim/skins';
 import { applyLook, applyPalette, paletteReady } from '../render/heroLook';
 import { heroScale, heroWeaponScale, loadHeroAnims } from '../render/heroRig';
-import { buildKitWeapon, kitModels } from '../render/weapons3d';
+import { buildKitWeapon, idleTilt, kitModels } from '../render/weapons3d';
 import { FORMS } from '../sim/weapons';
 import type { Sim } from '../sim/sim';
 import { gi } from './icons';
@@ -296,6 +296,7 @@ export class HeroesUI {
     const kit = buildKitWeapon(w?.form ?? skinDef(id).forms[0], w?.rarity ?? 0);
     if (kit) {
       kit.group.scale.multiplyScalar(heroWeaponScale(id));
+      kit.group.rotation.z = idleTilt(w?.form ?? skinDef(id).forms[0]); // the stage shows the idle pose: held upright
       kit.off?.scale.multiplyScalar(heroWeaponScale(id));
       inner.getObjectByName('handslotr')?.add(kit.group);
       if (kit.off) inner.getObjectByName('handslotl')?.add(kit.off);
