@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { sfx } from '../audio/sfx';
 import { cloneActor, findClip, loadModel, measure } from '../render/models';
 import { SKINS, lookOf, skinDef } from '../sim/skins';
-import { applyLook, applyPalette } from '../render/heroLook';
+import { applyLook, applyPalette, paletteReady } from '../render/heroLook';
 import { heroScale, heroWeaponScale, loadHeroAnims } from '../render/heroRig';
 import { buildKitWeapon, kitModels } from '../render/weapons3d';
 import { FORMS } from '../sim/weapons';
@@ -271,7 +271,11 @@ export class HeroesUI {
     });
     for (const n of ['weapon-hand', 'weapon-kit-r', 'weapon-kit-l']) inner.getObjectByName(n)?.removeFromParent(); // the battlefield's weapon, if cloned along
     applyLook(inner, id, lookOf(id, this.sim.save.looks));
-    applyPalette(inner, id, this.sim.save.palettes[id] ?? 0);
+    // Wait for the colour scheme's texture: drawn before it arrives, the hero (and its one-shot
+    // portrait) would come out black.
+    const pal = this.sim.save.palettes[id] ?? 0;
+    await paletteReady(id, pal);
+    applyPalette(inner, id, pal);
     // The clone copies whatever pose the battlefield hero was in (mid-run, mid-swing): measure it at rest.
     inner.traverse((o) => { if ((o as THREE.SkinnedMesh).isSkinnedMesh) (o as THREE.SkinnedMesh).skeleton.pose(); });
     const dims = measure(inner);

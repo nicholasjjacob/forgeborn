@@ -758,8 +758,8 @@ export class World3D {
     // Only once the loaded model is this hero's (while a new hero loads, the old model is still up).
     if (this.heroModel && this.heroModelSkin === sim.save.skin && this.heroLookOn !== `${this.heroModel.uuid}${look}${pal}`) {
       applyLook(this.heroModel, this.heroSkin, look);
-      applyPalette(this.heroModel, this.heroSkin, pal);
-      this.heroLookOn = `${this.heroModel.uuid}${look}${pal}`;
+      // (Retried next frame while the colour scheme's texture is still loading.)
+      if (applyPalette(this.heroModel, this.heroSkin, pal)) this.heroLookOn = `${this.heroModel.uuid}${look}${pal}`;
     }
     this.heroRoot.position.set(hx, 0, hy);
     const mvx = h.x - h.prevX, mvy = h.y - h.prevY;
