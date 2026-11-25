@@ -1399,3 +1399,26 @@ html.pc .wm-ri-act .btn { min-width: 100%; }
   flex: 0 0 30px; height: 30px; margin: 0; display: flex; align-items: center; justify-content: center; gap: 4px;
 }
 .codex-grid.big .codex-card > .btn { padding-top: 0; padding-bottom: 0; min-width: 60%; }
+
+/* PC: the left-hand buttons match the bottom buttons; Auto, Settings and the area box are bigger
+   (there's room on a wide window). Phones keep their sizes. */
+html.pc .side-icons { gap: 10px; margin-top: 10px; }
+html.pc .side-btn { width: 78px; height: 78px; border-radius: 18px; }
+html.pc .side-ico .gi { width: 44px; height: 44px; }
+html.pc .side-lbl { font-size: 13px; margin-top: 2px; }
+html.pc .side-btn .dot { transform: scale(1.15); }
+html.pc .chips { gap: 9px; }
+html.pc #auto-btn { font-size: 17px; padding: 8px 18px; }
+html.pc #settings-btn { padding: 6px 13px; }
+html.pc #settings-btn .gi { width: 27px; height: 27px; vertical-align: -6px; }
+html.pc .stage-info { padding: 8px 26px 11px; border-radius: 18px; }
+html.pc #stage-label { font-size: 27px; }
+html.pc #area-label { font-size: 12px; margin: 2px 0 6px; }
+html.pc #progress { width: 210px; height: 20px; border-radius: 10px; }
+html.pc #progress-text { font-size: 12px; line-height: 20px; }
+html.pc .level-chip { font-size: 13px; line-height: 19px; margin-top: 7px; padding: 2px 10px 2px 8px; }
+html.pc .level-chip .xp-bar { width: 100px; height: 8px; }
+/* Not enough height for six big buttons in a column above the minimap: two columns instead. */
+@media (max-height: 1000px) {
+  html.pc .side-icons { display: grid; grid-template-columns: repeat(2, 78px); }
+}
