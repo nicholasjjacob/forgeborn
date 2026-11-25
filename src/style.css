@@ -1283,3 +1283,24 @@ html.icons3d .chest.ready .chest-ico { width: 38px; height: 38px; filter: drop-s
 .slot.has3d img, .wc-icon.has3d img { visibility: hidden; }
 .slot.empty canvas.wpn3d { display: none; }
 .slot.other-class canvas.wpn3d { opacity: 0.55; filter: grayscale(0.7); }
+
+/* Heroes screen: a locked (non-scrolling) layout. The cards sit in two compact rows of five
+   and the 3D stage takes whatever height is left, so everything fits on any phone. */
+.sheet.heroes-sheet { height: min(100%, 760px); max-height: 100%; }
+.heroes-sheet .sheet-body { display: flex; flex-direction: column; overflow: hidden; padding-bottom: 12px; }
+.heroes-sheet .sheet-body > * { flex: 0 0 auto; }
+.heroes-sheet .hero-stage { flex: 1 1 200px; min-height: 110px; height: auto; margin: 2px 0 6px; }
+.heroes-sheet .hero-info { margin-bottom: 6px; }
+.heroes-sheet .hero-name { font-size: 21px; }
+.heroes-sheet .hero-perk { font-size: 12px; }
+.heroes-sheet .hero-looks, .heroes-sheet .hero-palettes { margin: 0 0 6px; }
+.heroes-sheet .hero-looks button { padding: 5px 9px; font-size: 12px; }
+.heroes-sheet .hero-action { margin-bottom: 8px; }
+.heroes-sheet .hero-action .btn { padding: 9px; font-size: 17px; }
+.heroes-sheet .hero-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.heroes-sheet .hero-card { padding: 4px 3px 5px; gap: 1px; border-radius: 12px; min-width: 0; }
+.heroes-sheet .hero-portrait { border-radius: 8px; }
+.heroes-sheet .hero-card-name { font-size: 11px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.heroes-sheet .hero-card-role { display: none; }
+.heroes-sheet .hero-tag { font-size: 9.5px; white-space: nowrap; }
+.heroes-sheet .hero-lock .gi { width: 14px; height: 14px; }
