@@ -50,6 +50,8 @@ export class Scene {
   private readonly heroBarBg: Sprite;
   private readonly heroBarFg: Sprite;
   private readonly enemyViews: EnemyView[] = [];
+  /** "Back in 1:23" over each lair whose boss is recovering (by zone). */
+  private readonly lairTimers = new Map<number, { text: BitmapText; shown: string }>();
   /** Black overlay that fades out when the zone's map changes. */
   private readonly fade: Sprite;
   private fadeT = 0;
@@ -132,6 +134,33 @@ export class Scene {
     this.world3d.screenToGround(sx, sy, out);
   }
 
+  /** A countdown over every lair (in view) whose boss is recovering, until it rises again. */
+  private updateLairTimers(): void {
+    const f = this.sim.map.forest;
+    const now = this.sim.clock();
+    for (const [zone, t] of this.lairTimers) if (!f || !f.lairs.some((l) => l.zone === zone)) t.text.visible = false;
+    if (!f) return;
+    for (const l of f.lairs) {
+      const left = this.sim.lairCooldownLeft(l.zone, now);
+      let t = this.lairTimers.get(l.zone);
+      if (left <= 0 || !this.world3d.inView(l.x, l.y, 60)) { if (t) t.text.visible = false; continue; }
+      if (!t) {
+        const text = new BitmapText({ text: '', style: { fontFamily: FONT, fontSize: FONT_PX } });
+        text.anchor.set(0.5, 1);
+        text.scale.set(5.2 / FONT_PX); // a little bigger than the hero's level label
+        text.tint = 0xffd6d6;
+        this.overlay.addChild(text);
+        t = { text, shown: '' };
+        this.lairTimers.set(l.zone, t);
+      }
+      const secs = Math.ceil(left);
+      const label = `Back in ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+      if (label !== t.shown) { t.shown = label; t.text.text = label; }
+      t.text.visible = true;
+      this.place(t.text, l.x, 10, l.y); // low over the lair's heart
+    }
+  }
+
   /** Overlay item at a 3D point: position in overlay units. */
   private place(c: Container, x: number, height: number, y: number): void {
     this.world3d.project(x, height, y, this.pt);
@@ -200,6 +229,8 @@ export class Scene {
       v.root.visible = w3.inView(x, y, 30);
       if (v.root.visible) this.drawEnemy(e, v, x, y, w3.enemyTop(i, e));
     }
+
+    this.updateLairTimers();
 
     if (this.fadeT > 0) {
       this.fadeT = Math.max(0, this.fadeT - dt);

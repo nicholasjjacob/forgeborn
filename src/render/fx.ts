@@ -19,7 +19,7 @@ export function installFonts(): void {
       fill: '#ffffff',
       stroke: { color: '#0a1035', width: 7, join: 'round' },
     },
-    chars: [['0', '9'], ['a', 'z'], '.KMBT!+- LVEUP'],
+    chars: [['0', '9'], ['a', 'z'], '.KMBT!+- LVEUP:'],
     resolution: 2,
   });
 }

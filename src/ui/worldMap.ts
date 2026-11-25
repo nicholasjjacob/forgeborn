@@ -46,6 +46,8 @@ export class WorldMapUI {
   private drawnAt = 0;
   private heading = -Math.PI / 2;
   private readonly icons = new Map<number, HTMLImageElement>();
+  /** Tappable markers drawn this frame (canvas px): haunts and lairs, which fast-travel there. */
+  private targets: { x: number; y: number; r: number; spotX: number; spotY: number; keepOut: number; zone: number }[] = [];
   /** Draws the scenery from above (set by main: the 3D world renderer). */
   overview: ((widthPx: number, rect?: Rect) => Overview | null) | null = null;
 
@@ -143,6 +145,13 @@ export class WorldMapUI {
       sfx.play('tick');
       this.toast(this.lockText(Number(arg)));
     }
+  }
+
+  /** Fast travel to a haunt or a lair (its region must be open, and no boss fight on). */
+  private travelToSpot(t: { spotX: number; spotY: number; keepOut: number; zone: number }): void {
+    if (!this.sim.zoneUnlocked(t.zone)) { sfx.play('tick'); this.toast(this.lockText(t.zone)); return; }
+    if (this.sim.bossActive) { this.toast('Finish the boss fight first'); return; }
+    if (this.sim.travelToSpot(t.spotX, t.spotY, t.keepOut)) { sfx.play('area'); this.close(); }
   }
 
   private lockText(z: number): string {
@@ -433,6 +442,7 @@ export class WorldMapUI {
     const at = (x: number, y: number, h = 0) => { const p = this.toMap(x, y, h); return { x: cx(p.x), y: cy(p.d) }; };
     const zoomed = this.region >= 0;
     const scale = Math.max(1, dpr) * (zoomed ? 1.2 : 0.9);
+    this.targets = [];
 
     // Closed passes (found ones): a red X.
     for (const gate of f.gates) {
@@ -448,6 +458,7 @@ export class WorldMapUI {
         if (t.biome !== this.region || !seen(t.x, t.y)) continue;
         const p = at(t.x, t.y);
         const r = (t.horde ? 17 : 13) * scale;
+        this.targets.push({ x: p.x, y: p.y, r: r * 1.35, spotX: t.x, spotY: t.y, keepOut: t.r * 0.5, zone: t.zone });
         const disc = g.createRadialGradient(p.x, p.y - r * 0.3, r * 0.1, p.x, p.y, r);
         disc.addColorStop(0, '#f4f7ff'); disc.addColorStop(1, '#b9c6ea');
         g.fillStyle = disc;
@@ -491,9 +502,14 @@ export class WorldMapUI {
       g.fillStyle = '#fff'; g.font = `${12 * scale}px system-ui, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
       g.fillText('☠', p.x, p.y + 0.5 * scale);
       if (zoomed && l.biome === this.region) {
+        this.targets.push({ x: p.x, y: p.y, r: r * 1.8, spotX: l.x, spotY: l.y, keepOut: l.r + 26, zone: l.zone });
+        // Its name, or while the boss recovers, when it rises again.
+        const left = this.sim.lairCooldownLeft(l.zone);
+        const secs = Math.ceil(left);
+        const label = left > 0 ? `${l.name} · back in ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}` : l.name;
         g.font = `600 ${11 * scale}px Fredoka, system-ui, sans-serif`; g.textBaseline = 'top';
         g.lineWidth = 3 * scale; g.strokeStyle = 'rgba(10,16,53,0.85)'; g.fillStyle = '#ffd6d6';
-        g.strokeText(l.name, p.x, p.y + r + 3 * scale); g.fillText(l.name, p.x, p.y + r + 3 * scale);
+        g.strokeText(label, p.x, p.y + r + 3 * scale); g.fillText(label, p.x, p.y + r + 3 * scale);
       }
     }
 
@@ -575,11 +591,17 @@ export class WorldMapUI {
     const up = (e: PointerEvent) => {
       const d = drag;
       drag = null;
-      if (!d || e.pointerId !== d.id || d.moved || !this.ov || this.region >= 0) return;
-      // Tap on the whole map: which region is under it?
+      if (!d || e.pointerId !== d.id || d.moved || !this.ov) return;
       const r = cv.getBoundingClientRect();
       const dpr = cv.width / r.width;
       const px = (e.clientX - r.left) * dpr, py = (e.clientY - r.top) * dpr;
+      // Close up: a tap on a haunt or a lair travels there.
+      if (this.region >= 0) {
+        const hit = this.targets.filter((t) => Math.hypot(px - t.x, py - t.y) <= t.r).sort((a, b) => Math.hypot(px - a.x, py - a.y) - Math.hypot(px - b.x, py - b.y))[0];
+        if (hit) this.travelToSpot(hit);
+        return;
+      }
+      // Tap on the whole map: which region is under it?
       const x = (px - cv.width / 2) / this.view.s + this.view.x;
       const dd = (py - cv.height / 2) / this.view.s + this.view.d;
       const y = this.sim.map.h / 2 + dd / SIN;

@@ -455,6 +455,36 @@ export class Sim {
     return true;
   }
 
+  /**
+   * Fast travel to a spot on the World Map (a monster haunt, a boss lair) in a region that's open:
+   * the hero lands on free ground near it, on the side facing the region's way in, at least
+   * `keepOut` away (outside a lair, so the boss only rises when the hero walks in).
+   */
+  travelToSpot(x: number, y: number, keepOut = 0): boolean {
+    const b = forestRegion(x, y);
+    if (b < 0 || !this.travelTo(b)) return false;
+    const a = biomeArrival(b);
+    const toward = Math.atan2(a.y - y, a.x - x);
+    for (let r = keepOut; r < keepOut + 420; r += 20) {
+      for (let k = 0; k < 16; k++) {
+        const ang = toward + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * (Math.PI / 8);
+        const px = x + Math.cos(ang) * r, py = y + Math.sin(ang) * r;
+        if (forestRegion(px, py) !== b || this.map.blocked(px, py, HERO_RADIUS + 4)) continue;
+        this.hero.x = this.hero.prevX = px;
+        this.hero.y = this.hero.prevY = py;
+        return true;
+      }
+    }
+    return true; // nowhere free nearby: the region's way in
+  }
+
+  /** Seconds until a zone's beaten boss rises again (0: ready, or not beaten yet). */
+  lairCooldownLeft(zone: number, now = this.clock()): number {
+    if (zone >= this.save.zoneBosses) return 0;
+    const at = this.save.bossReady[zone] ?? 0;
+    return Math.min(bossCooldown(zone), Math.max(0, (at - now) / 1000));
+  }
+
   /** The forest region the hero stands in (or the current zone on the old maps). */
   private trackRegion(): void {
     const f = this.map.forest;
@@ -497,7 +527,6 @@ export class Sim {
     if (!this.explored) this.explored = new Explored(map.w, map.h, this.save.explored);
     if (this.explored.reveal(this.hero.x, this.hero.y)) this.save.explored = this.explored.toString();
   }
-  private lairHintT = 0;
 
   /** Forest boss lairs: walking into the current region's lair calls up its boss. */
   private updateLair(): void {
@@ -516,15 +545,7 @@ export class Sim {
     const now = this.clock();
     if (this.zoneBossBeaten) {
       const left = this.bossCooldownLeft(now);
-      if (left > 0) {
-        // A recovering boss: say when it will be back (now and then, while the hero waits here).
-        if (this.time > this.lairHintT) {
-          this.lairHintT = this.time + 8;
-          const secs = Math.ceil(left), m = Math.floor(secs / 60), sec = secs % 60;
-          this.notices.push(`The ${zoneBossName(z)} is recovering: back in ${m}:${String(sec).padStart(2, '0')}`);
-        }
-        return;
-      }
+      if (left > 0) return; // still recovering: a countdown floats over the lair (render/scene.ts)
       this.save.bossReady[z] = now + bossCooldown(z) * 1000;
     }
     // One on one: the lair's surroundings are cleared, then the boss rises at its heart.
