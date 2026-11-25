@@ -1393,3 +1393,9 @@ html.pc .wm-ri-act .btn { min-width: 100%; }
 
 /* Square minimap: the same view as the circle, in a rounded square frame. */
 .minimap.square { border-radius: 14px; }
+/* A codex card's last row is the same height whether it's the Claim button or the "Next" line, so
+   claiming a reward doesn't make the card (and its 3D monster) resize. */
+.codex-grid.big .codex-card > .btn, .codex-grid.big .codex-next {
+  flex: 0 0 30px; height: 30px; margin: 0; display: flex; align-items: center; justify-content: center; gap: 4px;
+}
+.codex-grid.big .codex-card > .btn { padding-top: 0; padding-bottom: 0; min-width: 60%; }
