@@ -9,13 +9,22 @@ import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js
  */
 
 const loader = new GLTFLoader();
+
+/**
+ * The address of a file in public/models, with its content fingerprint (so an updated model is
+ * never served stale from a cache).
+ */
+export function modelUrl(file: string): string {
+  const v = typeof __ASSET_HASHES__ === 'undefined' ? undefined : __ASSET_HASHES__[file];
+  return v ? `models/${file}?v=${v}` : `models/${file}`;
+}
 const cache = new Map<string, Promise<GLTF>>();
 const ready = new Map<string, GLTF>();
 
 export function loadModel(name: string): Promise<GLTF> {
   let p = cache.get(name);
   if (!p) {
-    p = loader.loadAsync(`models/${name}.glb`).then((g) => {
+    p = loader.loadAsync(modelUrl(`${name}.glb`)).then((g) => {
       g.scene.traverse((o) => {
         const m = o as THREE.Mesh;
         if (!m.isMesh) return;
@@ -53,7 +62,7 @@ const forestTex = new Map<number, THREE.Texture>();
 function forestTexture(colour: number): THREE.Texture {
   let t = forestTex.get(colour);
   if (!t) {
-    t = new THREE.TextureLoader().load(`models/tex/forest_${colour}.png`);
+    t = new THREE.TextureLoader().load(modelUrl(`tex/forest_${colour}.png`));
     t.flipY = false; // glTF UV convention
     t.colorSpace = THREE.SRGBColorSpace;
     // A palette atlas: sample cells without mipmap blending.

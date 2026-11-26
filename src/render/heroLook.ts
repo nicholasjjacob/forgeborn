@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { skeletonLookOf, skinDef, type LookDef } from '../sim/skins';
+import { modelUrl } from './models';
 
 /**
  * Hero styles (see SkinDef.looks / palette): pieces of the model hidden (a hat, a cape, a mask),
@@ -47,9 +48,15 @@ export function applyBonesLooks(root: THREE.Object3D, skin: string, looks: Recor
 /** Show the pieces style `look` keeps (of every piece any style in `looks` can hide), and set the visor. */
 function applyLookList(root: THREE.Object3D, looks: readonly LookDef[] | undefined, look: string): void {
   if (!looks) return;
-  const def = looks.find((l) => l.id === look) ?? looks[0];
   const hidden = new Set<string>();
   for (const l of looks) for (const n of l.hide ?? []) hidden.add(n); // every piece any style can hide
+  const present = new Set<string>();
+  root.traverse((o) => { if ((o as THREE.Mesh).isMesh) present.add(o.name); });
+  // A style is only worn if the model has the pieces it shows (an older copy of a model, without
+  // them, keeps the default instead of hiding a body with nothing to replace it).
+  const usable = (l: LookDef) => [...hidden].every((n) => l.hide?.includes(n) || present.has(n)); // every piece it shows exists
+  const want = looks.find((l) => l.id === look) ?? looks[0];
+  const def = usable(want) ? want : looks[0];
   const visorStyle = looks.some((l) => l.visor);
   root.traverse((o) => {
     const m = o as THREE.Mesh;
@@ -77,7 +84,7 @@ const ownTex = new Map<string, THREE.Texture>();
 function loadAlt(name: string): Promise<THREE.Texture | null> {
   let p = altLoading.get(name);
   if (!p) {
-    p = loader.loadAsync(`models/tex/${name}.png`).then((t) => { altTex.set(name, t); return t; }, () => null);
+    p = loader.loadAsync(modelUrl(`tex/${name}.png`)).then((t) => { altTex.set(name, t); return t; }, () => null);
     altLoading.set(name, p);
   }
   return p;
