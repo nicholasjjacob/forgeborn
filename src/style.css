@@ -1400,7 +1400,7 @@ html.pc #dock .dock-lbl { font-size: 13px; }
 html.pc .minimap { left: 14px; bottom: calc(var(--safe-bottom) + 14px); width: 176px; height: 176px; }
 html.pc .hint { bottom: calc(var(--dock-h) + var(--safe-bottom) + 24px); font-size: 13px; }
 html.pc #toast { top: 34%; }
-html.pc #canvas-host { cursor: crosshair; }
+/* (PC cursors: see the RPG arrow rules at the end of this file.) */
 /* Hover feedback for the mouse. */
 html.pc .side-btn:hover, html.pc #dock button:hover, html.pc .chip:hover { filter: brightness(1.12); }
 /* Big screens (1080p and up): scale the HUD so it isn't tiny on a large monitor. */
@@ -1754,3 +1754,9 @@ html.pc .st-hero.left:hover, html.pc .st-hero.right:hover { filter: grayscale(0.
    take what's left of the column, so they still fit above the minimap. */
 html.pc .purse > .gold, html.pc .purse > .shards, html.pc .purse > .embers, html.pc .purse > .gems { zoom: 1.18; }
 html.pc .purse { gap: 5px; }
+
+/* PC cursors (ui/cursor.ts): the gold RPG arrow everywhere (zero specificity, so a grab cursor and
+   the like still win), and its glowing version over anything clickable. */
+:where(html.pc, html.pc *) { cursor: var(--cur-arrow, default); }
+html.pc :is(button, [role="button"], a, label, select, .chest, .bag-tile, .hero-card, .wm-canvas, .st-hero, .zone-lock, .jday, .minimap, .level-chip, .codex-land, .qb-region):not(:disabled) { cursor: var(--cur-hand, pointer); }
+html.pc :is(button, .btn):disabled { cursor: var(--cur-arrow, default); }

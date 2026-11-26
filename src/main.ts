@@ -16,6 +16,7 @@ import { zoneArea, zoneName } from './sim/zones';
 import { areaMonsterModels, preloadArea } from './render/world3d';
 import { loadingDone, loadingFailed, loadingPaint, loadingStep } from './ui/loading';
 import { chooseStarter } from './ui/starter';
+import { installCursors } from './ui/cursor';
 import { STARTERS } from './sim/skins';
 import { loadModel } from './render/models';
 import { heroAnimFiles } from './render/heroRig';
@@ -36,6 +37,7 @@ const CATCHUP_LIMIT = 60;        // seconds simulated live after a tab switch; l
 async function boot() {
   // Smooth, shaded art (drawn at high resolution): linear filtering, sub-pixel motion.
   TextureStyle.defaultOptions.scaleMode = 'linear';
+  installCursors(); // the RPG arrow cursor on PC
   loadingStep(0.05, 'Starting up…');
   const savePromise = loadSave(); // read storage while the renderer starts up
 
