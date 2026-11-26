@@ -97,7 +97,7 @@ export class HeroesUI {
       sfx.play('tick');
       this.pick = id;
     } else if (act === 'equip') {
-      if (sim.selectSkin(id)) { sfx.play('stage'); this.toast(`${skinDef(id).name} ready for battle!`); }
+      if (sim.selectSkin(id)) { sfx.play('stage'); this.toast(`${skinDef(id).name} picks up their journey at Lv ${sim.save.level}`); }
     } else if (act === 'look' || act === 'pal') {
       if (act === 'look' ? sim.setLook(this.pick, id) : sim.setPalette(this.pick, Number(id))) {
         sfx.play('tick');
@@ -108,8 +108,8 @@ export class HeroesUI {
       }
     } else if (act === 'buy') {
       const d = skinDef(id);
-      if (sim.buySkin(id)) { sfx.play('achieve'); this.toast(`New hero: ${d.name}!`); }
-      else { sfx.play('tick'); this.toast(sim.save.level < (d.minLevel ?? 0) ? `Reach hero level ${d.minLevel} first` : 'Not enough gems yet'); }
+      if (sim.buySkin(id)) { sfx.play('achieve'); this.toast(`New hero: ${d.name}! A fresh journey begins`); }
+      else { sfx.play('tick'); this.toast(sim.bestLevel < (d.minLevel ?? 0) ? `Reach hero level ${d.minLevel} first` : 'Not enough gems yet'); }
     }
     this.render();
   }
@@ -145,10 +145,10 @@ export class HeroesUI {
     this.wrap.querySelector('.hero-perk')!.textContent = def.perk;
     this.wrap.querySelector('.hero-weapons')!.textContent = `Weapons: ${def.forms.map((f) => FORMS[f].name).join(', ')}${def.forms.some((f) => FORMS[f].ranged) ? ' · ranged' : ''}`;
     this.wrap.querySelector('.hero-action')!.innerHTML = worn
-      ? `<button type="button" class="btn big grey" disabled>${gi('check-mark', 'green')} Equipped</button>`
+      ? `<button type="button" class="btn big grey" disabled>${gi('check-mark', 'green')} Playing</button>`
       : owned
-        ? `<button type="button" class="btn big green" data-act="equip:${def.id}">Equip</button>`
-        : s.level < (def.minLevel ?? 0)
+        ? `<button type="button" class="btn big green" data-act="equip:${def.id}">Play · Lv ${s.runs[def.id]?.level ?? 1}</button>`
+        : this.sim.bestLevel < (def.minLevel ?? 0)
           ? `<button type="button" class="btn big grey" disabled>${gi('padlock', 'grey')} Reach Lv ${def.minLevel} · <i class="jewel"></i>${def.cost}</button>`
           : `<button type="button" class="btn big blue" data-act="buy:${def.id}" ${gems >= def.cost ? '' : 'disabled'}>Unlock <i class="jewel"></i>${def.cost}</button>`;
     // Styles (e.g. the Knight's visor): shown for owned heroes that have any.
@@ -176,8 +176,8 @@ export class HeroesUI {
     if (def.palette) void this.makeThumbs(def.id);
     this.wrap.querySelector('.hero-grid')!.innerHTML = this.order().map((k) => {
       const have = this.sim.ownsSkin(k.id);
-      const tag = s.skin === k.id ? `${gi('check-mark', 'green')} Equipped` : have ? 'Owned'
-        : s.level < (k.minLevel ?? 0) ? `Lv ${k.minLevel}` : `<i class="jewel"></i>${k.cost}`;
+      const tag = s.skin === k.id ? `${gi('check-mark', 'green')} Lv ${s.level}` : have ? `Owned · Lv ${s.runs[k.id]?.level ?? 1}`
+        : this.sim.bestLevel < (k.minLevel ?? 0) ? `Lv ${k.minLevel}` : `<i class="jewel"></i>${k.cost}`;
       const img = portraits.get(k.id);
       return `<button type="button" class="hero-card ${k.id === this.pick ? 'sel' : ''} ${have ? 'owned' : 'locked'}" data-act="pick:${k.id}">
         <span class="hero-portrait">${img ? `<img alt="" src="${img}" />` : ''}${have ? '' : `<i class="hero-lock">${gi('padlock', 'grey')}</i>`}</span>
@@ -414,7 +414,7 @@ export async function buildHeroModel(sim: Sim, id: string, sized = true, palette
   // The hero holds their weapon: the equipped one, or what they would draw when picked.
   // (Added after measuring, so a tall staff does not shrink the hero.)
   const s = sim.save;
-  const w = id === s.skin ? s.equipped : s.gear[id] ?? null;
+  const w = id === s.skin ? s.equipped : s.runs[id]?.equipped ?? null;
   await Promise.all(kitModels(w?.form ?? skinDef(id).forms[0], w?.rarity ?? 0).map((n) => loadModel(n).catch(() => null)));
   const kit = buildKitWeapon(w?.form ?? skinDef(id).forms[0], w?.rarity ?? 0);
   if (kit) {

@@ -29,7 +29,7 @@ export function chooseStarter(sim: Sim): Promise<string> {
     root.innerHTML = `
       <div class="st-head">
         <h1>Choose your hero</h1>
-        <p>You can unlock the others later in Heroes.</p>
+        <p>Every hero has their own journey. Unlock the others later in Heroes.</p>
       </div>
       <div class="st-stage"></div>
       <div class="st-card">

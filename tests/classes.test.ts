@@ -106,10 +106,78 @@ describe('v6 → v7 migration', () => {
     old.weapons = weapons;
     delete old.gear;
     const s = migrate(old);
-    expect(s.v).toBe(7);
-    expect(s.weapons[0]?.form).toBe(0);
+    expect(s.v).toBe(8);
+    expect(s.runs.knight.weapons[0]?.form).toBe(0); // now a Sword, so it goes to the Knight's bag
     expect(s.equipped?.rarity).toBe(4);
     expect(skinDef('mage').forms).toContain(s.equipped!.form);
-    expect(s.gear).toEqual({});
+    expect(s.runs.knight.equipped?.form).toBe(0); // the Knight's own run, with a starter Sword
+    expect(s.runs.knight.level).toBe(1);
+  });
+});
+
+describe('each hero has their own run', () => {
+  it('switching heroes swaps map progress, level, gold, upgrades, bag and forge', () => {
+    const save = heroSave('knight');
+    save.skins = ['knight', 'ranger'];
+    save.level = 20; save.gold = 5000; save.shards = 300; save.forgeLevel = 6; save.upgrades.atk = 12;
+    save.zone = 2; save.zoneBosses = 2; save.zoneBest = 2; save.stage = 3;
+    save.weapons[0] = { id: 90, rarity: 2, form: 0, traits: [] };
+    const sim = new Sim(save, 1);
+    expect(sim.selectSkin('ranger')).toBe(true);
+    expect(save.level).toBe(1);
+    expect(save.gold).toBe(0);
+    expect(save.shards).toBe(0);
+    expect(save.forgeLevel).toBe(1);
+    expect(save.upgrades.atk).toBe(0);
+    expect(save.zone).toBe(0);
+    expect(save.weapons.every((w) => w === null)).toBe(true);
+    expect(save.equipped?.form).toBe(6);
+    // The Ranger earns their own way, then the Knight comes back exactly as left.
+    save.gold = 77;
+    expect(sim.selectSkin('knight')).toBe(true);
+    expect([save.level, save.gold, save.forgeLevel, save.upgrades.atk, save.zone]).toEqual([20, 5000, 6, 12, 2]);
+    expect(save.weapons[0]?.id).toBe(90);
+    expect(sim.selectSkin('ranger')).toBe(true);
+    expect(save.gold).toBe(77);
+    // Shared across heroes: the furthest zone opened and the best level reached.
+    expect(sim.bestZone).toBe(2);
+    expect(sim.bestLevel).toBe(20);
+  });
+
+  it('Reforge only restarts the current hero', () => {
+    const save = heroSave('knight');
+    save.skins = ['knight', 'ranger'];
+    const sim = new Sim(save, 1);
+    sim.selectSkin('ranger');
+    save.gold = 900;
+    sim.selectSkin('knight');
+    save.highestStage = 40; save.zoneBosses = 2; save.level = 30;
+    sim.reforge();
+    sim.selectSkin('ranger');
+    expect(save.gold).toBe(900);
+  });
+
+  it('v7 saves: the shared bag is split between the heroes who can wield it', () => {
+    const old = { ...freshSave(), v: 7 } as unknown as Record<string, unknown>;
+    old.skins = ['knight', 'ranger', 'mage'];
+    old.skin = 'knight';
+    old.gear = { ranger: { id: 5, rarity: 3, form: 7, traits: [] } }; // an Epic Longbow
+    const weapons = Array(20).fill(null);
+    weapons[0] = { id: 10, rarity: 1, form: 0, traits: [] };   // Sword: stays with the Knight
+    weapons[1] = { id: 11, rarity: 1, form: 6, traits: [] };   // Bow: to the Ranger
+    weapons[2] = { id: 12, rarity: 1, form: skinDef('mage').forms[0], traits: [] }; // to the Mage
+    old.weapons = weapons;
+    delete old.runs;
+    const s = migrate(old);
+    expect(s.v).toBe(8);
+    expect(s.weapons.filter((w) => w).map((w) => w!.id)).toEqual([10]);
+    expect(s.runs.ranger.weapons.filter((w) => w).map((w) => w!.id)).toEqual([11]);
+    expect(s.runs.mage.weapons.filter((w) => w).map((w) => w!.id)).toEqual([12]);
+    expect(s.runs.ranger.equipped?.id).toBe(5);
+    expect((s as unknown as { gear?: unknown }).gear).toBeUndefined();
+    // And a v8 save round-trips.
+    const again = migrate(JSON.parse(JSON.stringify(s)));
+    expect(again.runs.ranger.weapons.filter((w) => w).map((w) => w!.id)).toEqual([11]);
+    expect(again.runs.ranger.equipped?.id).toBe(5);
   });
 });

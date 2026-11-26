@@ -74,7 +74,7 @@ export type BuyMode = 1 | 10 | 'max';
 
 /** Everything that persists between sessions. Kept flat and JSON-friendly. */
 export interface SaveData {
-  v: 7;
+  v: 8;
   stage: number;
   highestStage: number;
   gold: number;
@@ -92,8 +92,11 @@ export interface SaveData {
   forgeLevel: number;
   weapons: (Weapon | null)[];   // fixed-size inventory grid
   equipped: Weapon | null;   // the current hero's weapon
-  /** The other heroes' equipped weapons, by skin id (v7: weapons are class-locked). */
-  gear: Record<string, Weapon | null>;
+  /**
+   * The other heroes' runs, by skin id (v8). Each hero has their own run through the map: the
+   * RUN_KEYS fields above are the current hero's, and switching heroes swaps them in and out.
+   */
+  runs: Record<string, HeroRun>;
   nextWeaponId: number;
   // Meta progression (v3)
   embers: number;
@@ -134,10 +137,10 @@ export interface SaveData {
 
 export function freshSave(): SaveData {
   return {
-    v: 7, stage: 1, highestStage: 1, gold: 0, kills: 0, farming: false,
+    v: 8, stage: 1, highestStage: 1, gold: 0, kills: 0, farming: false,
     upgrades: { atk: 0, hp: 0, aspd: 0, crit: 0, gold: 0 },
     buyMode: 1, fps: 60, auto: true, sound: true, quality: 'high', minimap: 'circle',
-    shards: 0, forgeLevel: 1, weapons: Array(INVENTORY_SIZE).fill(null), equipped: starterWeapon(), gear: {}, nextWeaponId: 2,
+    shards: 0, forgeLevel: 1, weapons: Array(INVENTORY_SIZE).fill(null), equipped: starterWeapon(), runs: {}, nextWeaponId: 2,
     rates: { gold: 0, shards: 0 },
     embers: 0, embersEarned: 0, perks: freshPerks(), bestEver: 1, stats: freshStats(), regions: RQ.freshRegions(), achievements: {},
     missions: freshMissions(),
@@ -145,6 +148,43 @@ export function freshSave(): SaveData {
     zone: 0, zoneBosses: 0, zoneBest: 0,
     skin: DEFAULT_SKIN, skins: [DEFAULT_SKIN], looks: {}, palettes: {}, bossReady: {}, explored: '', starterChosen: false,
     savedAt: Date.now(),
+  };
+}
+
+/**
+ * What each hero keeps for themselves: their own run, with its own map progress, level, gold,
+ * upgrades, bag and forge. Gems, heroes, embers and perks, quests, achievements and the Codex
+ * are shared by every hero.
+ */
+export const RUN_KEYS = [
+  'stage', 'highestStage', 'gold', 'farming', 'upgrades', 'shards', 'forgeLevel', 'weapons', 'equipped',
+  'level', 'xp', 'zone', 'zoneBosses', 'zoneBest', 'bossReady', 'explored', 'rates',
+] as const;
+export type HeroRun = Pick<SaveData, (typeof RUN_KEYS)[number]>;
+
+/** The current hero's run, taken out of the save (to put away when switching heroes). */
+export function takeRun(save: SaveData): HeroRun {
+  const run = {} as Record<string, unknown>;
+  for (const k of RUN_KEYS) run[k] = save[k];
+  return run as unknown as HeroRun;
+}
+
+/**
+ * A hero's first run: a fresh start like a Reforge (Head Start and Forgemaster still apply),
+ * with the hero's own starter weapon.
+ */
+export function newRun(save: SaveData, skin: string): HeroRun {
+  const level = Math.min(MAX_LEVEL, 1 + save.perks.headstart * 5);
+  let beaten = 0;
+  while (zoneLevel(beaten + 1) <= level) beaten++;
+  let zone = 0;
+  while (zone + 1 < PLAYABLE_ZONES && zone + 1 <= beaten && level >= zoneLevel(zone + 1)) zone++;
+  const stage = zoneStage(zone);
+  return {
+    stage, highestStage: stage, gold: 0, farming: false, upgrades: { atk: 0, hp: 0, aspd: 0, crit: 0, gold: 0 },
+    shards: 0, forgeLevel: Math.min(MAX_FORGE_LEVEL, 1 + save.perks.forgemaster),
+    weapons: Array(INVENTORY_SIZE).fill(null), equipped: starterWeapon(skinDef(skin).forms[0], save.nextWeaponId++),
+    level, xp: 0, zone, zoneBosses: beaten, zoneBest: zone, bossReady: {}, explored: '', rates: { gold: 0, shards: 0 },
   };
 }
 
@@ -883,7 +923,7 @@ export class Sim {
     const s = this.save;
     if (k === 'kills') return s.kills;
     if (k === 'bestEver') return s.bestEver;
-    if (k === 'zones') return s.zoneBest + 1;
+    if (k === 'zones') return this.bestZone + 1;
     return s.stats[k];
   }
 
@@ -903,7 +943,7 @@ export class Sim {
 
   /** A region's quests can be claimed once it has been opened. */
   regionOpen(zone: number): boolean {
-    return zone >= 0 && zone < PLAYABLE_ZONES && zone <= this.save.zoneBest;
+    return zone >= 0 && zone < PLAYABLE_ZONES && zone <= this.bestZone;
   }
 
   /** Current value of quest `qi` in `zone`. */
@@ -1054,7 +1094,7 @@ export class Sim {
     if (s.starterChosen || !STARTERS.includes(id)) return false;
     s.skins = [id];
     s.skin = id;
-    s.gear = {};
+    s.runs = {};
     s.equipped = starterWeapon(skinDef(id).forms[0], s.nextWeaponId++);
     s.starterChosen = true;
     for (const sh of this.heroShots) sh.alive = false;
@@ -1066,11 +1106,10 @@ export class Sim {
   buySkin(id: string): boolean {
     const def = SKINS.find((s) => s.id === id);
     const m = this.save.missions;
-    if (!def || this.ownsSkin(id) || m.gems < def.cost || this.save.level < (def.minLevel ?? 0)) return false;
+    if (!def || this.ownsSkin(id) || m.gems < def.cost || this.bestLevel < (def.minLevel ?? 0)) return false;
     m.gems -= def.cost;
     this.save.skins.push(id);
-    this.save.gear[id] = starterWeapon(def.forms[0], this.save.nextWeaponId++);
-    this.selectSkin(id);
+    this.selectSkin(id); // a new hero starts their own run
     return true;
   }
 
@@ -1088,19 +1127,56 @@ export class Sim {
     return true;
   }
 
-  /** Play as an owned hero: the current hero's weapon is put away and the new hero's comes out. */
+  /**
+   * Play as an owned hero. Each hero has their own run: the current hero's (map progress, level,
+   * gold, upgrades, bag and forge) is put away and the new hero's picks up where it left off, or
+   * starts fresh the first time.
+   */
   selectSkin(id: string): boolean {
     const s = this.save;
     if (!this.ownsSkin(id)) return false;
     if (id === s.skin) return true;
-    s.gear[s.skin] = s.equipped;
+    s.runs[s.skin] = takeRun(s);
+    const run = s.runs[id] ?? newRun(s, id);
+    delete s.runs[id];
+    Object.assign(s, run);
     s.skin = id;
-    const mine = s.gear[id];
-    delete s.gear[id];
-    s.equipped = mine && canWield(id, mine.form) ? mine : starterWeapon(skinDef(id).forms[0], s.nextWeaponId++);
-    for (const sh of this.heroShots) sh.alive = false;
-    this.applyWeaponChange();
+    if (!s.equipped || !canWield(id, s.equipped.form)) s.equipped = starterWeapon(skinDef(id).forms[0], s.nextWeaponId++);
+    this.startRun();
     return true;
+  }
+
+  /** The highest hero level any hero has reached (unlocks heroes like the Warlord). */
+  get bestLevel(): number {
+    return Math.max(this.save.level, ...Object.values(this.save.runs).map((r) => r.level));
+  }
+
+  /** The furthest zone any hero has opened (the Quest Book's regions and the Codex follow it). */
+  get bestZone(): number {
+    return Math.max(this.save.zoneBest, ...Object.values(this.save.runs).map((r) => r.zoneBest));
+  }
+
+  /** A run was swapped in or restarted: rebuild the hero and the field from the save. */
+  private startRun(): void {
+    const s = this.save;
+    for (const sh of this.heroShots) sh.alive = false;
+    this.bossActive = false;
+    this.returnT = 0;
+    this.phase = 'playing';
+    this.route.length = 0;
+    this.explored = null; // reloaded from this run's fog
+    this.earnFilled = 0;
+    s.stage = zoneStage(s.zone);
+    this.recalc();
+    this.hero.hp = this.hero.maxHp;
+    this.knownMaxZone = this.maxZone;
+    this.enterZoneMap(true);
+    // The forest's passes match this run straight away (no "the way is open" for old ground).
+    for (const g of this.map.forest?.gates ?? []) {
+      if (this.zoneUnlocked(g.zone)) this.map.openGates.add(g.zone); else this.map.openGates.delete(g.zone);
+    }
+    this.checkMeta();
+    this.invVersion++;
   }
 
   reforge(): number {
@@ -1126,7 +1202,6 @@ export class Sim {
     for (const id of UPGRADE_IDS) s.upgrades[id] = 0;
     s.weapons = s.weapons.map(() => null);
     s.equipped = starterWeapon(skinDef(s.skin).forms[0], s.nextWeaponId++);
-    s.gear = {};
     s.forgeLevel = Math.min(MAX_FORGE_LEVEL, 1 + s.perks.forgemaster);
     this.bossActive = false;
     this.returnT = 0;

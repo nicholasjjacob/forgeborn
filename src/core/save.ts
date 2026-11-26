@@ -1,6 +1,6 @@
 import { DEFAULT_SKIN } from '../sim/skins';
 import { PLAYABLE_ZONES, zoneLevel, zoneStage } from '../sim/zones';
-import { freshSave, type SaveData } from '../sim/sim';
+import { freshSave, newRun, type HeroRun, type SaveData } from '../sim/sim';
 import { FORMS, INVENTORY_SIZE, INVENTORY_STEP, MAX_INVENTORY, starterWeapon, upgradeOldWeapon, type Weapon } from '../sim/weapons';
 import { canWield, skinDef } from '../sim/skins';
 import { freshPerks, freshStats } from '../sim/meta';
@@ -130,7 +130,7 @@ export function migrate(input: unknown): SaveData {
   const base = freshSave();
   if (!input || typeof input !== 'object') return base;
   const data = { ...(input as Record<string, unknown>) } as Omit<Partial<SaveData>, 'v'> & { v?: number };
-  if (data.v !== 1 && data.v !== 2 && data.v !== 3 && data.v !== 4 && data.v !== 5 && data.v !== 6 && data.v !== 7) return base;
+  if (data.v !== 1 && data.v !== 2 && data.v !== 3 && data.v !== 4 && data.v !== 5 && data.v !== 6 && data.v !== 7 && data.v !== 8) return base;
   const oldVersion = data.v;
 
   // v1 → v2: forge added (shards, forge level, inventory, starter weapon).
@@ -139,11 +139,12 @@ export function migrate(input: unknown): SaveData {
   // v4 → v5: hero level, XP and Level Road claims.
   // v5 → v6: world map zones (see below).
   // v6 → v7: heroes are classes with class-locked weapons (see below).
+  // v7 → v8: each hero has their own run (see below).
   // All additions are filled from defaults by the merge below.
   const fm = freshMissions();
   const dm = (data.missions ?? {}) as Partial<typeof fm>;
   const save = {
-    ...base, ...data, v: 7,
+    ...base, ...data, v: 8,
     missions: {
       ...fm, ...dm,
       attendance: { ...fm.attendance, ...dm.attendance },
@@ -204,39 +205,84 @@ export function migrate(input: unknown): SaveData {
   const palettes: Record<string, number> = {};
   for (const [k, v] of Object.entries(save.palettes && typeof save.palettes === 'object' ? save.palettes : {})) if (Number.isInteger(v) && v >= 0 && v <= 3) palettes[k] = v;
   save.palettes = palettes;
-  // Normalise the inventory size: at least the starting size, whole rows, at most the maximum
-  // (it grows when the player buys expansions).
-  const raw = Array.isArray(save.weapons) ? save.weapons : [];
-  const rows = Math.ceil(Math.max(0, raw.length - INVENTORY_SIZE) / INVENTORY_STEP);
-  const size = Math.min(MAX_INVENTORY, INVENTORY_SIZE + rows * INVENTORY_STEP);
-  const inv = raw.slice(0, size).map((w) => (w ? upgradeOldWeapon(w) : null));
-  if (save.equipped) save.equipped = upgradeOldWeapon(save.equipped);
-  while (inv.length < size) inv.push(null);
-  save.weapons = inv;
-  // v6 → v7: Spears (old type 2) become Swords: type 2 is now the Barbarian's Greataxe. The
-  // equipped weapon re-forms into the current hero's weapon type if that hero can't wield it,
-  // so nobody loses their best weapon.
-  const known = (w: Weapon | null): Weapon | null => (w && (!Number.isInteger(w.form) || !FORMS[w.form]) ? { ...w, form: 0 } : w);
-  if (oldVersion < 7) {
-    const spear = (w: Weapon | null): Weapon | null => (w && w.form === 2 ? { ...w, form: 0 } : w);
-    save.weapons = save.weapons.map(spear);
-    save.equipped = spear(save.equipped);
-    save.gear = {};
-  }
-  save.weapons = save.weapons.map(known);
-  save.equipped = known(save.equipped);
-  if (!save.equipped) save.equipped = starterWeapon(skinDef(save.skin).forms[0], 0);
-  else if (!canWield(save.skin, save.equipped.form)) save.equipped = { ...save.equipped, form: skinDef(save.skin).forms[0] };
-  const gear: Record<string, Weapon | null> = {};
-  for (const [id, w] of Object.entries(save.gear && typeof save.gear === 'object' ? save.gear : {})) {
+  // v6 → v7: Spears (old type 2) become Swords: type 2 is now the Barbarian's Greataxe.
+  const known = (w: unknown): Weapon | null => {
+    if (!w || typeof w !== 'object') return null;
+    let k = upgradeOldWeapon(w as Weapon);
+    if (oldVersion < 7 && k.form === 2) k = { ...k, form: 0 };
+    return !Number.isInteger(k.form) || !FORMS[k.form] ? { ...k, form: 0 } : k;
+  };
+  // The bag: at least the starting size, whole rows, at most the maximum (it grows when the
+  // player buys expansions).
+  const bag = (x: unknown): (Weapon | null)[] => {
+    const raw = Array.isArray(x) ? x : [];
+    const rows = Math.ceil(Math.max(0, raw.length - INVENTORY_SIZE) / INVENTORY_STEP);
+    const size = Math.min(MAX_INVENTORY, INVENTORY_SIZE + rows * INVENTORY_STEP);
+    const inv = raw.slice(0, size).map(known);
+    while (inv.length < size) inv.push(null);
+    return inv;
+  };
+  save.weapons = bag(save.weapons);
+  // The equipped weapon re-forms into the hero's weapon type if the hero can't wield it, so
+  // nobody loses their best weapon.
+  const wield = (id: string, w: unknown): Weapon | null => {
     const k = known(w);
-    if (k && id !== save.skin && save.skins.includes(id) && canWield(id, k.form)) gear[id] = k;
-  }
-  save.gear = gear;
+    return k && !canWield(id, k.form) ? { ...k, form: skinDef(id).forms[0] } : k;
+  };
+  save.equipped = wield(save.skin, save.equipped);
+  const gear = (data as { gear?: unknown }).gear;
+  const oldGear = oldVersion === 7 && gear && typeof gear === 'object' ? gear as Record<string, unknown> : {};
+  const storedRuns = (data as { runs?: unknown }).runs;
+  const oldRuns = oldVersion >= 8 && storedRuns && typeof storedRuns === 'object' ? storedRuns as Record<string, Partial<HeroRun>> : {};
   // Keep weapon ids unique even if the counter was lost.
-  let maxId = save.equipped?.id ?? 0;
-  for (const w of [...save.weapons, ...Object.values(save.gear)]) if (w && w.id > maxId) maxId = w.id;
-  save.nextWeaponId = Math.max(save.nextWeaponId ?? 0, maxId + 1);
-  if (save.equipped.id === 0) save.equipped.id = save.nextWeaponId++;
+  let maxId = 0;
+  const seen = (w: { id?: unknown } | null | undefined) => { if (w && typeof w.id === 'number' && w.id > maxId) maxId = w.id; };
+  [save.equipped, ...save.weapons, ...Object.values(oldGear) as Weapon[]].forEach(seen);
+  for (const r of Object.values(oldRuns)) if (r && typeof r === 'object') [r.equipped, ...(Array.isArray(r.weapons) ? r.weapons : [])].forEach(seen);
+  save.nextWeaponId = Math.max(Number.isFinite(save.nextWeaponId) ? save.nextWeaponId : 0, maxId + 1);
+  if (!save.equipped) save.equipped = starterWeapon(skinDef(save.skin).forms[0], save.nextWeaponId++);
+  else if (save.equipped.id === 0) save.equipped.id = save.nextWeaponId++;
+
+  // v8: each hero has their own run (RUN_KEYS). The other owned heroes' runs are kept in `runs`.
+  const runs: Record<string, HeroRun> = {};
+  for (const id of save.skins) {
+    if (id === save.skin) continue;
+    const fresh = newRun(save, id);
+    const r = oldRuns[id];
+    if (r && typeof r === 'object') {
+      const run = { ...fresh, ...r } as HeroRun;
+      run.upgrades = { ...fresh.upgrades, ...r.upgrades };
+      run.rates = { ...fresh.rates, ...r.rates };
+      run.weapons = bag(r.weapons);
+      run.equipped = wield(id, r.equipped) ?? fresh.equipped;
+      run.level = Number.isFinite(run.level) ? Math.max(1, Math.min(100, Math.floor(run.level))) : fresh.level;
+      run.zone = Number.isFinite(run.zone) ? Math.max(0, Math.min(PLAYABLE_ZONES - 1, Math.floor(run.zone))) : fresh.zone;
+      run.zoneBosses = Number.isFinite(run.zoneBosses) ? Math.max(0, Math.floor(run.zoneBosses)) : fresh.zoneBosses;
+      run.zoneBest = Math.max(run.zone, Number.isFinite(run.zoneBest) ? run.zoneBest : 0);
+      run.stage = zoneStage(run.zone);
+      run.bossReady = run.bossReady && typeof run.bossReady === 'object' ? run.bossReady : {};
+      run.explored = typeof run.explored === 'string' ? run.explored : '';
+      runs[id] = run;
+    } else {
+      // A hero owned before v8 starts their own run, with the weapon they had out.
+      const g = oldGear[id] ? known(oldGear[id]) : null;
+      if (g && canWield(id, g.form)) fresh.equipped = g;
+      runs[id] = fresh;
+    }
+  }
+  if (oldVersion < 8) {
+    // The shared bag is split up: weapons the current hero can't wield go to an owned hero
+    // who can (while their bag has room).
+    save.weapons = save.weapons.map((w) => {
+      if (!w || canWield(save.skin, w.form)) return w;
+      const to = Object.keys(runs).find((id) => canWield(id, w.form) && runs[id].weapons.includes(null));
+      if (!to) return w;
+      const b = runs[to].weapons;
+      b[b.indexOf(null)] = w;
+      return null;
+    });
+  }
+  save.runs = runs;
+  delete (save as { gear?: unknown }).gear;
   return save;
 }
