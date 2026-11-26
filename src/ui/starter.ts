@@ -29,11 +29,12 @@ export function chooseStarter(sim: Sim): Promise<string> {
     root.innerHTML = `
       <div class="st-head">
         <h1>Choose your hero</h1>
-        <p>Every hero has their own journey. Unlock the others later in Heroes.</p>
+        <p>Each hero has their own journey. Unlock more in Heroes.</p>
       </div>
       <div class="st-stage"></div>
       <div class="st-card">
-        <div class="st-title"><b class="st-name"></b><span class="st-role"></span><span class="st-level"></span></div>
+        <b class="st-name"></b>
+        <div class="st-tags"><span class="st-role"></span><span class="st-level"></span></div>
         <p class="st-style"></p>
         <div class="st-weapons"></div>
         <p class="st-perk"></p>
@@ -61,8 +62,9 @@ export function chooseStarter(sim: Sim): Promise<string> {
       floor.rotation.x = -Math.PI / 2;
       scene.add(floor);
       const camera = new THREE.PerspectiveCamera(30, 0.75, 0.1, 50);
-      camera.position.set(0, 1.25, 4.6);
-      camera.lookAt(0, 0.85, 0);
+      // Close in: the hero fills most of their slot (feet near the bottom, a little room overhead).
+      camera.position.set(0, 1.05, 3.7);
+      camera.lookAt(0, 0.82, 0);
       const st: Stand = { id, el, renderer, scene, camera, mixer: null, model: null };
       el.addEventListener('click', () => { if (pick !== id) { pick = id; sfx.play('tick'); show(); } });
       void buildHeroModel(sim, id, false, 0).then((b) => {
@@ -91,11 +93,11 @@ export function chooseStarter(sim: Sim): Promise<string> {
       const def = skinDef(pick), info = STYLE[pick];
       name.textContent = def.name;
       role.textContent = def.role;
-      level.textContent = info.level;
+      level.textContent = `${info.level} to learn`;
       level.dataset.level = info.level.toLowerCase();
       style.textContent = info.style;
       weapons.innerHTML = def.forms.map((f) => `<span class="st-wpn"><b>${FORMS[f].name}</b><small>${FORMS[f].blurb}</small></span>`).join('');
-      perk.textContent = `Class perk: ${def.perk}`;
+      perk.innerHTML = `<b>Class perk</b> ${def.perk}`;
       go.textContent = `Play as ${def.name}`;
     }
     show();
