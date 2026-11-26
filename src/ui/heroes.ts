@@ -140,6 +140,9 @@ export async function warmHeroStage(sim: Sim, onStep?: (f: number) => void): Pro
   }
 }
 
+/** A paintbrush, for the Edit (customize) button. */
+const EDIT_ICON = '<svg class="gi" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.7 3.3a1.6 1.6 0 0 0-2.3 0L9.6 12.1l2.3 2.3 8.8-8.8a1.6 1.6 0 0 0 0-2.3z" fill="#ffd84a" stroke="#0a1035" stroke-width="1.6" stroke-linejoin="round"/><path d="M8.4 13.4c-2.2 0-3.6 1.5-3.8 3.6-.1 1.2-.7 2.2-1.9 2.7 3.6 1.2 7.4.3 8.1-3.3z" fill="#ff7ab0" stroke="#0a1035" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+
 /** Each mastery goal's icon. */
 const GOAL_ICON: Record<string, string> = { bosses: 'skull-crossed-bones', explore: 'compass', level: 'sprint', forge: 'anvil-impact', weapon: 'broadsword' };
 
@@ -159,6 +162,7 @@ export class HeroesUI {
   /** Turntable: spin speed (rad/s), the direction it settles back to, and an active drag. */
   private spin = AUTO_SPIN;
   private masteryOpen = false;
+  private editing = false;
   private spinDir = 1;
   private drag: { id: number; x: number; t: number } | null = null;
 
@@ -168,6 +172,7 @@ export class HeroesUI {
     if (this.wrap) return;
     this.pick = this.sim.save.skin;
     this.masteryOpen = false;
+    this.editing = false;
     const wrap = document.createElement('div');
     wrap.className = 'modal sheet-wrap';
     wrap.setAttribute('role', 'dialog');
@@ -178,10 +183,16 @@ export class HeroesUI {
         <div class="ribbon"><span class="ribbon-text">Heroes</span></div>
         <button type="button" class="sheet-x" aria-label="Close">✕</button>
         <div class="sheet-body">
-          <div class="hero-stage"><div class="hero-gems"><i class="jewel"></i><b></b></div></div>
+          <div class="hero-stage"><div class="hero-gems"><i class="jewel"></i><b></b></div>
+            <button type="button" class="hero-edit-btn" data-act="edit:open" aria-label="Customize hero">${EDIT_ICON}<span>Edit</span></button></div>
           <div class="hero-info"><b class="hero-name"></b><span class="hero-sub"><span class="hero-role"></span><button type="button" class="hero-mastery" data-act="mastery:open" aria-label="Hero mastery"></button></span><span class="hero-perk"></span><span class="hero-weapons"></span></div>
-          <div class="hero-looks" role="radiogroup" aria-label="Style"></div>
-          <div class="hero-palettes" role="radiogroup" aria-label="Colours"></div>
+          <div class="hero-edit">
+            <b class="he-title">Style</b>
+            <div class="hero-looks" role="radiogroup" aria-label="Style"></div>
+            <b class="he-title">Colours</b>
+            <div class="hero-palettes" role="radiogroup" aria-label="Colours"></div>
+            <button type="button" class="btn big green he-done" data-act="edit:done">Done</button>
+          </div>
           <div class="hero-action"></div>
           <div class="hero-grid"></div>
         </div>
@@ -222,6 +233,7 @@ export class HeroesUI {
     if (act === 'pick') {
       sfx.play('tick');
       this.pick = id;
+      this.editing = false;
     } else if (act === 'equip') {
       if (sim.selectSkin(id)) { sfx.play('stage'); this.toast(`${skinDef(id).name} picks up their journey at Lv ${sim.save.level}`); }
     } else if (act === 'look' || act === 'pal') {
@@ -232,6 +244,11 @@ export class HeroesUI {
         void this.makePortraits();
         if (act === 'look') void this.makeThumbs(this.pick); // the colour thumbnails show the new style
       }
+    } else if (act === 'edit') {
+      // Customizing: the style and colour pickers take the place of the button and hero list.
+      if (id === 'open' && !sim.ownsSkin(this.pick)) return;
+      sfx.play('tick');
+      this.editing = id === 'open';
     } else if (act === 'mastery') {
       sfx.play('tick');
       this.masteryOpen = id === 'open';
@@ -305,6 +322,11 @@ export class HeroesUI {
         : this.sim.bestLevel < (def.minLevel ?? 0)
           ? `<button type="button" class="btn big grey" disabled>${gi('padlock', 'grey')} Reach Lv ${def.minLevel} · <i class="jewel"></i>${def.cost}</button>`
           : `<button type="button" class="btn big blue" data-act="buy:${def.id}" ${gems >= def.cost ? '' : 'disabled'}>Unlock <i class="jewel"></i>${def.cost}</button>`;
+    this.wrap.querySelector('.heroes-sheet')!.classList.toggle('editing', this.editing && owned);
+    const edit = this.wrap.querySelector<HTMLButtonElement>('.hero-edit-btn')!;
+    edit.disabled = !owned;
+    edit.classList.toggle('on', this.editing);
+    edit.hidden = this.editing;
     // Styles (e.g. the Knight's visor): shown for owned heroes that have any.
     const looksEl = this.wrap.querySelector<HTMLElement>('.hero-looks')!;
     const cur = lookOf(def.id, s.looks);
