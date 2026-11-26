@@ -638,6 +638,9 @@ html.pc #quests-root { --qb-h: min(600px, calc(100dvh - var(--safe-top) - 118px 
 @media (orientation: landscape) and (min-width: 640px) {
   .modal-card.settings { width: min(430px, 100%); }
   .set-row small { max-width: 230px; }
+  .set-row > span { font-size: 17px; }
+  .set-row small { font-size: 13px; }
+  .settings .seg button { font-size: 15px; }
 }
 /* Short landscape screens (phones on their side): tighter rows so the whole card fits. */
 @media (orientation: landscape) and (min-width: 640px) and (max-height: 640px) {
