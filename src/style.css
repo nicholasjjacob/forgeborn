@@ -1551,7 +1551,7 @@ html.pc .wm-info { container: wminfo / inline-size; }
 html.pc .side-icons { --sb: clamp(54px, calc((100dvh - 300px) / 6.8), 78px); gap: 8px; margin-top: 10px; }
 @media (min-height: 950px) { html.pc .side-icons { --sb: clamp(54px, calc((100dvh - 330px) / 8.2), 78px); } }
 html.pc .side-btn { width: var(--sb); height: var(--sb); border-radius: calc(var(--sb) * 0.23); }
-html.pc .side-ico .gi { width: calc(var(--sb) * 0.56); height: calc(var(--sb) * 0.56); }
+html.pc .side-ico .gi { width: calc(var(--sb) * 0.5); height: calc(var(--sb) * 0.5); }
 html.pc .side-lbl { font-size: clamp(10px, calc(var(--sb) * 0.17), 13px); margin-top: 2px; }
 html.pc .side-btn .dot { transform: scale(1.15); }
 html.pc .chips { gap: 9px; }
@@ -1695,6 +1695,13 @@ html.pc .purse { height: calc(100dvh - var(--safe-top) - 12px - var(--mm) - 14px
 html.pc .side-icons { flex: 1 1 auto; min-height: 0; width: 82px; container-type: size; pointer-events: none; }
 html.pc .side-icons > * { pointer-events: auto; }
 html.pc .side-btn { --sb: clamp(34px, calc((100cqh - 40px) / 6), 78px); }
+/* Short windows (a laptop at 125-150% scaling): one column of six would shrink the buttons until
+   their icon and label crowd the edges, so they sit in two columns of three instead, each about
+   twice the size. */
+@media (max-height: 760px) {
+  html.pc .side-icons { width: 148px; display: grid; grid-template-columns: repeat(2, max-content); align-content: start; gap: 8px; }
+  html.pc .side-btn { --sb: clamp(44px, min(calc((100cqh - 26px) / 3), 68px), 68px); }
+}
 @media (min-height: 950px) {
   html.pc { --mm: 210px; }
   /* The top bar is zoomed 1.2x here, so its own lengths are in zoomed units. */
