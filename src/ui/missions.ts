@@ -1,6 +1,6 @@
 import { monsterSlot, paintMonsterPortraits } from './monsterPreview';
 import { gi, terrainIcon } from './icons';
-import { bossLairZone, zoneLevel, zoneName } from '../sim/zones';
+import { bossLairZone, monsterZones, zoneLevel, zoneName } from '../sim/zones';
 import { haptic, sfx } from '../audio/sfx';
 import { rewardSpill, starBurst } from './rewardFx';
 import { actionElement, bindSheetTaps } from './tap';
@@ -295,12 +295,19 @@ export class MissionsUI {
     const m = this.sim.missions;
     let stars = 0, total = 0, ready = false;
     for (let slot = 0; slot < 4; slot++) {
-      if (slot === 3 && bossLairZone(area) < 0) continue; // not in any land yet: not counted
+      if (this.homeZones(area, slot).length === 0) continue; // not in any land yet: not counted
       stars += Math.min(m.codexClaimed(area, slot), codexTiers(slot).length);
       total += codexTiers(slot).length;
       if (m.canClaimCodex(area, slot)) ready = true;
     }
     return { stars, total, ready };
+  }
+
+  /** Where a monster lives: its lair (bosses) or the regions it roams. Empty: not in the game yet. */
+  private homeZones(area: number, slot: number): number[] {
+    if (slot !== 3) return monsterZones(area, slot);
+    const z = bossLairZone(area);
+    return z >= 0 ? [z] : [];
   }
 
   private renderCodex(): string {
@@ -340,13 +347,15 @@ export class MissionsUI {
         const maxed = tier >= tiers.length, goal = maxed ? tiers[tiers.length - 1] : tiers[tier];
         const ready = m.canClaimCodex(area, slot), seen = kills > 0;
         const reward = maxed ? null : codexReward(slot, tier);
-        // Bosses say where their lair is (or that their land is still to come).
-        const lair = slot === 3 ? bossLairZone(area) : -1, later = slot === 3 && lair < 0;
-        const where = slot !== 3 ? '' : later ? `<div class="codex-where">${gi('padlock', 'grey')} Arrives with a future land</div>`
-          : `<div class="codex-where">${gi('position-marker', 'red')} Lair: ${zoneName(lair)}${this.sim.zoneUnlocked(lair) ? '' : ` · Lv ${zoneLevel(lair)}`}</div>`;
+        // Where to find it: the boss's lair, or the regions the monster roams (or that its land is
+        // still to come).
+        const homes = this.homeZones(area, slot), later = homes.length === 0;
+        const z = homes[0], more = homes.length > 1 ? ` +${homes.length - 1}` : '';
+        const where = later ? `<div class="codex-where">${gi('padlock', 'grey')}<span>Arrives with a future land</span></div>`
+          : `<div class="codex-where" title="${homes.map(zoneName).join(', ')}">${gi('position-marker', slot === 3 ? 'red' : 'green')}<span>${slot === 3 ? '<i class="cw-lair">Lair: </i>' : ''}${zoneName(z)}</span>${more}${this.sim.zoneUnlocked(z) ? '' : ` · Lv ${zoneLevel(z)}`}</div>`;
         if (later) {
-          return `<div class="codex-card boss later">
-          <span class="boss-tag">BOSS</span>
+          return `<div class="codex-card ${slot === 3 ? 'boss' : ''} later">
+          ${slot === 3 ? '<span class="boss-tag">BOSS</span>' : ''}
           <div class="codex-portrait"><img alt="" src="${this.codexIcon(area, slot)}" class="unseen" /><canvas class="mon3d unseen" data-model="m${area % 6}_${slot}" data-fly="0"></canvas></div>
           <div class="codex-name">???</div>
           ${where}

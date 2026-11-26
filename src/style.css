@@ -1488,7 +1488,7 @@ html.pc .wm-ri-act .btn { min-width: 190px; }
 .sheet-body.fill .codex-top { flex: 0 0 auto; }
 .sheet-body.fill .codex-grid.big { flex: 1 1 auto; min-height: 0; grid-template-rows: 1fr 1fr; margin-bottom: 4px; }
 .sheet-body.fill .codex-grid.big .codex-card { min-height: 0; }
-.sheet-body.fill .codex-grid.big .codex-portrait { flex: 1 1 110px; height: auto; min-height: 80px; }
+.sheet-body.fill .codex-grid.big .codex-portrait { flex: 1 1 110px; height: auto; min-height: 44px; }
 
 /* Square minimap: the same view as the circle, in a rounded square frame. */
 .minimap.square { border-radius: 14px; }
@@ -1816,7 +1816,20 @@ html.pc :is(button, .btn):disabled { cursor: var(--cur-arrow, default); }
 @container hmp (max-height: 380px) { .hm-reward small { display: none; } .hm-goals li { padding-block: 3px; } }
 
 /* A boss card says where its lair is (or that its land is still to come). */
-.codex-where { display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 11px; font-weight: 600; color: #ffd6dc; line-height: 1.2; }
+.codex-where { display: flex; align-items: center; justify-content: center; gap: 4px; max-width: 100%; font-size: 11px; font-weight: 600; color: #d6f5c8; line-height: 1.2; white-space: nowrap; }
+.codex-where span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.codex-card.boss .codex-where { color: #ffd6dc; }
 .codex-where .gi { width: 14px; height: 14px; flex: none; }
 .codex-card.boss.later { background: linear-gradient(#5a3a4a, #3a2030); }
-.codex-card.boss.later .codex-where { color: var(--ink-soft); flex: 0 0 30px; }
+.codex-card.later .codex-where { color: var(--ink-soft); flex: 0 0 30px; }
+.codex-card.later:not(.boss) { opacity: 0.7; }
+/* Long place names shorten (…) instead of widening the card. */
+.codex-grid.big { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.codex-grid.big .codex-card { min-width: 0; }
+.codex-grid.big .codex-card { container: ccard / inline-size; }
+.codex-where i { font-style: normal; }
+@container ccard (max-width: 170px) {
+  .codex-where { font-size: clamp(9px, 7.6cqi, 11px); gap: 2px; }
+  .codex-where .gi { width: 12px; height: 12px; }
+  .codex-where .cw-lair { display: none; }
+}

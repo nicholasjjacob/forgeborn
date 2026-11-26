@@ -101,6 +101,15 @@ export function bossCooldown(zone: number): number {
   return Math.round((120 + 60 * Math.max(0, zone)) * (isTerrainBossZone(zone) ? 1.5 : 1));
 }
 
+/** The playable zones (regions) where terrain `area`'s monster `slot` roams, easiest first. */
+export function monsterZones(area: number, slot: number): number[] {
+  const out: number[] = [];
+  BIOMES.forEach((b, i) => {
+    if (b.zone >= 0 && b.zone < PLAYABLE_ZONES && REGION_MONSTERS[i]?.some(([a, s]) => a === area && s === slot)) out.push(b.zone);
+  });
+  return out.sort((x, y) => x - y);
+}
+
 /** The playable zone whose lair holds terrain `area`'s own boss, or -1 while none does yet. */
 export function bossLairZone(area: number): number {
   for (let z = 0; z < PLAYABLE_ZONES; z++) {
