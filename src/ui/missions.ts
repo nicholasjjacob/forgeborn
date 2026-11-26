@@ -1,6 +1,6 @@
 import { monsterSlot, paintMonsterPortraits } from './monsterPreview';
 import { gi, terrainIcon } from './icons';
-import { bossLairZone, monsterZones, zoneLevel, zoneName } from '../sim/zones';
+import { bossLairZone, codexHome, monsterZones, zoneLevel, zoneName } from '../sim/zones';
 import { haptic, sfx } from '../audio/sfx';
 import { rewardSpill, starBurst } from './rewardFx';
 import { actionElement, bindSheetTaps } from './tap';
@@ -310,26 +310,37 @@ export class MissionsUI {
     return z >= 0 ? [z] : [];
   }
 
+  /** A Codex page's name: the map region its monsters call home (the terrain's own name otherwise). */
+  private landName(area: number): string {
+    const z = codexHome(area);
+    return z >= 0 ? zoneName(z) : areaName(area);
+  }
+
   private renderCodex(): string {
     const areas = this.sim.missions.codexAreas();
     if (this.codexArea !== null && areas.includes(this.codexArea)) return this.renderCodexArea(this.codexArea);
     this.codexArea = null;
-    // Terrain list: one big card per discovered terrain, painted in its ground colours.
+    // Land list: one big card per discovered land, painted in its ground colours, in map order.
+    const order = (a: number) => { const z = codexHome(a); return z >= 0 ? z : 100 + a; };
+    const shown = [...areas].sort((a, b) => order(a) - order(b));
+    // The next region with monsters not met yet.
+    const next = Math.min(...[0, 1, 2, 3, 4, 5].filter((a) => !areas.includes(a))
+      .flatMap((a) => [0, 1, 2].flatMap((s) => monsterZones(a, s))), Infinity);
     return `<p class="sheet-note">Pick a land to see its monsters. Every ★ milestone pays gems.</p>
-      <div class="codex-lands">${areas.map((area) => {
+      <div class="codex-lands">${shown.map((area) => {
         const { def } = areaFor(area);
         const g = def.ground;
         const p = this.codexProgress(area);
         return `<button type="button" class="codex-land ${p.ready ? 'ready' : ''}" data-act="carea:${area}" style="--g1:${g.light};--g2:${g.base};--g3:${g.dark}">
           <span class="cl-ico">${terrainIcon(area)}</span>
-          <span class="cl-main"><b>${areaName(area)}</b>
+          <span class="cl-main"><b>${this.landName(area)}</b>
             <span class="bar thin"><span class="bar-fill" style="transform:scaleX(${p.stars / p.total})"></span></span>
             <small>★ ${p.stars}/${p.total}</small></span>
           <span class="cl-mons">${[0, 1, 2, 3].map((slot) => monsterSlot(area, slot, this.codexIcon(area, slot), 'cl-mon', this.sim.missions.codexKills(area, slot) === 0)).join('')}</span>
           ${p.ready ? '<b class="dot">!</b>' : ''}
         </button>`;
       }).join('')}</div>
-      <div class="codex-teaser">${gi('padlock', 'grey')} <b>Next land</b> · unlock ${zoneName(areas.length * 3)} on the Map to discover new monsters</div>`;
+      ${Number.isFinite(next) ? `<div class="codex-teaser">${gi('padlock', 'grey')} <b>Next land</b> · reach ${zoneName(next)} on the Map to discover new monsters</div>` : ''}`;
   }
 
   /** One terrain's monsters as big cards. */
@@ -340,7 +351,7 @@ export class MissionsUI {
     const p = this.codexProgress(area);
     return `<div class="codex-top">
         ${m.codexAreas().length > 1 ? '<button type="button" class="btn small grey" data-act="carea:back">‹ Lands</button>' : ''}
-        <h3 class="codex-area">${terrainIcon(area)} ${areaName(area)}</h3><span class="codex-stars">★ ${p.stars}/${p.total}</span>
+        <h3 class="codex-area">${terrainIcon(area)} ${this.landName(area)}</h3><span class="codex-stars">★ ${p.stars}/${p.total}</span>
       </div>
       <div class="codex-grid big">${mons.map((mon, slot) => {
         const kills = m.codexKills(area, slot), tier = m.codexClaimed(area, slot), tiers = codexTiers(slot);

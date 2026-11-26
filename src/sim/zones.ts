@@ -101,6 +101,20 @@ export function bossCooldown(zone: number): number {
   return Math.round((120 + 60 * Math.max(0, zone)) * (isTerrainBossZone(zone) ? 1.5 : 1));
 }
 
+/**
+ * The map region a terrain's monsters call home (where most of them roam, the easiest on a tie),
+ * or -1 if none of them is in a playable region yet. The Codex names its pages after it.
+ */
+export function codexHome(area: number): number {
+  let best = -1, most = 0;
+  BIOMES.forEach((b, i) => {
+    if (b.zone < 0 || b.zone >= PLAYABLE_ZONES) return;
+    const n = (REGION_MONSTERS[i] ?? []).filter(([a]) => a === area).length;
+    if (n > most || (n === most && n > 0 && b.zone < best)) { most = n; best = b.zone; }
+  });
+  return best;
+}
+
 /** The playable zones (regions) where terrain `area`'s monster `slot` roams, easiest first. */
 export function monsterZones(area: number, slot: number): number[] {
   const out: number[] = [];

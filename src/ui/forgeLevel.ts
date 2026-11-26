@@ -1,5 +1,4 @@
 import { gi } from './icons';
-import { areaName } from '../sim/areas';
 import { zoneName } from '../sim/zones';
 import { haptic, sfx } from '../audio/sfx';
 import { fmt } from '../core/format';
@@ -97,9 +96,11 @@ export class ForgeLevelUI {
       </div>`;
     const btn = this.wrap.querySelector<HTMLButtonElement>('#flc-upgrade')!;
     btn.disabled = maxed || locked || s.gold < cost;
-    btn.innerHTML = maxed ? 'Max level' : locked ? `${gi('padlock', 'grey')} ${areaName(lv)}` : `Upgrade <span class="coin-dot"></span>${fmt(cost)}`;
+    // The forge's cap rises 2 levels per region opened: level lv + 1 needs region ⌈lv / 2⌉.
+    const need = Math.ceil(lv / 2);
+    btn.innerHTML = maxed ? 'Max level' : locked ? `${gi('padlock', 'grey')} ${zoneName(need)}` : `Upgrade <span class="coin-dot"></span>${fmt(cost)}`;
     const p = this.wrap.querySelector<HTMLElement>('.flc-body p')!;
-    if (locked) p.textContent = `The forge grows with your journey: unlock ${zoneName(lv * 3)} in ${areaName(lv)} this run to reach level ${lv + 1}.`;
+    if (locked) p.textContent = `The forge grows with your journey: unlock ${zoneName(need)} on the map this run to reach level ${lv + 1}.`;
     else if (!maxed && s.gold < cost) p.textContent = `Need ${fmt(cost - s.gold)} more gold to reach level ${lv + 1}.`;
   }
 }
