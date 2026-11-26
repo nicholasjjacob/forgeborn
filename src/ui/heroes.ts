@@ -174,7 +174,7 @@ export class HeroesUI {
       }).join('')
       : '';
     if (def.palette) void this.makeThumbs(def.id);
-    this.wrap.querySelector('.hero-grid')!.innerHTML = SKINS.map((k) => {
+    this.wrap.querySelector('.hero-grid')!.innerHTML = this.order().map((k) => {
       const have = this.sim.ownsSkin(k.id);
       const tag = s.skin === k.id ? `${gi('check-mark', 'green')} Equipped` : have ? 'Owned'
         : s.level < (k.minLevel ?? 0) ? `Lv ${k.minLevel}` : `<i class="jewel"></i>${k.cost}`;
@@ -185,6 +185,16 @@ export class HeroesUI {
     }).join('');
     this.fit();
     void this.showModel(this.pick);
+  }
+
+  /**
+   * Heroes in the grid: the ones owned first, in the order they were got (the first-launch pick
+   * leads), then the locked ones in their usual order.
+   */
+  private order(): typeof SKINS[number][] {
+    const owned = this.sim.save.skins;
+    const rank = (id: string) => { const i = owned.indexOf(id); return i >= 0 ? i : owned.length + SKINS.findIndex((k) => k.id === id); };
+    return [...SKINS].sort((a, b) => rank(a.id) - rank(b.id));
   }
 
   // --- 3D preview ------------------------------------------------------------------------
