@@ -1,5 +1,5 @@
 import { starterWeapon } from '../src/sim/weapons';
-import { PLAYABLE_ZONES, bossCooldown } from '../src/sim/zones';
+import { PLAYABLE_ZONES, bossCooldown, worldBossCooldown } from '../src/sim/zones';
 import { describe, expect, it } from 'vitest';
 import { Sim, freshSave, type Enemy } from '../src/sim/sim';
 import { UPGRADES, UPGRADE_IDS, maxAffordable, upgradeCost } from '../src/sim/balance';
@@ -326,7 +326,7 @@ describe('monster skills', () => {
 describe('boss rematch cooldown', () => {
   it('lets a beaten boss be rematched only after a cooldown that grows with the zone', () => {
     expect(bossCooldown(0)).toBe(120);
-    expect(bossCooldown(8)).toBeGreaterThan(bossCooldown(7) * 1.4); // the Greenwood's own boss: +50%
+    expect(worldBossCooldown()).toBeGreaterThan(bossCooldown(8) * 1.4); // the world boss: +50%
     expect(bossCooldown(23)).toBeGreaterThan(bossCooldown(5));
     const save = freshSave();
     save.zoneBosses = 1; // zone 0's boss already beaten

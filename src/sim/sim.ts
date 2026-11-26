@@ -21,9 +21,12 @@ import { OFFLINE_CAP_HOURS } from './offline';
 import { addRewards, freshMissions, type MissionSave } from './missions';
 import { MissionSystem } from './missionSystem';
 import { GameMap, MAP_H, MAP_W } from './map';
-import { BIOMES, FOREST_H, FOREST_W, biomeArrival, forestRegion, forestZone, type Territory } from './forest';
+import { BIOMES, FOREST_H, FOREST_W, biomeArrival, forestRegion, forestZone, type Lair, type Territory } from './forest';
 import { MAX_LEVEL, levelBonus, milestoneReward, xpForKill, xpToNext, MILESTONES, type MilestoneReward } from './level';
-import { PLAYABLE_ZONES, stagePower, zoneArea, zoneBoss, zoneBossName, zoneLevel, zoneName, zoneStage, bossCooldown } from './zones';
+import {
+  PLAYABLE_ZONES, WORLD_BOSS, regionBossKey, stagePower, zoneArea, zoneBoss, zoneBossName, zoneLevel, zoneName, zoneStage, bossCooldown,
+  worldBossCooldown, worldBossName, worldBossStage,
+} from './zones';
 import {
   forgeCost, forgeLevelCap, INVENTORY_SIZE, INVENTORY_STEP, MAX_FORGE_LEVEL, MAX_INVENTORY, inventoryExpandCost, mergeCount, bonusWeapon, compareWeapons, forgeAtkBonus, forgeUpgradeCost, forgeWeapon, matchingSlots, mergePartners, mergeWeapons,
   salvageValue, starterWeapon, weaponStats, type RangedDef, type Weapon,
@@ -75,7 +78,7 @@ export type BuyMode = 1 | 10 | 'max';
 
 /** Everything that persists between sessions. Kept flat and JSON-friendly. */
 export interface SaveData {
-  v: 8;
+  v: 9;
   stage: number;
   highestStage: number;
   gold: number;
@@ -120,6 +123,8 @@ export interface SaveData {
   zone: number;              // the zone the hero is in
   zoneBosses: number;        // zone bosses beaten, in order: zone z's boss is down when z < zoneBosses
   zoneBest: number;          // furthest zone ever unlocked (across runs)
+  /** Times the Greenwood's world boss (the Necromancer, in its crypt) has been beaten. */
+  worldBosses: number;
   /** The hero (class) being played and every hero owned. Kept through Reforge. */
   skin: string;
   skins: string[];
@@ -142,7 +147,7 @@ export interface SaveData {
 
 export function freshSave(): SaveData {
   return {
-    v: 8, stage: 1, highestStage: 1, gold: 0, kills: 0, farming: false,
+    v: 9, stage: 1, highestStage: 1, gold: 0, kills: 0, farming: false,
     upgrades: { atk: 0, hp: 0, aspd: 0, crit: 0, gold: 0 },
     buyMode: 1, fps: 60, auto: true, sound: true, quality: 'high', minimap: 'circle',
     shards: 0, forgeLevel: 1, weapons: Array(INVENTORY_SIZE).fill(null), equipped: starterWeapon(), runs: {}, mastery: {}, nextWeaponId: 2,
@@ -150,7 +155,7 @@ export function freshSave(): SaveData {
     embers: 0, embersEarned: 0, perks: freshPerks(), bestEver: 1, stats: freshStats(), regions: RQ.freshRegions(), achievements: {},
     missions: freshMissions(),
     level: 1, xp: 0, levelClaimed: [],
-    zone: 0, zoneBosses: 0, zoneBest: 0,
+    zone: 0, zoneBosses: 0, zoneBest: 0, worldBosses: 0,
     skin: DEFAULT_SKIN, skins: [DEFAULT_SKIN], looks: {}, palettes: {}, bones: {}, bossReady: {}, explored: '', starterChosen: false,
     savedAt: Date.now(),
   };
@@ -163,7 +168,7 @@ export function freshSave(): SaveData {
  */
 export const RUN_KEYS = [
   'stage', 'highestStage', 'gold', 'farming', 'upgrades', 'shards', 'forgeLevel', 'weapons', 'equipped',
-  'level', 'xp', 'zone', 'zoneBosses', 'zoneBest', 'bossReady', 'explored', 'rates',
+  'level', 'xp', 'zone', 'zoneBosses', 'zoneBest', 'worldBosses', 'bossReady', 'explored', 'rates',
 ] as const;
 export type HeroRun = Pick<SaveData, (typeof RUN_KEYS)[number]>;
 
@@ -189,7 +194,7 @@ export function newRun(save: SaveData, skin: string): HeroRun {
     stage, highestStage: stage, gold: 0, farming: false, upgrades: { atk: 0, hp: 0, aspd: 0, crit: 0, gold: 0 },
     shards: 0, forgeLevel: Math.min(MAX_FORGE_LEVEL, 1 + save.perks.forgemaster),
     weapons: Array(INVENTORY_SIZE).fill(null), equipped: starterWeapon(skinDef(skin).forms[0], save.nextWeaponId++),
-    level, xp: 0, zone, zoneBosses: beaten, zoneBest: zone, bossReady: {}, explored: '', rates: { gold: 0, shards: 0 },
+    level, xp: 0, zone, zoneBosses: beaten, zoneBest: zone, worldBosses: 0, bossReady: {}, explored: '', rates: { gold: 0, shards: 0 },
   };
 }
 
@@ -595,7 +600,7 @@ export class Sim {
       if (!open && Math.hypot(this.hero.x - g.x, this.hero.y - g.y) < 70 && this.time > this.gateHintT) {
         this.gateHintT = this.time + 6;
         const lvl = zoneLevel(g.zone), boss = zoneBossName(g.zone - 1);
-        const parts = [this.save.level < lvl ? `reach Lv ${lvl}` : '', this.save.zoneBosses < g.zone ? `defeat the ${boss}` : ''].filter(Boolean);
+        const parts = [this.save.level < lvl ? `reach Lv ${lvl}` : '', this.save.zoneBosses < g.zone ? `defeat ${boss}` : ''].filter(Boolean);
         this.notices.push(`The way to ${zoneName(g.zone)} is blocked: ${parts.join(' and ')}`);
       }
     }
@@ -611,41 +616,78 @@ export class Sim {
     if (this.explored.reveal(this.hero.x, this.hero.y)) this.save.explored = this.explored.toString();
   }
 
-  /** Forest boss lairs: walking into the current region's lair calls up its boss. */
+  /** Is the world boss's crypt open (every region's boss beaten)? */
+  get worldBossOpen(): boolean { return this.save.zoneBosses >= PLAYABLE_ZONES; }
+
+  /** Seconds until the beaten world boss can be fought again (0: ready, or not beaten yet). */
+  worldBossCooldownLeft(now = this.clock()): number {
+    if (this.save.worldBosses <= 0) return 0;
+    return Math.min(worldBossCooldown(), Math.max(0, ((this.save.bossReady.world ?? 0) - now) / 1000));
+  }
+
+  /** The lair whose boss is being fought (null when none). */
+  private bossLair: Lair | null = null;
+  /** Is the fight on the world boss? */
+  get worldBossActive(): boolean { return this.bossActive && !!this.bossLair?.world; }
+
+  /**
+   * Forest boss lairs: walking into the current region's lair calls up its boss; the last
+   * region's crypt calls up the world boss once every region's boss has fallen.
+   */
   private updateLair(): void {
     const f = this.map.forest;
     if (!f || this.phase !== 'playing') return;
-    const z = this.save.zone;
-    const lair = f.lairs.find((l) => l.zone === z);
-    if (!lair) return;
     const h = this.hero;
-    const d = Math.hypot(h.x - lair.x, h.y - lair.y);
     if (this.bossActive) {
-      if (d > lair.r + 150) this.abandonBoss(); // ran off: the boss returns to its lair
+      const l = this.bossLair;
+      if (l && Math.hypot(h.x - l.x, h.y - l.y) > l.r + 150) this.abandonBoss(); // ran off: the boss returns to its lair
       return;
     }
-    if (d > lair.r * 0.75) return;
+    const z = this.save.zone;
     const now = this.clock();
-    if (this.zoneBossBeaten) {
-      const left = this.bossCooldownLeft(now);
-      if (left > 0) return; // still recovering: a countdown floats over the lair (render/scene.ts)
-      this.save.bossReady[z] = now + bossCooldown(z) * 1000;
+    for (const lair of [f.lairs.find((l) => l.zone === z), f.worldLair.zone === z ? f.worldLair : undefined]) {
+      if (!lair || Math.hypot(h.x - lair.x, h.y - lair.y) > lair.r * 0.75) continue;
+      let boss: { area: number; slot: number }, stage: number;
+      if (lair.world) {
+        if (!this.worldBossOpen) {
+          if (this.time > this.gateHintT) {
+            this.gateHintT = this.time + 6;
+            this.notices.push(`The crypt is sealed: defeat every region's boss (${this.save.zoneBosses}/${PLAYABLE_ZONES})`);
+          }
+          continue;
+        }
+        if (this.save.worldBosses > 0) {
+          if (this.worldBossCooldownLeft(now) > 0) continue;
+          this.save.bossReady.world = now + worldBossCooldown() * 1000;
+        }
+        boss = WORLD_BOSS;
+        stage = worldBossStage();
+      } else {
+        if (this.zoneBossBeaten) {
+          if (this.bossCooldownLeft(now) > 0) continue; // still recovering: a countdown floats over the lair (render/scene.ts)
+          this.save.bossReady[z] = now + bossCooldown(z) * 1000;
+        }
+        boss = zoneBoss(z);
+        stage = zoneStage(z);
+      }
+      // One on one: the lair's surroundings are cleared, then the boss rises at its heart.
+      for (const e of this.enemies) if (e.alive && Math.hypot(e.x - lair.x, e.y - lair.y) < lair.r + 80) e.alive = false;
+      this.bossActive = true;
+      this.bossLair = lair;
+      this.bossT = BOSS_TIME;
+      const b = this.enemies.find((e) => !e.alive) ?? this.enemies[0];
+      this.setEnemy(b, boss.slot, true, lair.x, lair.y - lair.r * 0.3, false, stage, boss.area);
+      b.homeX = lair.x; b.homeY = lair.y; b.homeR = lair.r;
+      this.events.push(Ev.BossSpawn);
+      return;
     }
-    // One on one: the lair's surroundings are cleared, then the boss rises at its heart.
-    for (const e of this.enemies) if (e.alive && Math.hypot(e.x - lair.x, e.y - lair.y) < lair.r + 80) e.alive = false;
-    this.bossActive = true;
-    this.bossT = BOSS_TIME;
-    const b = this.enemies.find((e) => !e.alive) ?? this.enemies[0];
-    const boss = zoneBoss(z);
-    this.setEnemy(b, boss.slot, true, lair.x, lair.y - lair.r * 0.3, false, zoneStage(z), boss.area);
-    b.homeX = lair.x; b.homeY = lair.y; b.homeR = lair.r;
-    this.events.push(Ev.BossSpawn);
   }
 
   /** The hero left the lair mid-fight: the boss goes back to waiting (no penalty). */
   private abandonBoss(): void {
     for (const e of this.enemies) if (e.alive && e.boss) e.alive = false;
     this.bossActive = false;
+    this.bossLair = null;
     this.events.push(Ev.BossFail);
   }
 
@@ -1040,7 +1082,7 @@ export class Sim {
     const zone = e.boss ? this.save.zone : forestZone(e.x, e.y);
     const r = this.save.regions[zone];
     if (!r) return;
-    if (e.boss) { r.bosses++; return; }
+    if (e.boss) { if (!this.bossLair?.world) r.bosses++; return; } // (the world boss isn't the region's)
     if (e.elite) r.elites++;
     const slot = RQ.huntSlot(zone, e.area, e.monster);
     if (slot >= 0) r.hunt[slot]++;
@@ -1227,7 +1269,7 @@ export class Sim {
   private startRun(): void {
     const s = this.save;
     for (const sh of this.heroShots) sh.alive = false;
-    this.bossActive = false;
+    this.bossActive = false; this.bossLair = null;
     this.returnT = 0;
     this.phase = 'playing';
     this.route.length = 0;
@@ -1271,7 +1313,7 @@ export class Sim {
     s.weapons = s.weapons.map(() => null);
     s.equipped = starterWeapon(skinDef(s.skin).forms[0], s.nextWeaponId++);
     s.forgeLevel = Math.min(MAX_FORGE_LEVEL, 1 + s.perks.forgemaster);
-    this.bossActive = false;
+    this.bossActive = false; this.bossLair = null;
     this.returnT = 0;
     this.phase = 'playing';
     this.recalc();
@@ -1882,7 +1924,10 @@ export class Sim {
     this.save.stats.gold += gold;
     this.save.kills++;
     this.events.push(Ev.Kill, e.x, e.y, gold, e.boss ? 1 : 0);
-    this.missions.recordKill(e.area, e.monster);
+    // Region bosses have Codex entries of their own (not their monster's); the world boss is its
+    // terrain's boss (slot 3).
+    if (e.boss && e.monster !== 3 && this.map.forest) this.missions.recordKill(regionBossKey(this.save.zone), 3);
+    else this.missions.recordKill(e.area, e.monster);
     this.recordRegionKill(e);
     if (e.elite) this.save.stats.elites++;
     this.gainXp(xpForKill(e.stage, e.boss));
@@ -1898,9 +1943,23 @@ export class Sim {
       this.events.push(Ev.Shard, e.x, e.y, shards);
     }
 
-    if (e.boss) {
+    if (e.boss && this.bossLair?.world) {
+      // The world boss: the Greenwood is cleared.
       const s = this.save;
       this.bossActive = false;
+      this.bossLair = null;
+      s.stats.bosses++;
+      if (s.worldBosses === 0) {
+        this.missions.apply({ gold: enemyGold(e.stage) * 300, shards: 40 * per, gems: 50 });
+        this.events.push(Ev.ZoneClear, e.x, e.y, s.zone);
+        this.notices.push(`💀 The ${worldBossName()} is defeated! The Greenwood is free. New worlds are coming soon.`);
+      }
+      s.worldBosses++;
+      s.bossReady.world = Math.max(s.bossReady.world ?? 0, this.clock() + worldBossCooldown() * 1000);
+    } else if (e.boss) {
+      const s = this.save;
+      this.bossActive = false;
+      this.bossLair = null;
       s.stats.bosses++;
       if (s.zone === s.zoneBosses) {
         // First win here: a big bonus, and the way to the next zone opens (level permitting).
@@ -2040,7 +2099,7 @@ export class Sim {
   private failBoss(died: boolean): void {
     this.events.push(Ev.BossFail);
     this.clearEnemies();
-    this.bossActive = false;
+    this.bossActive = false; this.bossLair = null;
     if (died) { this.phase = 'dead'; this.phaseT = 1.5; }
     else this.enterZoneMap(false);
   }

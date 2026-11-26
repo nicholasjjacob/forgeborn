@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { cloneActor, findClip, measure, model } from '../render/models';
-import { areaFor } from '../sim/areas';
+import { areaFor, monsterModel } from '../sim/areas';
 import { buildKitWeapon } from '../render/weapons3d';
 
 /**
@@ -54,7 +54,7 @@ function build(key: string, fly: boolean): Portrait | null | undefined {
   inner.traverse((o) => {
     const m = o as THREE.Mesh;
     // Same lift as on the battlefield: the packs' palettes are dark.
-    if (m.isMesh) for (const x of Array.isArray(m.material) ? m.material : [m.material]) (x as THREE.MeshLambertMaterial).color?.multiplyScalar(1.35);
+    if (m.isMesh && key.startsWith('m')) for (const x of Array.isArray(m.material) ? m.material : [m.material]) (x as THREE.MeshLambertMaterial).color?.multiplyScalar(1.35);
   });
   const obj = new THREE.Group();
   obj.add(inner);
@@ -178,7 +178,7 @@ function paintWeapon(c: HTMLCanvasElement, w: number, h: number, now: number): v
  */
 const snapshots = new Map<string, HTMLCanvasElement>();
 export function monsterSnapshot(area: number, slot: number, size = 96): HTMLCanvasElement | null {
-  const key = `m${area % 6}_${slot}`;
+  const key = monsterModel(area, slot);
   const have = snapshots.get(`${key}|${size}`);
   if (have) return have;
   if (!setup()) return null;
@@ -225,5 +225,5 @@ function loop(now: number): void {
 export function monsterSlot(area: number, slot: number, sprite: string, cls: string, unseen = false): string {
   const fly = slot < 3 && areaFor(area).def.monsters[slot]?.shape === 'bat';
   const u = unseen ? ' unseen' : '';
-  return `<span class="mon-slot ${cls}"><img alt="" src="${sprite}" class="${u}" /><canvas class="mon3d${u}" data-model="m${area % 6}_${slot}" data-fly="${fly ? 1 : 0}"></canvas></span>`;
+  return `<span class="mon-slot ${cls}"><img alt="" src="${sprite}" class="${u}" /><canvas class="mon3d${u}" data-model="${monsterModel(area, slot)}" data-fly="${fly ? 1 : 0}"></canvas></span>`;
 }

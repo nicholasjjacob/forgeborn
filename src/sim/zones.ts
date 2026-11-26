@@ -78,19 +78,42 @@ export const zoneTerrain = (zone: number) => areaName(zoneArea(zone));
 export const isTerrainBossZone = (zone: number) => zoneIndex(zone) === zonesIn(zone) - 1;
 
 /**
- * A zone's boss as [terrain, roster slot]: the terrain's own boss (slot 3) in its last zone,
- * otherwise a champion of a regular monster: in the Greenwood, one of the region's own monsters.
+ * The Greenwood's region bosses, by zone: a giant of one of the region's own monsters (its index
+ * in REGION_MONSTERS), each with a name of its own. The Greenwood's own boss (the Necromancer)
+ * is its world boss, in a lair of its own once all nine have fallen (see WORLD_BOSS).
+ */
+const REGION_BOSSES: readonly { pick: number; name: string }[] = [
+  { pick: 0, name: 'Big Mossy' },           // Meadow Outskirts: Moss Blob
+  { pick: 1, name: 'Goldhorn' },            // Goldenrod Fields: Dune Dino
+  { pick: 2, name: 'Gloomglub' },           // Mistwater Glade: Bog Glub
+  { pick: 0, name: 'Warchief Cinderjaw' },  // Emberleaf Woods: Cinder Orc
+  { pick: 2, name: 'Queen Thornbuzz' },     // Bloomwood Groves: Mire Bee
+  { pick: 0, name: 'Old Rimeback' },        // Tidepine Thicket: Frost Yeti
+  { pick: 0, name: 'Hollowshade' },         // Crimson Hollow: Cave Ghost
+  { pick: 0, name: 'Gristlegrind' },        // Old Mill Crossing: Bone Brute
+  { pick: 1, name: 'Deepcoil' },            // Emerald Mere: Ice Squid
+];
+
+/**
+ * A zone's boss as [terrain, roster slot]. In the Greenwood: the region's giant (a big version of
+ * one of its monsters, slot 0-2). Later terrains: a champion per zone, the terrain's boss last.
  */
 export function zoneBoss(zone: number): { area: number; slot: number } {
   const area = zoneArea(zone);
-  if (isTerrainBossZone(zone)) return { area, slot: 3 };
   if (area === 0) {
     const b = BIOMES.findIndex((x) => x.zone === zone);
-    const [a, s] = REGION_MONSTERS[b][zone % 3];
+    const [a, s] = REGION_MONSTERS[b][REGION_BOSSES[zone % 9].pick];
     return { area: a, slot: s };
   }
+  if (isTerrainBossZone(zone)) return { area, slot: 3 };
   return { area, slot: zoneIndex(zone) };
 }
+
+/** The Greenwood's world boss: its own boss (the Necromancer), in a lair in its last region. */
+export const WORLD_BOSS = { area: 0, slot: 3, zone: PLAYABLE_ZONES - 1 } as const;
+/** The world boss is a little tougher than the last region's. */
+export const worldBossStage = () => zoneStage(WORLD_BOSS.zone) + 2;
+export const worldBossName = () => areaFor(WORLD_BOSS.area).def.boss.name;
 
 /**
  * Seconds a beaten zone boss needs before a rematch: longer for tougher bosses, and half as long
@@ -98,42 +121,39 @@ export function zoneBoss(zone: number): { area: number; slot: number } {
  * 2 min in the first zone, ~5 min by the third terrain, ~29 min at the Caldera's heart.
  */
 export function bossCooldown(zone: number): number {
-  return Math.round((120 + 60 * Math.max(0, zone)) * (isTerrainBossZone(zone) ? 1.5 : 1));
+  return Math.round((120 + 60 * Math.max(0, zone)) * (zoneArea(zone) > 0 && isTerrainBossZone(zone) ? 1.5 : 1));
 }
+/** The world boss's rest between fights. */
+export const worldBossCooldown = () => Math.round(bossCooldown(WORLD_BOSS.zone) * 1.5);
 
 /**
- * The map region a terrain's monsters call home (where most of them roam, the easiest on a tie),
- * or -1 if none of them is in a playable region yet. The Codex names its pages after it.
+ * Codex key of a region's boss: its kills are kept apart from its monster's, under this "area"
+ * (slot 3), so each region's giant has a Codex entry of its own.
  */
-export function codexHome(area: number): number {
-  let best = -1, most = 0;
-  BIOMES.forEach((b, i) => {
-    if (b.zone < 0 || b.zone >= PLAYABLE_ZONES) return;
-    const n = (REGION_MONSTERS[i] ?? []).filter(([a]) => a === area).length;
-    if (n > most || (n === most && n > 0 && b.zone < best)) { most = n; best = b.zone; }
-  });
-  return best;
+export const regionBossKey = (zone: number) => 100 + zone;
+
+/** The Codex's pages: one per region (by zone), then the world boss's. */
+export const CODEX_WORLD_PAGE = PLAYABLE_ZONES;
+
+/** A page's Codex entries as [area, slot]: the region's three monsters and its boss, or the world boss. */
+export function codexEntries(page: number): [number, number][] {
+  if (page === CODEX_WORLD_PAGE) return [[WORLD_BOSS.area, WORLD_BOSS.slot]];
+  const b = BIOMES.findIndex((x) => x.zone === page);
+  return b < 0 ? [] : [...REGION_MONSTERS[b].map(([a, s]) => [a, s] as [number, number]), [regionBossKey(page), 3]];
 }
 
-/** The playable zones (regions) where terrain `area`'s monster `slot` roams, easiest first. */
-export function monsterZones(area: number, slot: number): number[] {
-  const out: number[] = [];
-  BIOMES.forEach((b, i) => {
-    if (b.zone >= 0 && b.zone < PLAYABLE_ZONES && REGION_MONSTERS[i]?.some(([a, s]) => a === area && s === slot)) out.push(b.zone);
-  });
-  return out.sort((x, y) => x - y);
-}
-
-/** The playable zone whose lair holds terrain `area`'s own boss, or -1 while none does yet. */
-export function bossLairZone(area: number): number {
-  for (let z = 0; z < PLAYABLE_ZONES; z++) {
-    const b = zoneBoss(z);
-    if (b.area === area && b.slot === 3) return z;
+/** What a Codex entry shows: its name, the monster model drawn (region bosses: their giant), and whether it's a boss. */
+export function codexEntry(area: number, slot: number): { name: string; area: number; slot: number; boss: boolean } {
+  if (area >= 100) {
+    const z = area - 100, g = zoneBoss(z);
+    return { name: zoneBossName(z), area: g.area, slot: g.slot, boss: true };
   }
-  return -1;
+  const { def } = areaFor(area);
+  return { name: slot === 3 ? def.boss.name : def.monsters[slot].name, area, slot, boss: slot === 3 };
 }
 
 export function zoneBossName(zone: number): string {
+  if (zoneArea(zone) === 0) return REGION_BOSSES[zone % 9].name;
   const { area, slot } = zoneBoss(zone);
   const { def } = areaFor(area);
   return slot === 3 ? def.boss.name : `${def.monsters[slot].name} Champion`;

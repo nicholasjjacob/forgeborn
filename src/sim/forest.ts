@@ -61,7 +61,8 @@ const LINKS: [number, number][] = [
 ];
 
 export interface Territory { zone: number; biome: number; area: number; monster: number; x: number; y: number; r: number; count: number; landmark: string; horde?: boolean }
-export interface Lair { zone: number; biome: number; x: number; y: number; r: number; name: string }
+/** A boss lair. `world`: the world boss's (it opens once every region's boss has fallen). */
+export interface Lair { zone: number; biome: number; x: number; y: number; r: number; name: string; world?: boolean }
 export interface Landmark { name: string; x: number; y: number; zone: number; biome: number; style: string }
 /** A barricaded pass; `zone` is the tier it leads into (it opens once that zone is unlocked). */
 export interface Gate { zone: number; x: number; y: number }
@@ -73,6 +74,8 @@ export interface ForestInfo {
   biomes: Biome[];
   territories: Territory[];
   lairs: Lair[];
+  /** The world boss's lair (not in `lairs`, which holds one per region). */
+  worldLair: Lair;
   landmarks: Landmark[];
   gates: Gate[];
   passes: Pass[];
@@ -212,6 +215,7 @@ const LANDMARKS: [number, string, number, number, string][] = [
   [5, 'Tidepine Spire', 220, -250, 'spires'], [5, 'Driftwood Hollow', -270, 210, 'stump'], [5, 'Blue Cairn', 280, 300, 'cairn'],
   [6, 'Old Mill Ruins', 120, -160, 'lair'], [6, 'Old Well', -300, 140, 'well'], [6, 'Wayfarer Cairn', 330, 260, 'cairn'], [6, 'Hollow Stump', -280, -260, 'stump'],
   [7, 'Bloodroot Altar', 160, -150, 'stones'], [7, 'Crimson Spires', -260, 240, 'spires'], [7, 'Raven Stump', 300, 260, 'stump'],
+  [8, "Necromancer's Crypt", 450, -380, 'crypt'],
   [8, 'Sunken Shrine', -300, -250, 'stones'], [8, 'Heron Isle', 330, -60, 'boulders'], [8, 'Mossback Barrow', -220, 300, 'boulders'],
 ];
 
@@ -270,6 +274,9 @@ const TERRITORIES: Territory[] = HAUNTS.map(([name, monster, dx, dy, r0, count0,
 const LAIRS: Lair[] = LMK.filter((l) => l.style === 'lair')
   .map((l) => ({ zone: l.zone, biome: l.biome, x: l.x, y: l.y, r: 72 + l.zone * 2.5, name: l.name }))
   .sort((a, b) => a.zone - b.zone);
+/** The world boss's crypt, at the far end of the last region. */
+const CRYPT = LMK.find((l) => l.style === 'crypt')!;
+const WORLD_LAIR: Lair = { zone: CRYPT.zone, biome: CRYPT.biome, x: CRYPT.x, y: CRYPT.y, r: 108, name: CRYPT.name, world: true };
 
 /** Water: a cluster of overlapping circles per pond. */
 const PONDS: Pond[] = [];
@@ -294,6 +301,7 @@ export const FOREST: ForestInfo = {
   biomes: BIOMES,
   territories: TERRITORIES,
   lairs: LAIRS,
+  worldLair: WORLD_LAIR,
   landmarks: LMK,
   gates: PASSES.filter((p) => p.gate > 0).map((p) => ({ zone: p.gate, x: p.x, y: p.y })),
   passes: PASSES,
@@ -428,7 +436,7 @@ export function buildForest(rng: Rng): { props: ForestProp[]; cover: { x: number
   const nearPath = (x: number, y: number, pad: number) =>
     (pathGrid.get(Math.floor(y / PC) * 1000 + Math.floor(x / PC)) ?? []).some(([x0, y0, x1, y1]) => segDist(x, y, x0, y0, x1, y1) < pad);
   const clearings = [
-    ...LAIRS.map((l) => ({ x: l.x, y: l.y, r: l.r + 14 })),
+    ...[...LAIRS, WORLD_LAIR].map((l) => ({ x: l.x, y: l.y, r: l.r + 14 })),
     ...BIOMES.map((_, i) => ({ ...biomeArrival(i), r: 80 })),
     ...SPAWNS.map((s) => ({ x: s.x, y: s.y, r: 70 })),
     ...LMK.map((l) => ({ x: l.x, y: l.y, r: 50 })),
@@ -511,6 +519,16 @@ export function buildForest(rng: Rng): { props: ForestProp[]; cover: { x: number
       put('tree', l.x - 30, l.y - 20, 6, T('Tree_Bare_2_B', 1), 34);
     } else if (l.zone % 2 === 0) ring(l.x, l.y, l.r, 16, SPIRE.map(rk), 30, 5, toHub);
     else ring(l.x, l.y, l.r, 16, [T('Rock_6_A', 1), T('Rock_6_B', 1)], 24, 6, toHub);
+  }
+  // The world boss's crypt: a wider ring of dark cliffs, ringed by dead trees.
+  {
+    const l = WORLD_LAIR;
+    const toHub = Math.atan2(BIOMES[l.biome].y - l.y, BIOMES[l.biome].x - l.x);
+    ring(l.x, l.y, l.r, 22, [T('Rock_1_K', 1), T('Rock_1_L', 1), ...CLIFF.map((n) => T(n, 6))], 26, 8, toHub);
+    for (let k = 0; k < 5; k++) {
+      const a = toHub + Math.PI * (0.45 + k * 0.275);
+      put('tree', l.x + Math.cos(a) * (l.r + 34), l.y + Math.sin(a) * (l.r + 34), 6, T(k % 2 ? 'Tree_Bare_2_B' : 'Tree_Bare_1_A', 1), 38);
+    }
   }
 
   // --- Fill each region: groves of trees, bushes, boulders.

@@ -1102,6 +1102,8 @@ html.pc #quests-root { --qb-h: min(600px, calc(100dvh - var(--safe-top) - 118px 
 .codex-top .codex-area { flex: 1; display: flex; align-items: center; gap: 6px; font-size: 18px; }
 .codex-top .codex-area .gi { width: 24px; height: 24px; }
 .codex-grid.big { grid-template-columns: 1fr 1fr; gap: 10px; }
+/* The world boss's page: its one card, centred. */
+.codex-grid.big.solo { grid-template-columns: minmax(0, 320px); grid-template-rows: minmax(0, 1fr); justify-content: center; }
 .codex-grid.big .codex-card { padding: 10px 8px; gap: 5px; }
 .codex-grid.big .codex-portrait { height: 110px; }
 .codex-grid.big .codex-card img { width: 96px; height: 96px; max-width: none; max-height: none; object-fit: contain; }

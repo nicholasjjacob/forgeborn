@@ -1,11 +1,12 @@
 import { monsterSlot, paintMonsterPortraits } from './monsterPreview';
 import { gi, terrainIcon } from './icons';
-import { bossLairZone, codexHome, monsterZones, zoneLevel, zoneName } from '../sim/zones';
+import { BIOMES, FOREST } from '../sim/forest';
+import { CODEX_WORLD_PAGE, PLAYABLE_ZONES, codexEntries, codexEntry, zoneLevel, zoneName } from '../sim/zones';
 import { haptic, sfx } from '../audio/sfx';
 import { rewardSpill, starBurst } from './rewardFx';
 import { actionElement, bindSheetTaps } from './tap';
 import { fmt } from '../core/format';
-import { areaFor, areaName } from '../sim/areas';
+import { areaFor, monsterModel } from '../sim/areas';
 import {
   JOURNEY_DAYS, JOURNEY_TASKS, SHOP, codexReward, codexTiers, describeReward, formatCountdown, msUntilNextDay,
   msUntilNextWeek, type Reward, type TaskDef,
@@ -162,7 +163,7 @@ export class MissionsUI {
     // With only one land discovered, the Codex opens straight onto its monsters (a list of one
     // land would be mostly empty space).
     if (this.tab === 'codex' && this.codexArea === null) {
-      const lands = this.sim.missions.codexAreas();
+      const lands = this.sim.missions.codexPages();
       if (lands.length === 1) this.codexArea = lands[0];
     }
     // Fill pages: the content stretches to the sheet and scales to it (no scrolling, no gaps).
@@ -285,17 +286,16 @@ export class MissionsUI {
       <div class="task-list">${JOURNEY_TASKS[sel].map((t) => this.taskRow('journey', t, now)).join('')}</div>`;
   }
 
-  /** Codex: which terrain is open (null = the terrain list). */
+  /** Codex: which page is open (a region's zone, or the world boss's; null = the list). */
   private codexArea: number | null = null;
   /** Jump to the top on the next render (after switching codex pages). */
   private scrollTop = false;
 
-  /** Stars earned / available for one terrain's four monsters, and whether any can be claimed. */
-  private codexProgress(area: number): { stars: number; total: number; ready: boolean } {
+  /** Stars earned / available on one Codex page, and whether any can be claimed. */
+  private codexProgress(page: number): { stars: number; total: number; ready: boolean } {
     const m = this.sim.missions;
     let stars = 0, total = 0, ready = false;
-    for (let slot = 0; slot < 4; slot++) {
-      if (this.homeZones(area, slot).length === 0) continue; // not in any land yet: not counted
+    for (const [area, slot] of codexEntries(page)) {
       stars += Math.min(m.codexClaimed(area, slot), codexTiers(slot).length);
       total += codexTiers(slot).length;
       if (m.canClaimCodex(area, slot)) ready = true;
@@ -303,79 +303,71 @@ export class MissionsUI {
     return { stars, total, ready };
   }
 
-  /** Where a monster lives: its lair (bosses) or the regions it roams. Empty: not in the game yet. */
-  private homeZones(area: number, slot: number): number[] {
-    if (slot !== 3) return monsterZones(area, slot);
-    const z = bossLairZone(area);
-    return z >= 0 ? [z] : [];
+  private pageName(page: number): string { return page === CODEX_WORLD_PAGE ? 'World Boss' : zoneName(page); }
+  private pageIcon(page: number): string { return page === CODEX_WORLD_PAGE ? gi('skull-crossed-bones', 'white') : terrainIcon(0); }
+  /** A page's card colours: its region's ground (the world boss: the crypt's gloom). */
+  private pageColours(page: number): string {
+    const bm = BIOMES.find((b) => b.zone === page);
+    const [hi, mid] = bm ? [bm.map, bm.ground] : ['#6a5a9a', '#3a2e5a'];
+    return `--g1:${hi};--g2:${mid};--g3:color-mix(in srgb, ${mid} 55%, #000)`;
   }
 
-  /** A Codex page's name: the map region its monsters call home (the terrain's own name otherwise). */
-  private landName(area: number): string {
-    const z = codexHome(area);
-    return z >= 0 ? zoneName(z) : areaName(area);
+  /** A Codex entry's portrait (region bosses: their giant's model). */
+  private entrySlot(area: number, slot: number, cls: string, unseen: boolean): string {
+    const e = codexEntry(area, slot);
+    return monsterSlot(e.area, e.slot, this.codexIcon(e.area, e.slot), cls, unseen);
   }
 
   private renderCodex(): string {
-    const areas = this.sim.missions.codexAreas();
-    if (this.codexArea !== null && areas.includes(this.codexArea)) return this.renderCodexArea(this.codexArea);
+    const pages = this.sim.missions.codexPages();
+    if (this.codexArea !== null && pages.includes(this.codexArea)) return this.renderCodexArea(this.codexArea);
     this.codexArea = null;
-    // Land list: one big card per discovered land, painted in its ground colours, in map order.
-    const order = (a: number) => { const z = codexHome(a); return z >= 0 ? z : 100 + a; };
-    const shown = [...areas].sort((a, b) => order(a) - order(b));
-    // The next region with monsters not met yet.
-    const next = Math.min(...[0, 1, 2, 3, 4, 5].filter((a) => !areas.includes(a))
-      .flatMap((a) => [0, 1, 2].flatMap((s) => monsterZones(a, s))), Infinity);
-    return `<p class="sheet-note">Pick a land to see its monsters. Every ★ milestone pays gems.</p>
-      <div class="codex-lands">${shown.map((area) => {
-        const { def } = areaFor(area);
-        const g = def.ground;
-        const p = this.codexProgress(area);
-        return `<button type="button" class="codex-land ${p.ready ? 'ready' : ''}" data-act="carea:${area}" style="--g1:${g.light};--g2:${g.base};--g3:${g.dark}">
-          <span class="cl-ico">${terrainIcon(area)}</span>
-          <span class="cl-main"><b>${this.landName(area)}</b>
-            <span class="bar thin"><span class="bar-fill" style="transform:scaleX(${p.stars / p.total})"></span></span>
+    const m = this.sim.missions;
+    // One card per region reached (map order), then the world boss once its crypt opens.
+    const next = Array.from({ length: PLAYABLE_ZONES }, (_, z) => z).find((z) => !pages.includes(z));
+    return `<p class="sheet-note">Pick a region to see its monsters. Every ★ milestone pays gems.</p>
+      <div class="codex-lands">${pages.map((page) => {
+        const p = this.codexProgress(page);
+        return `<button type="button" class="codex-land ${p.ready ? 'ready' : ''}" data-act="carea:${page}" style="${this.pageColours(page)}">
+          <span class="cl-ico">${this.pageIcon(page)}</span>
+          <span class="cl-main"><b>${this.pageName(page)}</b>
+            <span class="bar thin"><span class="bar-fill" style="transform:scaleX(${p.total ? p.stars / p.total : 0})"></span></span>
             <small>★ ${p.stars}/${p.total}</small></span>
-          <span class="cl-mons">${[0, 1, 2, 3].map((slot) => monsterSlot(area, slot, this.codexIcon(area, slot), 'cl-mon', this.sim.missions.codexKills(area, slot) === 0)).join('')}</span>
+          <span class="cl-mons">${codexEntries(page).map(([a, s]) => this.entrySlot(a, s, 'cl-mon', m.codexKills(a, s) === 0)).join('')}</span>
           ${p.ready ? '<b class="dot">!</b>' : ''}
         </button>`;
       }).join('')}</div>
-      ${Number.isFinite(next) ? `<div class="codex-teaser">${gi('padlock', 'grey')} <b>Next land</b> · reach ${zoneName(next)} on the Map to discover new monsters</div>` : ''}`;
+      ${next !== undefined ? `<div class="codex-teaser">${gi('padlock', 'grey')} <b>Next region</b> · ${zoneName(next)} opens at Lv ${zoneLevel(next)} after beating the boss before it</div>`
+        : !pages.includes(CODEX_WORLD_PAGE) ? `<div class="codex-teaser">${gi('padlock', 'grey')} <b>World boss</b> · defeat every region's boss to open its crypt</div>` : ''}`;
   }
 
-  /** One terrain's monsters as big cards. */
-  private renderCodexArea(area: number): string {
+  /** One page's monsters as big cards (a region: its three monsters and its boss). */
+  private renderCodexArea(page: number): string {
     const m = this.sim.missions;
-    const { def } = areaFor(area);
-    const mons = [...def.monsters, def.boss];
-    const p = this.codexProgress(area);
+    const p = this.codexProgress(page);
+    const world = page === CODEX_WORLD_PAGE;
     return `<div class="codex-top">
-        ${m.codexAreas().length > 1 ? '<button type="button" class="btn small grey" data-act="carea:back">‹ Lands</button>' : ''}
-        <h3 class="codex-area">${terrainIcon(area)} ${this.landName(area)}</h3><span class="codex-stars">★ ${p.stars}/${p.total}</span>
+        ${m.codexPages().length > 1 ? '<button type="button" class="btn small grey" data-act="carea:back">‹ Regions</button>' : ''}
+        <h3 class="codex-area">${this.pageIcon(page)} ${this.pageName(page)}</h3><span class="codex-stars">★ ${p.stars}/${p.total}</span>
       </div>
-      <div class="codex-grid big">${mons.map((mon, slot) => {
+      <div class="codex-grid big ${world ? 'solo' : ''}">${codexEntries(page).map(([area, slot]) => {
+        const e = codexEntry(area, slot);
         const kills = m.codexKills(area, slot), tier = m.codexClaimed(area, slot), tiers = codexTiers(slot);
         const maxed = tier >= tiers.length, goal = maxed ? tiers[tiers.length - 1] : tiers[tier];
         const ready = m.canClaimCodex(area, slot), seen = kills > 0;
         const reward = maxed ? null : codexReward(slot, tier);
-        // Where to find it: the boss's lair, or the regions the monster roams (or that its land is
-        // still to come).
-        const homes = this.homeZones(area, slot), later = homes.length === 0;
-        const z = homes[0], more = homes.length > 1 ? ` +${homes.length - 1}` : '';
-        const where = later ? `<div class="codex-where">${gi('padlock', 'grey')}<span>Arrives with a future land</span></div>`
-          : `<div class="codex-where" title="${homes.map(zoneName).join(', ')}">${gi('position-marker', slot === 3 ? 'red' : 'green')}<span>${slot === 3 ? '<i class="cw-lair">Lair: </i>' : ''}${zoneName(z)}</span>${more}${this.sim.zoneUnlocked(z) ? '' : ` · Lv ${zoneLevel(z)}`}</div>`;
-        if (later) {
-          return `<div class="codex-card ${slot === 3 ? 'boss' : ''} later">
-          ${slot === 3 ? '<span class="boss-tag">BOSS</span>' : ''}
-          <div class="codex-portrait"><img alt="" src="${this.codexIcon(area, slot)}" class="unseen" /><canvas class="mon3d unseen" data-model="m${area % 6}_${slot}" data-fly="0"></canvas></div>
-          <div class="codex-name">???</div>
-          ${where}
-        </div>`;
-        }
-        return `<div class="codex-card ${slot === 3 ? 'boss' : ''} ${ready ? 'ready' : ''} ${maxed ? 'maxed' : ''}">
-          ${slot === 3 ? '<span class="boss-tag">BOSS</span>' : ''}
-          <div class="codex-portrait"><img alt="" src="${this.codexIcon(area, slot)}" class="${seen ? '' : 'unseen'}" /><canvas class="mon3d ${seen ? '' : 'unseen'}" data-model="m${area % 6}_${slot}" data-fly="${slot < 3 && mon.shape === 'bat' ? 1 : 0}"></canvas></div>
-          <div class="codex-name">${seen ? mon.name : '???'}</div>
+        const fly = !e.boss && areaFor(e.area).def.monsters[e.slot]?.shape === 'bat';
+        // Where to find it: a boss's lair; a monster that also roams other regions says which.
+        const others = e.boss ? [] : this.homeZones(area, slot).filter((z) => z !== page);
+        const f = FOREST;
+        const lair = !e.boss ? '' : world ? f.worldLair.name : f.lairs.find((l) => l.zone === area - 100)?.name ?? zoneName(area - 100);
+        const where = e.boss
+          ? `<div class="codex-where">${gi('position-marker', 'red')}<span><i class="cw-lair">Lair: </i>${lair}</span></div>`
+          : others.length ? `<div class="codex-where" title="${others.map(zoneName).join(', ')}">${gi('position-marker', 'green')}<span>Also in ${zoneName(others[0])}</span>${others.length > 1 ? ` +${others.length - 1}` : ''}</div>` : '';
+        return `<div class="codex-card ${e.boss ? 'boss' : ''} ${ready ? 'ready' : ''} ${maxed ? 'maxed' : ''}">
+          ${e.boss ? `<span class="boss-tag">${world ? 'WORLD BOSS' : 'BOSS'}</span>` : ''}
+          <div class="codex-portrait"><img alt="" src="${this.codexIcon(e.area, e.slot)}" class="${seen ? '' : 'unseen'}" /><canvas class="mon3d ${seen ? '' : 'unseen'}" data-model="${monsterModel(e.area, e.slot)}" data-fly="${fly ? 1 : 0}"></canvas></div>
+          <div class="codex-name">${seen ? e.name : '???'}</div>
           <div class="stars">${tiers.map((_, i) => `<i class="${i < tier ? 'on' : ''}">★</i>`).join('')}</div>
           <div class="bar thin"><div class="bar-fill" style="transform:scaleX(${Math.min(1, kills / goal)})"></div></div>
           <div class="codex-count">${count(Math.min(kills, goal))}/${count(goal)} defeated</div>
@@ -385,6 +377,11 @@ export class MissionsUI {
             : `<div class="codex-next">Next ${chips(reward!)}</div>`}
         </div>`;
       }).join('')}</div>`;
+  }
+
+  /** The regions reached where a monster roams. */
+  private homeZones(area: number, slot: number): number[] {
+    return this.sim.missions.codexPages().filter((z) => z < CODEX_WORLD_PAGE && codexEntries(z).some(([a, s]) => a === area && s === slot));
   }
 
   private renderShop(): string {

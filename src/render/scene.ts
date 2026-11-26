@@ -138,11 +138,13 @@ export class Scene {
   private updateLairTimers(): void {
     const f = this.sim.map.forest;
     const now = this.sim.clock();
-    for (const [zone, t] of this.lairTimers) if (!f || !f.lairs.some((l) => l.zone === zone)) t.text.visible = false;
+    for (const [zone, t] of this.lairTimers) if (!f || (zone >= 0 && !f.lairs.some((l) => l.zone === zone))) t.text.visible = false;
     if (!f) return;
-    for (const l of f.lairs) {
-      const left = this.sim.lairCooldownLeft(l.zone, now);
-      let t = this.lairTimers.get(l.zone);
+    // (The world boss's crypt is keyed -1.)
+    for (const l of [...f.lairs, f.worldLair]) {
+      const key = l.world ? -1 : l.zone;
+      const left = l.world ? this.sim.worldBossCooldownLeft(now) : this.sim.lairCooldownLeft(l.zone, now);
+      let t = this.lairTimers.get(key);
       if (left <= 0 || !this.world3d.inView(l.x, l.y, 60)) { if (t) t.text.visible = false; continue; }
       if (!t) {
         const text = new BitmapText({ text: '', style: { fontFamily: FONT, fontSize: FONT_PX } });
@@ -151,7 +153,7 @@ export class Scene {
         text.tint = 0xffd6d6;
         this.overlay.addChild(text);
         t = { text, shown: '' };
-        this.lairTimers.set(l.zone, t);
+        this.lairTimers.set(key, t);
       }
       const secs = Math.ceil(left);
       const label = `Back in ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;

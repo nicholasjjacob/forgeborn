@@ -114,3 +114,48 @@ await buildAnims('Rig_Large', ['General', 'MovementBasic', 'CombatMelee'], new S
   'Idle_A', 'Running_A', 'Walking_A', 'Death_A', 'Hit_A',
   'Melee_2H_Attack', 'Melee_2H_Idle', 'Melee_2H_Slam', 'Melee_1H_Slash', 'Melee_1H_Stab',
 ]), 'hero_anims_large.glb');
+
+// The Greenwood's world boss: the Skeletons pack's Necromancer, staff in hand, with the hero
+// spell clips baked in under the monster clip names the game plays (Idle, Walk, Weapon, ...),
+// so it renders like any other monster: public/models/boss_necromancer.glb.
+if (existsSync(SKEL)) {
+  const doc = await io.read(join(SKEL, 'characters', 'gltf', 'Necromancer.glb'));
+  const root = doc.getRoot();
+  const [mainScene] = root.listScenes();
+  const bones = new Map();
+  mainScene.traverse((n) => { if (!bones.has(n.getName())) bones.set(n.getName(), n); });
+  // The staff, held in the right hand.
+  const staffDoc = await io.read(join(SKEL, 'assets', 'gltf', 'Skeleton_Staff.gltf'));
+  const staffScene = staffDoc.getRoot().listScenes()[0];
+  const staffNames = new Set(staffScene.listChildren().map((n) => n.getName()));
+  mergeDocuments(doc, staffDoc);
+  // Clips, renamed to the monster names (see render/world3d.ts acquire).
+  const CLIPS = { Ranged_Magic_Spellcasting: 'Idle', Walking_A: 'Walk', Ranged_Magic_Shoot: 'Weapon', Death_A: 'Death', Hit_A: 'HitReact' };
+  mergeDocuments(doc, await io.read(join(OUT, 'hero_anims.glb')));
+  for (const a of root.listAnimations()) {
+    const to = CLIPS[a.getName()];
+    if (!to) { for (const c of a.listChannels()) { c.getSampler()?.dispose(); c.dispose(); } a.dispose(); continue; }
+    a.setName(to);
+    for (const c of a.listChannels()) {
+      const m = bones.get(c.getTargetNode()?.getName() ?? '');
+      if (m) c.setTargetNode(m); else { c.getSampler()?.dispose(); c.dispose(); }
+    }
+  }
+  const hand = bones.get('handslot.r');
+  for (const sc of root.listScenes()) {
+    if (sc === mainScene) continue;
+    for (const n of sc.listChildren()) if (staffNames.has(n.getName())) { sc.removeChild(n); hand.addChild(n); }
+    sc.dispose();
+  }
+  const live = new Set();
+  mainScene.traverse((n) => live.add(n));
+  for (const n of root.listNodes()) if (!live.has(n)) n.dispose();
+  const buf = root.listBuffers()[0];
+  for (const a of root.listAccessors()) a.setBuffer(buf);
+  for (const b of root.listBuffers()) if (b !== buf) b.dispose();
+  for (const im of root.listTextures()) im.setURI('');
+  await doc.transform(prune());
+  const dst = join(OUT, 'boss_necromancer.glb');
+  await io.write(dst, doc);
+  console.log('boss_necromancer', root.listAnimations().map((a) => a.getName()).join(', '), statSync(dst).size);
+}

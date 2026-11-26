@@ -1,5 +1,5 @@
 import { DEFAULT_SKIN } from '../sim/skins';
-import { PLAYABLE_ZONES, zoneLevel, zoneStage } from '../sim/zones';
+import { PLAYABLE_ZONES, regionBossKey, zoneLevel, zoneStage } from '../sim/zones';
 import { freshSave, newRun, type HeroRun, type SaveData } from '../sim/sim';
 import { FORMS, INVENTORY_SIZE, INVENTORY_STEP, MAX_INVENTORY, starterWeapon, upgradeOldWeapon, type Weapon } from '../sim/weapons';
 import { RETIRED, SKINS, canWield, skinDef } from '../sim/skins';
@@ -131,7 +131,7 @@ export function migrate(input: unknown): SaveData {
   const base = freshSave();
   if (!input || typeof input !== 'object') return base;
   const data = { ...(input as Record<string, unknown>) } as Omit<Partial<SaveData>, 'v'> & { v?: number };
-  if (data.v !== 1 && data.v !== 2 && data.v !== 3 && data.v !== 4 && data.v !== 5 && data.v !== 6 && data.v !== 7 && data.v !== 8) return base;
+  if (data.v !== 1 && data.v !== 2 && data.v !== 3 && data.v !== 4 && data.v !== 5 && data.v !== 6 && data.v !== 7 && data.v !== 8 && data.v !== 9) return base;
   const oldVersion = data.v;
 
   // v1 → v2: forge added (shards, forge level, inventory, starter weapon).
@@ -141,11 +141,12 @@ export function migrate(input: unknown): SaveData {
   // v5 → v6: world map zones (see below).
   // v6 → v7: heroes are classes with class-locked weapons (see below).
   // v7 → v8: each hero has their own run (see below).
+  // v8 → v9: every region has a named boss with its own Codex entry; the Necromancer is the world boss (see below).
   // All additions are filled from defaults by the merge below.
   const fm = freshMissions();
   const dm = (data.missions ?? {}) as Partial<typeof fm>;
   const save = {
-    ...base, ...data, v: 8,
+    ...base, ...data, v: 9,
     missions: {
       ...fm, ...dm,
       attendance: { ...fm.attendance, ...dm.attendance },
@@ -188,6 +189,7 @@ export function migrate(input: unknown): SaveData {
   if (save.zone >= PLAYABLE_ZONES) { save.zone = PLAYABLE_ZONES - 1; save.stage = zoneStage(save.zone); save.farming = false; }
   save.zoneBosses = Number.isFinite(save.zoneBosses) ? Math.max(0, Math.floor(save.zoneBosses)) : 0;
   save.zoneBest = Math.max(save.zone, Number.isFinite(save.zoneBest) ? save.zoneBest : 0);
+  save.worldBosses = Number.isFinite(save.worldBosses) ? Math.max(0, Math.floor(save.worldBosses)) : 0;
   save.bossReady = save.bossReady && typeof save.bossReady === 'object' ? save.bossReady : {};
   save.explored = typeof save.explored === 'string' ? save.explored : '';
   save.minimap = save.minimap === 'square' ? 'square' : 'circle';
@@ -273,6 +275,7 @@ export function migrate(input: unknown): SaveData {
       run.zone = Number.isFinite(run.zone) ? Math.max(0, Math.min(PLAYABLE_ZONES - 1, Math.floor(run.zone))) : fresh.zone;
       run.zoneBosses = Number.isFinite(run.zoneBosses) ? Math.max(0, Math.floor(run.zoneBosses)) : fresh.zoneBosses;
       run.zoneBest = Math.max(run.zone, Number.isFinite(run.zoneBest) ? run.zoneBest : 0);
+      run.worldBosses = Number.isFinite(run.worldBosses) ? Math.max(0, Math.floor(run.worldBosses)) : 0;
       run.stage = zoneStage(run.zone);
       run.bossReady = run.bossReady && typeof run.bossReady === 'object' ? run.bossReady : {};
       run.explored = typeof run.explored === 'string' ? run.explored : '';
@@ -282,6 +285,21 @@ export function migrate(input: unknown): SaveData {
       const g = oldGear[id] ? known(oldGear[id]) : null;
       if (g && canWield(id, g.form)) fresh.equipped = g;
       runs[id] = fresh;
+    }
+  }
+  if (oldVersion < 9) {
+    // Region bosses get Codex entries of their own, started from each region's boss kills (Quest
+    // Book). The Greenwood's old boss (the Mushroom King, Emerald Mere's) hands its entry and
+    // claimed stars to Emerald Mere's boss; the Greenwood boss slot is now the Necromancer's.
+    const { codex, codexClaimed } = save.missions;
+    const row = (o: Record<string, number[]>, k: string) => (o[k] ??= [0, 0, 0, 0]);
+    const old = codex['0']?.[3] ?? 0, oldClaimed = codexClaimed['0']?.[3] ?? 0;
+    if (codex['0']) codex['0'][3] = 0;
+    if (codexClaimed['0']) codexClaimed['0'][3] = 0;
+    for (let z = 0; z < PLAYABLE_ZONES; z++) {
+      const k = String(regionBossKey(z)), r = row(codex, k);
+      r[3] = Math.max(r[3], save.regions[z]?.bosses ?? 0, z === PLAYABLE_ZONES - 1 ? old : 0);
+      if (z === PLAYABLE_ZONES - 1) row(codexClaimed, k)[3] = Math.max(row(codexClaimed, k)[3], oldClaimed);
     }
   }
   if (oldVersion < 8) {

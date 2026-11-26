@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { areaFor, type PropKind } from '../sim/areas';
+import { areaFor, monsterModel, type PropKind } from '../sim/areas';
 import { MAP_H, MAP_W, type GameMap } from '../sim/map';
 import { BIOMES, FOREST, FOREST_MODELS, FOREST_MONSTERS, FOREST_PATHS, forestRegion, grassAt } from '../sim/forest';
 import { PLAYABLE_ZONES, zoneBoss } from '../sim/zones';
@@ -101,10 +101,10 @@ const LOOKS: AreaLook[] = [
 /** Monster models a terrain shows: its own four, and in the forest every region's monsters and every boss. */
 export function areaMonsterModels(area: number): string[] {
   const names = new Set<string>();
-  for (let i = 0; i < 4; i++) names.add(`m${area % 6}_${i}`);
+  for (let i = 0; i < 4; i++) names.add(monsterModel(area, i));
   if (area === 0) {
     for (const n of FOREST_MONSTERS) names.add(n);
-    for (let z = 0; z < PLAYABLE_ZONES; z++) { const b = zoneBoss(z); names.add(`m${b.area % 6}_${b.slot}`); }
+    for (let z = 0; z < PLAYABLE_ZONES; z++) { const b = zoneBoss(z); names.add(monsterModel(b.area, b.slot)); }
   }
   return [...names];
 }
@@ -436,7 +436,7 @@ export class World3D {
     this.corpses.length = 0;
     for (const [, list] of this.pools) for (const a of list) a.obj.removeFromParent();
     this.pools.clear();
-    for (let i = 0; i < 4; i++) void loadModel(`m${area % 6}_${i}`).catch(() => {});
+    for (let i = 0; i < 4; i++) void loadModel(monsterModel(area, i)).catch(() => {});
     if (area === 0) for (const n of FOREST_MONSTERS) void loadModel(n).catch(() => {});
   }
 
@@ -786,7 +786,7 @@ export class World3D {
       if (m.isMesh) for (const x of Array.isArray(m.material) ? m.material : [m.material]) mats.push(x as THREE.MeshLambertMaterial);
     });
     // The packs' palettes are quite dark under a top-down sun; lift them so monsters read.
-    for (const m of mats) m.color.multiplyScalar(1.35);
+    if (key.startsWith('m')) for (const m of mats) m.color.multiplyScalar(1.35); // (not the Necromancer: already bright)
     const actor: Actor = {
       key, obj: inner, mixer, mats, flash: -1, cur: null,
       idle: act(flying ? ['Flying_Idle', 'Idle'] : ['Idle', 'Flying_Idle']),
@@ -922,7 +922,7 @@ export class World3D {
         s.aura.visible = s.slam.visible = s.slamIn.visible = s.slamEdge.visible = s.lane.visible = false;
         continue;
       }
-      const key = `m${e.area % 6}_${e.monster}`;
+      const key = monsterModel(e.area, e.monster);
       const fly = def.monsters[e.monster]?.shape === 'bat' && !e.boss;
       if (s.actor && s.actor.key !== key) { this.release(s.actor); s.actor = null; }
       if (!s.actor) {

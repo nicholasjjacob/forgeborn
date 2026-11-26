@@ -6,7 +6,7 @@ import {
   type Board, type MStat, type Reward, type TaskDef, addRewards,
 } from './missions';
 import { offlineReward } from './offline';
-import { zoneArea } from './zones';
+import { CODEX_WORLD_PAGE, PLAYABLE_ZONES, codexEntries } from './zones';
 import type { Sim } from './sim';
 
 export type BoardKind = 'daily' | 'weekly' | 'journey';
@@ -173,12 +173,23 @@ export class MissionSystem {
     return total;
   }
 
-  /** Areas the player has reached (codex pages). */
-  codexAreas(): number[] {
-    // Terrains reached, plus any whose monsters have been met (the forest's regions borrow them).
-    const last = zoneArea(this.sim.bestZone);
-    const met = Object.keys(this.m.codex).map(Number).filter((a) => (this.m.codex[String(a)] ?? []).some((k) => k > 0));
-    return [...new Set([...Array.from({ length: last + 1 }, (_, i) => i), ...met])].sort((a, b) => a - b);
+  /**
+   * The Codex pages the player has reached: every region opened (by any hero) or with a monster
+   * met, then the world boss's once its crypt has opened. Nothing from lands not reached yet.
+   */
+  codexPages(): number[] {
+    const met = (page: number) => codexEntries(page).some(([a, s]) => this.codexKills(a, s) > 0);
+    const pages: number[] = [];
+    for (let z = 0; z < PLAYABLE_ZONES; z++) if (this.sim.regionOpen(z) || met(z)) pages.push(z);
+    if (this.sim.worldBossOpen || met(CODEX_WORLD_PAGE)) pages.push(CODEX_WORLD_PAGE);
+    return pages;
+  }
+
+  /** Every Codex entry on the pages reached, each once (a monster can roam several regions). */
+  codexReached(): [number, number][] {
+    const seen = new Set<string>(), out: [number, number][] = [];
+    for (const p of this.codexPages()) for (const [a, s] of codexEntries(p)) if (!seen.has(`${a}:${s}`)) { seen.add(`${a}:${s}`); out.push([a, s]); }
+    return out;
   }
 
   // --- Gem shop --------------------------------------------------------------------
@@ -219,7 +230,7 @@ export class MissionSystem {
       this.tasks(kind).filter((t) => this.canClaimTask(kind, t, now)).length +
       this.milestones(kind).filter((_, i) => this.canClaimChest(kind, i)).length;
     let codex = 0;
-    for (const a of this.codexAreas()) for (let s = 0; s < 4; s++) if (this.canClaimCodex(a, s)) codex++;
+    for (const [a, s] of this.codexReached()) if (this.canClaimCodex(a, s)) codex++;
     return {
       login: this.canClaimAttendance(now) ? 1 : 0,
       daily: count('daily'),

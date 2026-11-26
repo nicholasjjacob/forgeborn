@@ -5,7 +5,7 @@ import { gi } from './icons';
 import { HeroesUI } from './heroes';
 import { fmt } from '../core/format';
 import { WorldMapUI } from './worldMap';
-import { zoneBossName, zoneLevel, zoneName, zoneTerrain } from '../sim/zones';
+import { PLAYABLE_ZONES, worldBossName, zoneBossName, zoneLevel, zoneName, zoneTerrain } from '../sim/zones';
 import { BOSS_TIME, UPGRADES, UPGRADE_IDS, type UpgradeId } from '../sim/balance';
 import type { BuyMode, Sim } from '../sim/sim';
 import { ForgePanel } from './forge';
@@ -264,6 +264,8 @@ export class Hud {
     if (boss) { frac = sim.bossT / BOSS_TIME; label = `BOSS ${Math.ceil(sim.bossT)}s`; }
     else if (!sim.zoneBossBeaten) { frac = 1; label = `☠ ${zoneBossName(s.zone)}`; }
     else if (max > s.zone) { frac = 1; label = '🗺 New zone open!'; }
+    // The last region: what's left is the world boss in its crypt.
+    else if (s.zone + 1 >= PLAYABLE_ZONES && sim.worldBossOpen) { frac = 1; label = s.worldBosses ? '🏆 Greenwood cleared' : `☠ ${worldBossName()}`; }
     else {
       // Boss beaten; only the hero level stands between here and the next zone.
       const need = zoneLevel(s.zone + 1);
@@ -311,7 +313,7 @@ export class Hud {
     if (!sim.zoneBossBeaten && !sim.bossActive && this.bossAnnounced !== s.zone && performance.now() > this.toastUntil) {
       this.bossAnnounced = s.zone;
       const lair = sim.map.forest?.lairs.find((l) => l.zone === s.zone);
-      this.toast(lair ? `The ${zoneBossName(s.zone)} awaits at the ${lair.name}` : `${zoneBossName(s.zone)} awaits!`, 'boss');
+      this.toast(lair ? `${zoneBossName(s.zone)} awaits at the ${lair.name}` : `${zoneBossName(s.zone)} awaits!`, 'boss');
     }
     this.worldMap.refresh();
 

@@ -102,10 +102,18 @@ export class Minimap {
     for (const l of f.lairs) {
       if (!seen(l.x, l.y)) continue;
       const ready = l.zone >= s.zoneBosses || (s.bossReady[l.zone] ?? 0) <= this.sim.clock();
-      const fighting = this.sim.bossActive && l.zone === s.zone;
+      const fighting = this.sim.bossActive && !this.sim.worldBossActive && l.zone === s.zone;
       g.fillStyle = fighting ? (Math.floor(now / 250) % 2 ? '#ffd23f' : '#ff3b3b') : ready ? '#e0283a' : '#777';
       g.strokeStyle = '#fff'; g.lineWidth = 1.2 * dpr;
       g.beginPath(); g.arc(l.x * k, l.y * k, 4.2 * dpr * dot, 0, Math.PI * 2); g.fill(); g.stroke();
+    }
+    // The world boss's crypt: a bigger purple dot once open (grey while sealed or recovering).
+    const wl = f.worldLair;
+    if (seen(wl.x, wl.y)) {
+      const ready = this.sim.worldBossOpen && this.sim.worldBossCooldownLeft() <= 0;
+      g.fillStyle = this.sim.worldBossActive ? (Math.floor(now / 250) % 2 ? '#ffd23f' : '#b04aff') : ready ? '#9a3aff' : '#777';
+      g.strokeStyle = '#fff'; g.lineWidth = 1.4 * dpr;
+      g.beginPath(); g.arc(wl.x * k, wl.y * k, 5.4 * dpr * dot, 0, Math.PI * 2); g.fill(); g.stroke();
     }
     g.restore();
 

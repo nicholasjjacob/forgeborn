@@ -11,6 +11,8 @@ import { TICK } from './sim/balance';
 import { Sim } from './sim/sim';
 import { installCurrencyIcons } from './render/currencyIcons';
 import { Hud } from './ui/hud';
+import { monsterSnapshot } from './ui/monsterPreview';
+import { monsterModel } from './sim/areas';
 import { Input } from './ui/input';
 import { zoneArea, zoneName } from './sim/zones';
 import { areaMonsterModels, preloadArea } from './render/world3d';
@@ -122,7 +124,16 @@ async function boot() {
   registerPwa(); // service worker (offline play) and automatic updates
 
   sim.missions.update(new Date());
-  hud = new Hud(document.getElementById('app')!, sim, art.weaponIcons, (area, slot) => { ensureAreaSprites(area); return areaArt(area).monsterIcons[slot]; }, () => openSettings(sim, {
+  // Codex and map pictures of each monster. The Greenwood's boss is the Necromancer, which has no
+  // drawn picture: its 3D model's snapshot (blank until the model has loaded; the live portrait
+  // draws over it anyway).
+  let necroIcon = '';
+  const codexIcon = (area: number, slot: number): string => {
+    if (monsterModel(area, slot) === 'boss_necromancer') return necroIcon ||= monsterSnapshot(area, slot)?.toDataURL() ?? '';
+    ensureAreaSprites(area);
+    return areaArt(area).monsterIcons[slot];
+  };
+  hud = new Hud(document.getElementById('app')!, sim, art.weaponIcons, codexIcon, () => openSettings(sim, {
     applySound: () => { applySound(); save(); },
     applyQuality: () => { applyQuality(); save(); },
     applyFps: () => { applyFps(); save(); },

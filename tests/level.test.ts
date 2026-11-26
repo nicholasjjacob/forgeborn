@@ -94,7 +94,7 @@ describe('levelling in the sim', () => {
     expect(save.levelClaimed).toEqual([5, 10]);
 
     const old = migrate({ ...freshSave(), v: 4, level: undefined, xp: undefined, levelClaimed: undefined });
-    expect(old.v).toBe(8);
+    expect(old.v).toBe(9);
     expect(old.level).toBe(1);
     expect(old.levelClaimed).toEqual([]);
   });

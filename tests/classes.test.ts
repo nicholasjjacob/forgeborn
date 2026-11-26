@@ -91,7 +91,7 @@ describe('v6 → v7 migration', () => {
     old.weapons = weapons;
     delete old.gear;
     const s = migrate(old);
-    expect(s.v).toBe(8);
+    expect(s.v).toBe(9);
     expect(s.runs.knight.weapons[0]?.form).toBe(0); // now a Sword, so it goes to the Knight's bag
     expect(s.equipped?.rarity).toBe(4);
     expect(skinDef('mage').forms).toContain(s.equipped!.form);
@@ -154,7 +154,7 @@ describe('each hero has their own run', () => {
     old.weapons = weapons;
     delete old.runs;
     const s = migrate(old);
-    expect(s.v).toBe(8);
+    expect(s.v).toBe(9);
     expect(s.weapons.filter((w) => w).map((w) => w!.id)).toEqual([10]);
     expect(s.runs.rogue.weapons.filter((w) => w).map((w) => w!.id)).toEqual([11]);
     expect(s.runs.mage.weapons.filter((w) => w).map((w) => w!.id)).toEqual([12]);

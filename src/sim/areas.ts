@@ -69,7 +69,9 @@ export const AREAS: AreaDef[] = [
       mon('Meadow Pigeon', 'bat', { m: '#8e5cd9', l: '#d6b8ff', d: '#4a2a80' }),
       mon('Mushnub', 'husk', { m: '#c9b79c', l: '#f3ead8', d: '#6d5a44', e: '#ff4040' }),
     ],
-    boss: mon('Mushroom King', 'blob', { m: '#3fae3a', l: '#c8ff9e', d: '#1f5e22' }),
+    // The Greenwood's world boss (its last lair, once every region's boss has fallen): the
+    // Skeletons pack's Necromancer (model boss_necromancer, see monsterModel).
+    boss: mon('Bone Necromancer', 'husk', { m: '#5a4a8a', l: '#c8b8ff', d: '#241a40', e: '#7dffb0' }),
   },
   {
     name: 'Mirewood',
@@ -145,4 +147,9 @@ export function areaFor(index: number): { def: AreaDef; tier: number } {
 export function areaName(index: number): string {
   const { def, tier } = areaFor(index);
   return tier === 0 ? def.name : `${def.name} ${'+'.repeat(Math.min(tier, 3))}${tier > 3 ? tier : ''}`;
+}
+
+/** The model file for terrain `area`'s monster `slot` (3: its boss). */
+export function monsterModel(area: number, slot: number): string {
+  return area % 6 === 0 && slot === 3 ? 'boss_necromancer' : `m${area % 6}_${slot}`;
 }

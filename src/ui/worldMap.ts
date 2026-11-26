@@ -7,7 +7,7 @@ import { EXPLORE_CELL, type Explored } from '../sim/explore';
 import { forestRegion, regionRaster, type ForestInfo } from '../sim/forest';
 import type { Sim } from '../sim/sim';
 import { OVERVIEW_ELEV, overviewPoint, type Overview, type Rect } from '../render/world3d';
-import { zoneBossName, zoneLevel, zoneName, zoneStage } from '../sim/zones';
+import { PLAYABLE_ZONES, zoneBossName, zoneLevel, zoneName, zoneStage } from '../sim/zones';
 import { bindSheetTaps } from './tap';
 
 /**
@@ -161,8 +161,8 @@ export class WorldMapUI {
     const s = this.sim.save;
     const needBoss = z > s.zoneBosses;
     const needLv = s.level < zoneLevel(z);
-    if (needBoss && needLv) return `Reach Lv ${zoneLevel(z)} and beat the ${zoneBossName(z - 1)}`;
-    if (needBoss) return `Beat the ${zoneBossName(z - 1)} in ${zoneName(z - 1)} to open the way`;
+    if (needBoss && needLv) return `Reach Lv ${zoneLevel(z)} and beat ${zoneBossName(z - 1)}`;
+    if (needBoss) return `Beat ${zoneBossName(z - 1)} in ${zoneName(z - 1)} to open the way`;
     return `Reach hero level ${zoneLevel(z)} to enter`;
   }
 
@@ -484,7 +484,7 @@ export class WorldMapUI {
       g.textAlign = 'center';
       g.textBaseline = 'bottom';
       for (const l of f.landmarks) {
-        if (l.biome !== this.region || !seen(l.x, l.y) || f.lairs.some((q) => q.name === l.name)) continue;
+        if (l.biome !== this.region || !seen(l.x, l.y) || f.lairs.some((q) => q.name === l.name) || l.name === f.worldLair.name) continue;
         const p = at(l.x, l.y);
         g.lineWidth = 3 * scale; g.strokeStyle = 'rgba(10,16,53,0.85)'; g.fillStyle = '#fff';
         g.strokeText(l.name, p.x, p.y - 4 * scale);
@@ -512,6 +512,28 @@ export class WorldMapUI {
         const label = left > 0 ? `${l.name} · back in ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}` : l.name;
         g.font = `600 ${11 * scale}px Fredoka, system-ui, sans-serif`; g.textBaseline = 'top';
         g.lineWidth = 3 * scale; g.strokeStyle = 'rgba(10,16,53,0.85)'; g.fillStyle = '#ffd6d6';
+        g.strokeText(label, p.x, p.y + r + 3 * scale); g.fillText(label, p.x, p.y + r + 3 * scale);
+      }
+    }
+
+    // The world boss's crypt (once found): a bigger purple skull badge, grey while sealed or recovering.
+    const wl = f.worldLair;
+    if (seen(wl.x, wl.y)) {
+      const p = at(wl.x, wl.y);
+      const open = this.sim.worldBossOpen, left = this.sim.worldBossCooldownLeft();
+      const r = 13 * scale;
+      g.fillStyle = open && left <= 0 ? '#8a2ee0' : '#6b6f7a';
+      g.strokeStyle = '#fff'; g.lineWidth = 2.4 * scale;
+      g.beginPath(); g.arc(p.x, p.y, r, 0, Math.PI * 2); g.fill(); g.stroke();
+      g.fillStyle = '#fff'; g.font = `${15 * scale}px system-ui, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText('☠', p.x, p.y + 0.5 * scale);
+      if (zoomed && wl.biome === this.region) {
+        this.targets.push({ x: p.x, y: p.y, r: r * 1.8, spotX: wl.x, spotY: wl.y, keepOut: wl.r + 26, zone: wl.zone });
+        const secs = Math.ceil(left);
+        const label = !open ? `${wl.name} · sealed (${this.sim.save.zoneBosses}/${PLAYABLE_ZONES} bosses)`
+          : left > 0 ? `${wl.name} · back in ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}` : `${wl.name} · World boss`;
+        g.font = `600 ${11 * scale}px Fredoka, system-ui, sans-serif`; g.textBaseline = 'top';
+        g.lineWidth = 3 * scale; g.strokeStyle = 'rgba(10,16,53,0.85)'; g.fillStyle = '#e6d0ff';
         g.strokeText(label, p.x, p.y + r + 3 * scale); g.fillText(label, p.x, p.y + r + 3 * scale);
       }
     }
@@ -675,7 +697,7 @@ export class WorldMapUI {
       return monsterSlot(k.area, k.monster, this.codexIcon(k.area, k.monster), 'map-mon', !found);
     }).join('');
     const found = haunts.filter((t) => seen(t.x, t.y)).length;
-    const hordes = haunts.filter((t) => t.horde).length;
+    const hordes = haunts.filter((t) => t.horde && seen(t.x, t.y)).length; // (found ones: no spoilers)
     const action = here
       ? '<span class="zone-tag here">You are here</span>'
       : open
@@ -685,7 +707,7 @@ export class WorldMapUI {
       <div class="wm-region-info">
         <div class="wm-ri-head"><b>${bm.name}</b><span>Zone ${z + 1} · Lv ${zoneLevel(z)}+ · XP <b>${fmt(xpForKill(zoneStage(z), false))}</b>/kill</span></div>
         <div class="wm-ri-row">${gi('skull-crossed-bones', 'white')} <b>${zoneBossName(z)}</b> <span>${bossState}</span></div>
-        <div class="wm-ri-row"><span class="map-mons">${mons}</span><span>Haunts found: <b>${found}/${haunts.length}</b>${hordes ? ` · <b class="wm-horde">${hordes} overrun</b>` : ''}</span></div>
+        <div class="wm-ri-row"><span class="map-mons">${mons}</span><span>Haunts found: <b>${found}/${haunts.length}</b>${hordes ? ` · <b class="wm-horde">${hordes} horde${hordes > 1 ? 's' : ''}</b>` : ''}</span></div>
         <div class="wm-ri-act">${action}</div>
       </div>`;
   }
