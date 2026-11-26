@@ -18,7 +18,7 @@ import { warmHeroStage } from './ui/heroes';
 import { loadingDone, loadingFailed, loadingPaint, loadingStep } from './ui/loading';
 import { chooseStarter } from './ui/starter';
 import { installCursors } from './ui/cursor';
-import { STARTERS } from './sim/skins';
+import { SKINS } from './sim/skins';
 import { loadModel } from './render/models';
 import { heroAnimFiles } from './render/heroRig';
 import { OFFLINE_CAP_HOURS, applyOfflineReward, hasReward, offlineReward } from './sim/offline';
@@ -73,9 +73,9 @@ async function boot() {
   // following along. A very slow connection carries on after a while: the rest pops in later.
   loadingStep(0.2, 'Loading the forest…');
   const area = zoneArea(loaded.zone ?? 0);
-  // First launch: the hero choice shows all three starters, so fetch the other two as well.
+  // Every hero (the first-launch choice shows the three starters; the Heroes screen shows them all).
   const firstRun = !loaded.starterChosen;
-  const starters = firstRun ? STARTERS.filter((id) => id !== loaded.skin).map((id) => preloadHero(id)) : [];
+  const starters = SKINS.filter((k) => k.id !== loaded.skin).map((k) => preloadHero(k.id));
   await Promise.race([
     Promise.all([preloadArea(area, loaded.skin, (f) => loadingStep(0.2 + 0.5 * f, `Loading the forest… ${Math.round(f * 100)}%`)), ...starters]),
     new Promise((r) => setTimeout(r, 20000)),
@@ -176,7 +176,10 @@ async function boot() {
   loadingStep(0.93, 'Drawing the map…');
   await loadingPaint();
   hud.worldMap.warm();
-  await Promise.race([warmHeroStage(sim).catch(() => {}), new Promise((r) => setTimeout(r, 1500))]); // the Heroes screen's 3D stage
+  // The Heroes screen: every hero built, on the GPU and with their portrait, ready to show.
+  loadingStep(0.95, 'Readying the heroes…');
+  await loadingPaint();
+  await Promise.race([warmHeroStage(sim, (f) => loadingStep(0.95 + 0.04 * f)).catch(() => {}), new Promise((r) => setTimeout(r, 8000))]);
   if (sim.save.sound) sfx.prepare(); // audio set up now; the first tap only switches it on
   // The battlefield also changes size without a window resize (hiding/showing the menu).
   // Redraw at once: a resized canvas is blank until its next frame, which would flicker

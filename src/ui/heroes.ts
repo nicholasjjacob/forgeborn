@@ -56,8 +56,11 @@ function heroStage(): HeroStage {
   return stage;
 }
 
-/** The stage hero kept from last time (or the warm-up), and what it was built as. */
-let shelf: { key: string; obj: THREE.Object3D; mixer: THREE.AnimationMixer } | null = null;
+/**
+ * Stage heroes ready to show, by what they were built as (hero, style, colours, weapon): made
+ * behind the loading screen and kept between opens, so picking a hero shows them at once.
+ */
+const ready = new Map<string, { obj: THREE.Object3D; mixer: THREE.AnimationMixer }>();
 function modelKey(sim: Sim, id: string): string {
   const s = sim.save;
   const w = id === s.skin ? s.equipped : s.runs[id]?.equipped ?? null;
@@ -65,21 +68,76 @@ function modelKey(sim: Sim, id: string): string {
 }
 
 /**
- * Behind the loading screen: make the stage and put the current hero on it, drawn once, so the
- * first open of the Heroes screen shows them straight away.
+ * Draw `obj` alone into a size×size image from a given camera, off-screen (a render target), on
+ * the stage's renderer (so the live stage never resizes or flickers). `hide` is kept out of it.
  */
-export async function warmHeroStage(sim: Sim): Promise<void> {
+function snapshotOn(obj: THREE.Object3D, pos: [number, number, number], look: [number, number, number], size: number, hide: THREE.Object3D | null = null): string {
+  const { renderer: r, scene, camera: cam } = heroStage();
+  const rt = new THREE.WebGLRenderTarget(size, size, { samples: 4 });
+  rt.texture.colorSpace = THREE.SRGBColorSpace;
+  if (hide) hide.visible = false;
+  scene.add(obj);
+  const shot = new THREE.PerspectiveCamera(cam.fov, 1, 0.1, 50);
+  shot.position.set(...pos);
+  shot.lookAt(...look);
+  r.setRenderTarget(rt);
+  r.setClearColor(0x000000, 0);
+  r.clear();
+  r.render(scene, shot);
+  const px = new Uint8Array(size * size * 4);
+  r.readRenderTargetPixels(rt, 0, 0, size, size, px);
+  r.setRenderTarget(null);
+  scene.remove(obj);
+  if (hide) hide.visible = true;
+  rt.dispose();
+  // Pixels come bottom row first: flip them into a canvas.
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d')!;
+  const img = ctx.createImageData(size, size);
+  for (let y = 0; y < size; y++) img.data.set(px.subarray((size - 1 - y) * size * 4, (size - y) * size * 4), y * size * 4);
+  ctx.putImageData(img, 0, 0);
+  return c.toDataURL('image/png');
+}
+
+const PORTRAIT_CAM: [number, number, number] = [0, 1.05, 3.1];
+const PORTRAIT_LOOK: [number, number, number] = [0, 0.8, 0];
+
+/**
+ * Behind the loading screen: make the Heroes screen's stage and get every hero onto the GPU
+ * (built, shaders compiled, textures uploaded) along with their card portraits, the current
+ * hero first. Opening the screen and picking any hero then shows them at once.
+ */
+export async function warmHeroStage(sim: Sim, onStep?: (f: number) => void): Promise<void> {
   const st = heroStage();
-  const built = await buildHeroModel(sim, sim.save.skin);
-  if (!built) return;
-  st.scene.add(built.obj);
   st.renderer.setSize(200, 200, false);
   st.camera.aspect = 1;
   st.camera.updateProjectionMatrix();
-  st.renderer.compile(st.scene, st.camera);
-  st.renderer.render(st.scene, st.camera);
-  st.scene.remove(built.obj);
-  shelf = { key: modelKey(sim, sim.save.skin), obj: built.obj, mixer: built.mixer };
+  const ids = [sim.save.skin, ...SKINS.map((k) => k.id).filter((id) => id !== sim.save.skin)];
+  for (let i = 0; i < ids.length; i++) {
+    const id = ids[i], key = modelKey(sim, id);
+    if (!ready.has(key)) {
+      const built = await buildHeroModel(sim, id);
+      if (built) {
+        st.scene.add(built.obj);
+        st.renderer.compile(st.scene, st.camera);
+        st.renderer.render(st.scene, st.camera); // uploads its textures
+        st.scene.remove(built.obj);
+        ready.set(key, built);
+      }
+    }
+    if (!portraits.has(id)) {
+      const flat = await buildHeroModel(sim, id, false);
+      if (flat) portraits.set(id, snapshotOn(flat.obj, PORTRAIT_CAM, PORTRAIT_LOOK, 160));
+    }
+    // The current hero last on the stage canvas: the first open shows them even before a frame.
+    if (i === ids.length - 1) {
+      const cur = ready.get(modelKey(sim, sim.save.skin));
+      if (cur) { st.scene.add(cur.obj); st.renderer.render(st.scene, st.camera); st.scene.remove(cur.obj); }
+    }
+    onStep?.((i + 1) / ids.length);
+    await nextFrame(); // let the loading screen paint
+  }
 }
 
 /** Each mastery goal's icon. */
@@ -94,6 +152,8 @@ export class HeroesUI {
   private model: THREE.Object3D | null = null;
   private mixer: THREE.AnimationMixer | null = null;
   private shown = '';
+  /** The hero now on the stage (shelved in `ready` when replaced). */
+  private modelId = '';
   private raf = 0;
   private last = 0;
   /** Turntable: spin speed (rad/s), the direction it settles back to, and an active drag. */
@@ -144,7 +204,7 @@ export class HeroesUI {
     // with the hero on it, so the next open shows them at once.
     if (this.model && this.mixer && this.scene) {
       this.scene.remove(this.model);
-      shelf = { key: modelKey(this.sim, this.shown), obj: this.model, mixer: this.mixer };
+      ready.set(modelKey(this.sim, this.modelId), { obj: this.model, mixer: this.mixer });
     }
     this.renderer = null; this.scene = null; this.camera = null; this.model = null; this.mixer = null; this.shown = '';
     this.wrap.remove();
@@ -389,16 +449,21 @@ export class HeroesUI {
 
   private async loadModelOnStage(id: string): Promise<void> {
     this.shown = id;
-    const kept = shelf && shelf.key === modelKey(this.sim, id) ? shelf : null;
-    if (kept) shelf = null;
+    const key = modelKey(this.sim, id);
+    const kept = ready.get(key);
+    if (kept) ready.delete(key);
     const built = kept ?? await this.build(id);
-    if (!built || !this.scene || this.shown !== id) return;
-    if (this.model) this.scene.remove(this.model);
-    this.mixer?.stopAllAction();
+    if (!built || !this.scene || this.shown !== id) { if (built) ready.set(key, built); return; }
+    if (this.model && this.mixer) {
+      // Put the last hero back on the shelf, as they are now (style and colours may have changed).
+      this.scene.remove(this.model);
+      ready.set(modelKey(this.sim, this.modelId), { obj: this.model, mixer: this.mixer });
+    }
     built.obj.rotation.y = 0.5;
     this.scene.add(built.obj);
     this.model = built.obj;
     this.mixer = built.mixer;
+    this.modelId = id;
   }
 
   /** Restyle the hero on the stage in place: its spin and animation carry on. */
@@ -410,39 +475,8 @@ export class HeroesUI {
     applyPalette(this.model, id, pal);
   }
 
-  /**
-   * Draw `obj` alone into a size×size image from a given camera, off-screen (a render target),
-   * so the live stage never resizes or flickers.
-   */
   private snapshot(obj: THREE.Object3D, pos: [number, number, number], look: [number, number, number], size: number): string | null {
-    const r = this.renderer, scene = this.scene, cam = this.camera;
-    if (!r || !scene || !cam) return null;
-    const rt = new THREE.WebGLRenderTarget(size, size, { samples: 4 });
-    rt.texture.colorSpace = THREE.SRGBColorSpace;
-    const keep = this.model;
-    if (keep) keep.visible = false;
-    scene.add(obj);
-    const shot = new THREE.PerspectiveCamera(cam.fov, 1, 0.1, 50);
-    shot.position.set(...pos);
-    shot.lookAt(...look);
-    r.setRenderTarget(rt);
-    r.setClearColor(0x000000, 0);
-    r.clear();
-    r.render(scene, shot);
-    const px = new Uint8Array(size * size * 4);
-    r.readRenderTargetPixels(rt, 0, 0, size, size, px);
-    r.setRenderTarget(null);
-    scene.remove(obj);
-    if (keep) keep.visible = true;
-    rt.dispose();
-    // Pixels come bottom row first: flip them into a canvas.
-    const c = document.createElement('canvas');
-    c.width = c.height = size;
-    const ctx = c.getContext('2d')!;
-    const img = ctx.createImageData(size, size);
-    for (let y = 0; y < size; y++) img.data.set(px.subarray((size - 1 - y) * size * 4, (size - y) * size * 4), y * size * 4);
-    ctx.putImageData(img, 0, 0);
-    return c.toDataURL('image/png');
+    return this.renderer ? snapshotOn(obj, pos, look, size, this.model) : null;
   }
 
   /**
@@ -457,7 +491,7 @@ export class HeroesUI {
       if (!this.renderer) return;
       const built = await this.build(k.id, false);
       if (!built || !this.renderer) return;
-      const img = this.snapshot(built.obj, [0, 1.05, 3.1], [0, 0.8, 0], 160);
+      const img = this.snapshot(built.obj, PORTRAIT_CAM, PORTRAIT_LOOK, 160);
       if (img) portraits.set(k.id, img);
       this.render();
     }
