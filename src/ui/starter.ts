@@ -6,17 +6,19 @@ import type { Sim } from '../sim/sim';
 import { buildHeroModel } from './heroes';
 
 /**
- * First launch: choose your hero. The three starters stand on a stage: the chosen one in front,
- * lit, the other two behind and greyed out. Tap one to bring it forward and read how it fights;
- * "Play as …" starts the game with it (the other two wait in the Heroes screen with the rest).
+ * First launch: choose your hero. The starters stand on a stage: the chosen one in front, lit,
+ * the others behind it either side, smaller and greyed out. Tap one to bring it forward and read how it fights;
+ * "Play as …" starts the game with it (the others wait in the Heroes screen with the rest).
  * Resolves once a hero is chosen.
  */
 
 /** How each starter fights, in a line or two, and how forgiving it is to learn. */
 const STYLE: Record<string, { style: string; level: string }> = {
   knight: { style: 'Up close: sweeping sword strikes that hit everything in front. Built to soak up hits.', level: 'Easy' },
-  ranger: { style: 'From afar: quick arrows at long range, and the longbow shoots through a line of monsters. Fast on their feet.', level: 'Medium' },
+  barbarian: { style: 'Up close: wide axe sweeps that hit harder the more hurt you are. Tough and reckless.', level: 'Easy' },
+  rogue: { style: 'Fast dagger flurries up close, or heavy crossbow bolts from afar. Lots of critical hits.', level: 'Medium' },
   mage: { style: 'From afar: orbs that burst on impact, or rapid wand sparks. Shocks leap from monster to monster.', level: 'Medium' },
+  rogue_hooded: { style: 'Up close: swift katana cuts and claw flurries. Strike unhurt monsters for a guaranteed critical hit.', level: 'Hard' },
 };
 
 interface Stand { id: string; el: HTMLCanvasElement; renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera; mixer: THREE.AnimationMixer | null; model: THREE.Object3D | null }
@@ -52,7 +54,6 @@ export function chooseStarter(sim: Sim): Promise<string> {
     const stands: Stand[] = STARTERS.map((id) => {
       const el = document.createElement('canvas');
       el.className = 'st-hero';
-      el.setAttribute('role', 'button');
       el.setAttribute('aria-label', skinDef(id).name);
       stage.appendChild(el);
       const renderer = new THREE.WebGLRenderer({ canvas: el, antialias: true, alpha: true });
@@ -71,7 +72,6 @@ export function chooseStarter(sim: Sim): Promise<string> {
       camera.position.set(0, 1.05, 3.7);
       camera.lookAt(0, 0.82, 0);
       const st: Stand = { id, el, renderer, scene, camera, mixer: null, model: null };
-      el.addEventListener('click', () => { if (pick !== id) { pick = id; sfx.play('tick'); show(); } });
       void buildHeroModel(sim, id, false, 0).then((b) => {
         if (!b) return;
         b.obj.rotation.y = 0.35;
@@ -82,16 +82,29 @@ export function chooseStarter(sim: Sim): Promise<string> {
       return st;
     });
 
+    // Taps go to the hero whose middle is nearest (the slots overlap, so the canvases themselves
+    // don't take clicks).
+    stage.addEventListener('click', (e) => {
+      let best = stands[0], bestD = Infinity;
+      for (const s of stands) {
+        const r = s.el.getBoundingClientRect();
+        const d = Math.abs(e.clientX - (r.left + r.width / 2));
+        if (d < bestD) { bestD = d; best = s; }
+      }
+      if (best.id !== pick) { pick = best.id; sfx.play('tick'); show(); }
+    });
+
     const infos = [...root.querySelectorAll<HTMLElement>('.st-info')];
     const go = root.querySelector<HTMLButtonElement>('.st-go')!;
 
     /** Lay the stage out around the pick (front and centre; the others behind, either side). */
     function show(): void {
-      const others = STARTERS.filter((id) => id !== pick);
+      // Slots around the pick, in starter order wrapping round: -2, -1, 0 (front), +1, +2.
+      const n = STARTERS.length, at = STARTERS.indexOf(pick);
+      const slot = ['far-left', 'left', 'front', 'right', 'far-right'];
       for (const s of stands) {
-        s.el.classList.toggle('front', s.id === pick);
-        s.el.classList.toggle('left', s.id === others[0]);
-        s.el.classList.toggle('right', s.id === others[1]);
+        const off = ((STARTERS.indexOf(s.id) - at + n + Math.floor(n / 2)) % n) - Math.floor(n / 2);
+        s.el.dataset.slot = slot[off + 2] ?? 'front';
       }
       for (const el of infos) el.classList.toggle('on', el.dataset.id === pick);
       const def = skinDef(pick);

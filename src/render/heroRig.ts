@@ -59,8 +59,6 @@ const SHOWCASE: Record<string, Record<number, string>> = {
   barbarian: { 1: 'Melee_2H_Idle' },                    // axe across the body, like the greataxe
   rogue: { 4: 'Melee_Blocking', 5: 'Ranged_1H_Reload' }, // dagger on guard; cranking the crossbow
   mage: { 8: 'Ranged_Magic_Spellcasting', 9: 'Ranged_Magic_Spellcasting' },
-  druid: { 12: 'Ranged_Magic_Spellcasting_Long' },
-  engineer: { 13: 'Ranged_2H_Reload', 14: 'Hammering' },
   rogue_hooded: { 10: 'Crouching', 11: 'Crouching' },
 };
 

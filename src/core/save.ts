@@ -2,7 +2,7 @@ import { DEFAULT_SKIN } from '../sim/skins';
 import { PLAYABLE_ZONES, zoneLevel, zoneStage } from '../sim/zones';
 import { freshSave, newRun, type HeroRun, type SaveData } from '../sim/sim';
 import { FORMS, INVENTORY_SIZE, INVENTORY_STEP, MAX_INVENTORY, starterWeapon, upgradeOldWeapon, type Weapon } from '../sim/weapons';
-import { canWield, skinDef } from '../sim/skins';
+import { RETIRED, SKINS, canWield, skinDef } from '../sim/skins';
 import { freshPerks, freshStats } from '../sim/meta';
 import { freshMissions } from '../sim/missions';
 import { cleanRegions } from '../sim/regionQuests';
@@ -197,9 +197,19 @@ export function migrate(input: unknown): SaveData {
   const legacy = typeof (data as { starterChosen?: unknown }).starterChosen !== 'boolean';
   save.starterChosen = legacy || (data as { starterChosen: boolean }).starterChosen;
   const owned = Array.isArray(save.skins) ? save.skins.filter((x) => typeof x === 'string') : [];
-  save.skins = [...new Set(legacy ? [DEFAULT_SKIN, ...owned] : owned)];
+  // Retired heroes (Ranger, Druid, Engineer): their gems come back, and they leave the save.
+  const retiredOwned = [...new Set(owned.filter((x) => x in RETIRED))];
+  for (const id of retiredOwned) save.missions.gems += RETIRED[id];
+  const playedRetired = typeof save.skin === 'string' && save.skin in RETIRED;
+  const kept = owned.filter((x) => SKINS.some((k) => k.id === x));
+  save.skins = [...new Set(legacy ? [DEFAULT_SKIN, ...kept] : kept)];
+  // Playing a retired hero with no other hero to fall back on: choose a hero again, from scratch.
+  const rechoose = playedRetired && !save.skins.length;
+  if (rechoose) save.starterChosen = false;
   if (!save.skins.length) save.skins = [DEFAULT_SKIN];
-  if (typeof save.skin !== 'string' || !save.skins.includes(save.skin)) save.skin = save.skins[0];
+  // Playing a retired hero with others owned: switch to one of them (and their own run, below).
+  const switchTo = playedRetired && !rechoose ? save.skins[0] : null;
+  if (typeof save.skin !== 'string' || (!save.skins.includes(save.skin) && !switchTo)) save.skin = save.skins[0];
   const looks: Record<string, string> = {};
   for (const [k, v] of Object.entries(save.looks && typeof save.looks === 'object' ? save.looks : {})) if (typeof v === 'string') looks[k] = v;
   save.looks = looks;
@@ -247,7 +257,7 @@ export function migrate(input: unknown): SaveData {
   // v8: each hero has their own run (RUN_KEYS). The other owned heroes' runs are kept in `runs`.
   const runs: Record<string, HeroRun> = {};
   for (const id of save.skins) {
-    if (id === save.skin) continue;
+    if (id === save.skin && !switchTo) continue;
     const fresh = newRun(save, id);
     const r = oldRuns[id];
     if (r && typeof r === 'object') {
@@ -283,8 +293,16 @@ export function migrate(input: unknown): SaveData {
       return null;
     });
   }
+  if (switchTo) {
+    // The retired hero's run is dropped; the player carries on as their next hero, on that hero's run.
+    Object.assign(save, runs[switchTo]);
+    delete runs[switchTo];
+    save.skin = switchTo;
+  }
+  if (rechoose) Object.assign(save, newRun(save, DEFAULT_SKIN));
   save.runs = runs;
   save.mastery = cleanMastery((data as { mastery?: unknown }).mastery);
+  for (const id of Object.keys(RETIRED)) delete save.mastery[id];
   delete (save as { gear?: unknown }).gear;
   return save;
 }

@@ -18,8 +18,8 @@ const ANIM = process.argv[3] ?? join(homedir(), 'Downloads', 'KayKit_Character_A
 for (const d of [SRC, ANIM]) if (!existsSync(d)) throw new Error(`KayKit folder not found: ${d}`);
 
 const HEROES = {
-  knight: 'Knight', barbarian: 'Barbarian', rogue: 'Rogue', ranger: 'Ranger', mage: 'Mage', rogue_hooded: 'Rogue_Hooded',
-  druid: 'Druid', engineer: 'Engineer', barbarian_large: 'Barbarian_Large',
+  knight: 'Knight', barbarian: 'Barbarian', rogue: 'Rogue', mage: 'Mage', rogue_hooded: 'Rogue_Hooded',
+  barbarian_large: 'Barbarian_Large',
 };
 for (const [id, file] of Object.entries(HEROES)) {
   const dst = join(OUT, `hero_${id}.glb`);
@@ -30,7 +30,7 @@ for (const [id, file] of Object.entries(HEROES)) {
 // Alternate colour schemes: <name>_texture_alt_A/B/C.png (the default one is inside each model;
 // a copy, <name>_0.png, is only used for the colour swatch on the Heroes screen).
 mkdirSync(join(OUT, 'tex'), { recursive: true });
-for (const name of ['knight', 'barbarian', 'rogue', 'ranger', 'mage', 'druid', 'engineer']) {
+for (const name of ['knight', 'barbarian', 'rogue', 'mage']) {
   for (const alt of ['A', 'B', 'C']) copyFileSync(join(SRC, 'Textures', `${name}_texture_alt_${alt}.png`), join(OUT, 'tex', `${name}_${alt}.png`));
   copyFileSync(join(SRC, 'Textures', `${name}_texture.png`), join(OUT, 'tex', `${name}_0.png`)); // for the swatch
 }

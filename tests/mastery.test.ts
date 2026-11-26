@@ -20,7 +20,7 @@ describe('hero mastery', () => {
 
   it('progress is per hero, and a Reforge never takes it back', () => {
     const save = freshSave();
-    save.skins = ['knight', 'ranger'];
+    save.skins = ['knight', 'mage'];
     save.missions.gems = 0;
     const sim = new Sim(save, 1);
     save.level = 30; save.zoneBosses = PLAYABLE_ZONES; save.highestStage = 60; save.forgeLevel = 9;
@@ -28,15 +28,15 @@ describe('hero mastery', () => {
     const before = sim.mastery('knight');
     expect(before.goals.find((g) => g.goal.id === 'bosses')!.done).toBe(true);
     expect(before.goals.find((g) => g.goal.id === 'weapon')!.done).toBe(true);
-    expect(sim.mastery('ranger').pct).toBe(0);
+    expect(sim.mastery('mage').pct).toBe(0);
     sim.reforge();
     expect(save.level).toBeLessThan(30);
     const after = sim.mastery('knight');
     expect(after.pct).toBe(before.pct);
     // Switching heroes keeps the Knight's record too.
-    sim.selectSkin('ranger');
+    sim.selectSkin('mage');
     expect(sim.mastery('knight').pct).toBe(before.pct);
-    expect(sim.mastery('ranger').pct).toBeLessThan(before.pct);
+    expect(sim.mastery('mage').pct).toBeLessThan(before.pct);
   });
 
   it('saved records survive migration and bad data is dropped', () => {

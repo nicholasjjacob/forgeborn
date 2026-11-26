@@ -1,7 +1,8 @@
 import type { Form } from './weapons';
 
 /**
- * Heroes: each one is a class with its own weapon types and a class perk. The Knight is free;
+ * Heroes: each one is a class with its own weapon types and a class perk, and each has a skeleton
+ * counterpart (KayKit Skeletons) planned as its mastery reward. The first-launch pick is free;
  * the rest are bought with gems in the Heroes screen (the Warlord also needs hero level 40). Weapons are class-locked: the forge makes
  * weapons for the hero you're playing, and each hero keeps their own equipped weapon. New heroes
  * are added here (plus a public/models/hero_<id>.glb on the shared rig, see scripts/build-heroes.mjs).
@@ -64,18 +65,9 @@ export const SKINS: readonly SkinDef[] = [
   { id: 'rogue', name: 'Rogue', role: 'Duelist', blurb: 'Light leathers for quick work.', cost: 150,
     forms: [4, 5], perk: '+25% attack speed and +10% crit chance', mods: { aspd: 1.25, crit: 0.1 }, palette: 'rogue',
     looks: [{ id: 'cape', name: 'Cape' }, { id: 'nocape', name: 'No cape', hide: ['Rogue_Cape'] }] },
-  { id: 'ranger', name: 'Ranger', role: 'Archer', blurb: 'A woodland scout in a green hood.', cost: 250,
-    forms: [6, 7], perk: 'Arrows pierce one more enemy · +15% move speed', mods: { pierce: 1, move: 1.15 }, palette: 'ranger',
-    looks: [{ id: 'full', name: 'Cape & quiver' }, { id: 'noquiver', name: 'No quiver', hide: ['Ranger_Quiver'] }, { id: 'nocape', name: 'No cape', hide: ['Ranger_Cape'] }] },
   { id: 'mage', name: 'Mage', role: 'Sorcerer', blurb: 'Robes, a tall hat and a head full of lightning.', cost: 250,
     forms: [8, 9], perk: '+15% chain shock chance · shocks jump to 5 enemies', mods: { shock: 0.15, shockJumps: 2 }, palette: 'mage',
     looks: [{ id: 'hat', name: 'Hat' }, { id: 'nohat', name: 'No hat', hide: ['Mage_Hat'] }] },
-  { id: 'druid', name: 'Druid', role: 'Warden', blurb: 'A wanderer of the deep woods, never far from home.', cost: 300,
-    forms: [12], perk: 'Regenerates 2.5% HP per second · +15% HP', mods: { regen: 0.025, hp: 1.15 }, palette: 'druid',
-    looks: [{ id: 'pack', name: 'Backpack' }, { id: 'nopack', name: 'No backpack', hide: ['Druid_Backpack'] }] },
-  { id: 'engineer', name: 'Engineer', role: 'Tinkerer', blurb: 'Goggles, a full pack and a fix for everything.', cost: 300,
-    forms: [13, 14], perk: '+30% gold and +30% shard drops', mods: { gold: 0.3, shards: 0.3 }, palette: 'engineer',
-    looks: [{ id: 'full', name: 'Goggles & pack' }, { id: 'nogoggles', name: 'No goggles', hide: ['Engineer_Goggles'] }, { id: 'nopack', name: 'No backpack', hide: ['Engineer_Backpack'] }] },
   { id: 'rogue_hooded', name: 'Shadow Rogue', role: 'Assassin', blurb: 'The rogue, hooded and masked.', cost: 400,
     forms: [10, 11], perk: 'Ambush: hits on unhurt enemies always crit · +80% crit damage', mods: { ambush: true, critDmg: 0.8 }, palette: 'rogue',
     looks: [{ id: 'mask', name: 'Mask' }, { id: 'nomask', name: 'No mask', hide: ['RogueHooded_Mask'] }] },
@@ -88,8 +80,11 @@ export const SKINS: readonly SkinDef[] = [
 
 export const DEFAULT_SKIN = 'knight';
 
-/** The heroes a new player chooses between on first launch (the rest are unlocked later). */
-export const STARTERS: readonly string[] = ['knight', 'ranger', 'mage'];
+/** The heroes a new player chooses between on first launch (all but the Warlord; the rest are unlocked later). */
+export const STARTERS: readonly string[] = ['knight', 'barbarian', 'rogue', 'mage', 'rogue_hooded'];
+
+/** Heroes that have been retired (no skeleton counterpart). Old saves that owned one get its gems back. */
+export const RETIRED: Readonly<Record<string, number>> = { ranger: 250, druid: 300, engineer: 300 };
 
 export function skinDef(id: string): SkinDef {
   return SKINS.find((s) => s.id === id) ?? SKINS[0];

@@ -1646,10 +1646,10 @@ html.pc .level-chip .xp-bar { height: 8px; }
 .sheet-tabs { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: clamp(2px, 0.8cqw, 4px); padding-left: clamp(5px, 2cqw, 10px); padding-right: clamp(5px, 2cqw, 10px); overflow: visible; container-type: inline-size; }
 .sheet-tabs button { min-width: 0; padding-left: 1px; padding-right: 1px; white-space: nowrap; font-size: clamp(9px, 4.2cqw, 14px); }
 
-/* Heroes: the cards wrap in centred rows (nine heroes: five, then four centred, no empty slot),
-   and short screens tighten the rows above them so both card rows always fit. */
+/* Heroes: the six cards sit in one row, and short screens tighten the rows above them so
+   everything always fits. */
 .heroes-sheet .hero-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
-.heroes-sheet .hero-grid > .hero-card { flex: 0 0 calc((100% - 24px) / 5); }
+.heroes-sheet .hero-grid > .hero-card { flex: 0 0 calc((100% - 30px) / 6); }
 @media (max-height: 640px) {
   .heroes-sheet .hero-stage { min-height: 56px; margin: 0 0 4px; }
   .heroes-sheet .hero-info { margin-bottom: 3px; gap: 0; }
@@ -1662,7 +1662,7 @@ html.pc .level-chip .xp-bar { height: 8px; }
   .heroes-sheet .hero-action { margin-bottom: 5px; }
   .heroes-sheet .hero-action .btn { padding: 6px; font-size: 15px; }
   .heroes-sheet .hero-grid { gap: 4px; }
-  .heroes-sheet .hero-grid > .hero-card { flex-basis: calc((100% - 16px) / 5); }
+  .heroes-sheet .hero-grid > .hero-card { flex-basis: calc((100% - 20px) / 6); }
 }
 
 /* PC on short windows (small laptops, Windows display scaling at 125-150%): the minimap shrinks a
@@ -1747,18 +1747,20 @@ html.pc #panel { width: clamp(340px, min(42vw, calc(50vw - 165px)), 520px); max-
 /* The stage takes all the height that's left, so the heroes are as big as the screen allows. */
 .st-stage { position: relative; flex: 1 1 0; min-height: 120px; width: min(100%, 1000px); container: ststage / size; }
 .st-hero {
-  /* Heroes stand as tall as the stage, but never so wide that the side ones leave the screen;
-     any spare height is split above and below them. */
-  position: absolute; left: 50%; height: min(100cqh, 64cqw); bottom: calc((100cqh - min(100cqh, 64cqw)) / 2); aspect-ratio: 3 / 4; cursor: pointer;
-  transform-origin: 50% 100%; /* Only the slide animates: the grey/lit switch is instant (an animated filter on a 3D canvas
+  /* Heroes stand as tall as the stage, but never so wide that the outer ones leave the screen;
+     any spare height is split above and below them. Taps are handled by the stage (nearest hero). */
+  --h: min(100cqh, 62cqw);
+  position: absolute; left: 50%; height: var(--h); bottom: calc((100cqh - var(--h)) / 2); aspect-ratio: 3 / 4; pointer-events: none;
+  /* Only the slide animates: the grey/lit switch is instant (an animated filter on a 3D canvas
      could get stuck grey on iPhones). */
-  transition: transform 0.45s cubic-bezier(.2, .9, .3, 1.1);
-  -webkit-tap-highlight-color: transparent;
+  transform-origin: 50% 100%; transition: transform 0.45s cubic-bezier(.2, .9, .3, 1.1);
 }
-.st-hero.front { z-index: 3; transform: translateX(-50%) scale(1); filter: drop-shadow(0 0 26px #ffd23f55); }
-.st-hero.left { z-index: 1; transform: translateX(-118%) scale(0.72); filter: grayscale(1) brightness(0.42) contrast(0.9); }
-.st-hero.right { z-index: 1; transform: translateX(18%) scale(0.72); filter: grayscale(1) brightness(0.42) contrast(0.9); }
-html.pc .st-hero.left:hover, html.pc .st-hero.right:hover { filter: grayscale(0.7) brightness(0.6) contrast(1); }
+.st-stage { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.st-hero[data-slot="front"] { z-index: 3; transform: translateX(-50%); filter: drop-shadow(0 0 26px #ffd23f55); }
+.st-hero[data-slot="left"] { z-index: 2; transform: translateX(calc(-50% - 24cqw)) scale(0.64); filter: grayscale(1) brightness(0.42) contrast(0.9); }
+.st-hero[data-slot="right"] { z-index: 2; transform: translateX(calc(-50% + 24cqw)) scale(0.64); filter: grayscale(1) brightness(0.42) contrast(0.9); }
+.st-hero[data-slot="far-left"] { z-index: 1; transform: translateX(calc(-50% - 40cqw)) scale(0.46); filter: grayscale(1) brightness(0.3) contrast(0.9); }
+.st-hero[data-slot="far-right"] { z-index: 1; transform: translateX(calc(-50% + 40cqw)) scale(0.46); filter: grayscale(1) brightness(0.3) contrast(0.9); }
 .st-card {
   flex: 0 0 auto; width: min(100%, 640px); padding: clamp(10px, 2cqh, 22px) clamp(14px, 3cqw, 28px); border-radius: 20px;
   display: grid; align-items: center;
@@ -1772,6 +1774,7 @@ html.pc .st-hero.left:hover, html.pc .st-hero.right:hover { filter: grayscale(0.
 .st-role { padding: 3px 12px; border-radius: 99px; font-size: clamp(11.5px, min(1.9cqh, 3.2cqw), 15px); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #ffd23f; background: #0a103580; }
 .st-level { padding: 3px 12px; border-radius: 99px; font-size: clamp(11.5px, min(1.9cqh, 3.2cqw), 15px); font-weight: 700; color: #0a1035; background: #9cf06a; }
 .st-level[data-level="medium"] { background: #ffc24a; }
+.st-level[data-level="hard"] { background: #ff8a6a; }
 .st-style { margin: 0; max-width: 34em; font-size: clamp(13.5px, min(2.4cqh, 3.9cqw), 19px); line-height: 1.35; }
 .st-weapons { display: flex; justify-content: center; gap: clamp(6px, 1.5cqw, 12px); flex-wrap: wrap; width: 100%; }
 .st-wpn { flex: 1 1 0; max-width: 220px; display: flex; flex-direction: column; align-items: center; padding: clamp(4px, 1cqh, 9px) 10px; border-radius: 12px; background: #0a103580; box-shadow: inset 0 0 0 1.5px #ffffff1f; }
@@ -1784,8 +1787,8 @@ html.pc .st-hero.left:hover, html.pc .st-hero.right:hover { filter: grayscale(0.
    centred in all the space between the top of the screen and the heroes. */
 @media not all and (min-aspect-ratio: 3/2), not all and (min-width: 700px) {
   .st-head { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; }
-  .st-stage { flex: 0 1 auto; aspect-ratio: 100 / 64; max-height: 100%; height: auto; }
-  .st-hero { height: 100cqh; bottom: 0; }
+  .st-stage { flex: 0 1 auto; aspect-ratio: 100 / 62; max-height: 100%; height: auto; }
+  .st-hero { bottom: 0; }
 }
 /* Wide windows (PC, landscape tablets): heroes on the left, the card and button on the right, so
    both can be big instead of squeezing into one column. */
@@ -1826,7 +1829,7 @@ html.pc .purse { gap: 5px; }
 /* PC cursors (ui/cursor.ts): the gold RPG arrow everywhere (zero specificity, so a grab cursor and
    the like still win), and its glowing version over anything clickable. */
 :where(html.pc, html.pc *) { cursor: var(--cur-arrow, default); }
-html.pc :is(button, [role="button"], a, label, select, .chest, .bag-tile, .hero-card, .wm-canvas, .st-hero, .zone-lock, .jday, .minimap, .level-chip, .codex-land, .qb-region):not(:disabled) { cursor: var(--cur-hand, pointer); }
+html.pc :is(button, [role="button"], a, label, select, .chest, .bag-tile, .hero-card, .wm-canvas, .zone-lock, .jday, .minimap, .level-chip, .codex-land, .qb-region, .st-stage):not(:disabled) { cursor: var(--cur-hand, pointer); }
 html.pc :is(button, .btn):disabled { cursor: var(--cur-arrow, default); }
 
 /* Hero mastery: a bar under the hero's name (tap for the goals), a thin bar on each owned
