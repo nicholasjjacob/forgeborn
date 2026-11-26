@@ -59,7 +59,7 @@ const SHOWCASE: Record<string, Record<number, string>> = {
   barbarian: { 1: 'Melee_2H_Idle' },                    // axe across the body, like the greataxe
   rogue: { 4: 'Melee_Blocking', 5: 'Ranged_1H_Reload' }, // dagger on guard; cranking the crossbow
   mage: { 8: 'Ranged_Magic_Spellcasting', 9: 'Ranged_Magic_Spellcasting' },
-  rogue_hooded: { 10: 'Crouching', 11: 'Crouching' },
+  rogue_hooded: { 11: 'Crouching' },                     // claws low and ready (the long katana is held upright)
 };
 
 /** The Heroes-screen idle for a hero holding a weapon type. */

@@ -21,6 +21,30 @@ const portraits = new Map<string, string>();
 /** Stage camera: framed so a regular hero (1.5 units) and the 1.4× Warlord both fit. */
 const STAGE_CAM: [number, number, number] = [0, 1.3, 5.0];
 const STAGE_LOOK: [number, number, number] = [0, 1.0, 0];
+/**
+ * How far a hero reaches out from their spin axis, weapon included (a katana held out to the side
+ * reaches much further than the hero's own body), so the stage can step back to keep it in view.
+ */
+function reachOf(obj: THREE.Object3D): number {
+  const was = obj.rotation.y;
+  obj.rotation.y = 0;
+  obj.updateMatrixWorld(true);
+  const v = new THREE.Vector3();
+  let r = 0;
+  obj.traverseVisible((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    const pos = m.geometry.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      m.getVertexPosition(i, v).applyMatrix4(m.matrixWorld);
+      r = Math.max(r, Math.hypot(v.x, v.z));
+    }
+  });
+  obj.rotation.y = was;
+  obj.updateMatrixWorld(true);
+  return r;
+}
+
 const AUTO_SPIN = 0.7;     // rad/s when left alone
 const DRAG_TURN = 0.012;   // radians per pixel dragged
 const MAX_FLING = 12;      // rad/s
@@ -153,6 +177,10 @@ export class HeroesUI {
   private scene: THREE.Scene | null = null;
   private camera: THREE.PerspectiveCamera | null = null;
   private model: THREE.Object3D | null = null;
+  /** The shown hero's reach (see reachOf); the stage camera stands back far enough for it. */
+  private reach = 0;
+  /** How far the stage camera stands back (eases towards what the shown hero needs). */
+  private camDist = 0;
   private mixer: THREE.AnimationMixer | null = null;
   private shown = '';
   /** The hero now on the stage (shelved in `ready` when replaced). */
@@ -472,6 +500,15 @@ export class HeroesUI {
       cam.aspect = w / h;
       cam.updateProjectionMatrix();
     }
+    // Step back far enough that the hero's furthest point (a long blade held out) stays inside the
+    // frame at every turn of the spin; most heroes fit at the usual distance. A point on a circle
+    // of radius R, seen from distance d, is at most R / sqrt(d² − R²) off centre.
+    const t = Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)) * cam.aspect * 0.96;
+    const need = Math.max(STAGE_CAM[2], this.reach * Math.sqrt(1 + 1 / (t * t)));
+    this.camDist = this.camDist ? this.camDist + (need - this.camDist) * 0.15 : need;
+    const k = this.camDist / STAGE_CAM[2];
+    cam.position.set(0, STAGE_LOOK[1] + (STAGE_CAM[1] - STAGE_LOOK[1]) * k, this.camDist);
+    cam.lookAt(...STAGE_LOOK);
     r.render(scene, cam);
   }
 
@@ -506,6 +543,7 @@ export class HeroesUI {
     this.model = built.obj;
     this.mixer = built.mixer;
     this.modelKeyOn = key;
+    this.reach = reachOf(built.obj);
   }
 
   /** Restyle the hero on the stage in place: its spin and animation carry on. */
