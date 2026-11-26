@@ -1,3 +1,4 @@
+import { morphInto } from './morph';
 import { sfx } from '../audio/sfx';
 import { fmt } from '../core/format';
 import type { Sim } from '../sim/sim';
@@ -123,7 +124,8 @@ export class BagUI {
         </div>
       </div>`;
     // The tiles come first: only their heading sits beside the close button.
-    this.wrap.querySelector('.sheet-body')!.innerHTML = `
+    // Patched in place (gold changes with every kill; the tiles and 3D weapons stay put).
+    morphInto(this.wrap.querySelector('.sheet-body')!, `
       ${ITEMS.map((g) => `<h3 class="bag-title">${g.title}</h3><div class="bag-grid">${g.items.map(tile).join('')}</div>`).join('')}
       <div class="bag-detail">${all.map(detail).join('')}</div>
       <h3 class="bag-title">Weapons</h3>
@@ -132,6 +134,6 @@ export class BagUI {
         <div class="bag-wline">Equipped: <b>${eq ? `${RARITY_NAMES[eq.rarity]} ${weaponName(eq)}` : 'nothing'}</b></div>
         <div class="bag-wline">Best in bag: <b>${best ? `${RARITY_NAMES[best.rarity]} ${weaponName(best)}` : 'none yet'}</b></div>
         <button type="button" class="btn small primary" data-act="forge:">Open Forge ›</button>
-      </div>`;
+      </div>`);
   }
 }

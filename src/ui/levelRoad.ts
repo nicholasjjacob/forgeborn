@@ -1,3 +1,4 @@
+import { morphInto } from './morph';
 import { gi } from './icons';
 import { haptic, sfx } from '../audio/sfx';
 import { fmt } from '../core/format';
@@ -92,19 +93,19 @@ export class LevelRoad {
     const max = s.level >= MAX_LEVEL;
     const b = levelBonus(s.level);
     const pctOf = (m: number) => Math.round((m - 1) * 100);
-    this.wrap.querySelector('.lv-head')!.innerHTML = `
+    morphInto(this.wrap.querySelector('.lv-head')!, `
       <div class="lv-badge" style="--tier:${tier.css}"><small>Lv</small>${s.level}</div>
       <div class="lv-info">
         <div class="lv-tier" style="color:${tier.css}">${tier.name} Hero</div>
         <div class="bar lv-xp"><div class="bar-fill" style="transform:scaleX(${max ? 1 : Math.min(1, s.xp / need)})"></div>
           <span>${max ? 'MAX LEVEL' : `${fmt(s.xp)} / ${fmt(need)} XP`}</span></div>
         <div class="lv-bonus">+${pctOf(b.atk)}% damage &amp; HP · +${pctOf(b.gold)}% gold</div>
-      </div>`;
+      </div>`);
 
     const full = s.weapons.indexOf(null) < 0;
-    this.wrap.querySelector('.lv-road')!.innerHTML = `
+    morphInto(this.wrap.querySelector('.lv-road')!, `
       <p class="sheet-note">Kill monsters to earn XP. Every 5 levels unlocks a reward, and new levels open new zones on the 🗺 Map. Rewards grow as you explore.</p>
-      ${MILESTONES.map((m) => this.row(m, this.sim.levelReward(m), full)).join('')}`;
+      ${MILESTONES.map((m) => this.row(m, this.sim.levelReward(m), full)).join('')}`);
   }
 
   private row(m: number, r: MilestoneReward, invFull: boolean): string {

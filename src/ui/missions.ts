@@ -1,4 +1,5 @@
 import { monsterSlot, paintMonsterPortraits } from './monsterPreview';
+import { morphInto } from './morph';
 import { gi, terrainIcon } from './icons';
 import { BIOMES, FOREST } from '../sim/forest';
 import { CODEX_WORLD_PAGE, PLAYABLE_ZONES, codexEntries, codexEntry, zoneLevel, zoneName } from '../sim/zones';
@@ -98,6 +99,7 @@ export class MissionsUI {
     if (!this.wrap) return;
     this.wrap.remove();
     this.wrap = null;
+    this.view = this.html = ''; // a reopened sheet draws fresh
     document.removeEventListener('keydown', this.onKey);
   }
 
@@ -140,6 +142,10 @@ export class MissionsUI {
     this.refresh();
   }
 
+  /** The page drawn in the sheet body (tab, Codex page, journey day) and its markup. */
+  private view = '';
+  private html = '';
+
   /** Re-render the open sheet if anything it shows changed. Called by the HUD ~10×/s. */
   refresh(): void {
     if (!this.wrap) return;
@@ -170,13 +176,19 @@ export class MissionsUI {
     body.classList.toggle('fill', this.tab === 'login' || this.tab === 'daily' || this.tab === 'weekly' || this.tab === 'journey' || this.tab === 'shop' || (this.tab === 'codex' && this.codexArea !== null));
     const scroll = this.scrollTop ? 0 : body.scrollTop;
     this.scrollTop = false;
-    body.innerHTML =
+    const html =
       this.tab === 'login' ? this.renderLogin(now)
       : this.tab === 'daily' ? this.renderBoard('daily', now)
       : this.tab === 'weekly' ? this.renderBoard('weekly', now)
       : this.tab === 'journey' ? this.renderJourney(now)
       : this.tab === 'codex' ? this.renderCodex()
       : this.renderShop();
+    // The same page again (a kill bumped a count): patch only what changed, so the 3D portraits
+    // keep running and nothing is rebuilt. A new tab or Codex page is drawn fresh.
+    const view = `${this.tab}|${this.codexArea}|${this.journeyDaySel}`;
+    if (view !== this.view) { this.view = view; this.html = html; body.innerHTML = html; }
+    else if (html !== this.html) { this.html = html; morphInto(body, html); }
+    else return;
     body.scrollTop = scroll;
     paintMonsterPortraits();
   }

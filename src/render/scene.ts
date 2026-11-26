@@ -243,8 +243,12 @@ export class Scene {
     this.fade.visible = this.fadeT > 0;
 
     this.fx.update(dt);
-    w3.render();
+    // Behind an open screen (the world dimmed to near-black under it) the 3D world is drawn at a
+    // third of the rate, leaving the frame time to the screen itself (Codex portraits, Heroes stage).
+    const covered = document.querySelector('.modal:not([hidden])') !== null;
+    if (!covered || ++this.coveredFrames % 3 === 0) w3.render();
   }
+  private coveredFrames = 0;
 
   private drawEnemy(e: Enemy, v: EnemyView, x: number, y: number, top: number): void {
     const spawnK = e.spawnT > 0 ? 1 - e.spawnT / 0.35 : 1;

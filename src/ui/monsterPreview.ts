@@ -100,45 +100,79 @@ function buildWeapon(form: number, rarity: number): WeaponPortrait | null {
   return w;
 }
 
+/** Portraits smaller than this (CSS px; list icons) are redrawn every few frames, not every frame. */
+const SMALL = 64;
+/** Frames between redraws of a small portrait (staggered, so each frame draws a few). */
+const SMALL_EVERY = 4;
+let frameNo = 0;
+
+/**
+ * Size the shared renderer's drawing buffer to hold the biggest portrait (it only grows), so it
+ * isn't reallocated for every canvas of a different size. Each portrait is drawn into the
+ * bottom-left w×h corner (WebGL's origin) and copied from there.
+ */
+function fitBuffer(w: number, h: number): void {
+  const r = renderer!;
+  const size = r.getSize(new THREE.Vector2());
+  if (size.x < w || size.y < h) r.setSize(Math.max(size.x, w), Math.max(size.y, h), false);
+}
+
+/** Render into the w×h corner and copy it onto canvas `c`. */
+function blit(c: HTMLCanvasElement, w: number, h: number, draw: () => void): void {
+  const r = renderer!;
+  const ctx = c.getContext('2d');
+  if (!ctx) return;
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  fitBuffer(w, h);
+  const H = r.domElement.height;
+  r.setViewport(0, 0, w, h);
+  r.setScissor(0, 0, w, h);
+  r.setScissorTest(true);
+  draw();
+  r.setScissorTest(false);
+  ctx.clearRect(0, 0, w, h);
+  ctx.drawImage(r.domElement, 0, H - h, w, h, 0, 0, w, h);
+  c.parentElement?.classList.add('has3d');
+}
+
 /** Draw every live portrait now (call right after the cards are re-rendered so they never blink). */
-export function paintMonsterPortraits(): void {
+export function paintMonsterPortraits(force = true): void {
   const canvases = document.querySelectorAll<HTMLCanvasElement>('canvas.mon3d, canvas.wpn3d');
   if (!canvases.length) { cancelAnimationFrame(raf); raf = 0; return; }
   if (!setup()) return;
   const now = performance.now();
   const dt = Math.min(0.1, (now - (drawnAt || now)) / 1000);
   drawnAt = now;
+  frameNo++;
   const ticked = new Set<string>();
-  const r = renderer!, sc = scene!, cam = camera!;
+  const sc = scene!, cam = camera!;
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  for (const c of canvases) {
-    const w = Math.round(c.clientWidth * dpr), h = Math.round(c.clientHeight * dpr);
-    if (!w || !h) continue;
-    // Scrolled out of view (long lists): leave it until it comes back.
+  // Read every canvas's size and place first (layout reads), then draw (no reads in between).
+  const jobs: { c: HTMLCanvasElement; w: number; h: number; small: boolean; i: number }[] = [];
+  canvases.forEach((c, i) => {
     const rect = c.getBoundingClientRect();
-    if (rect.bottom < 0 || rect.top > innerHeight) continue;
+    if (!rect.width || !rect.height || rect.bottom < 0 || rect.top > innerHeight) return; // hidden or scrolled away
+    jobs.push({ c, w: Math.round(rect.width * dpr), h: Math.round(rect.height * dpr), small: rect.width < SMALL, i });
+  });
+  for (const { c, w, h, small, i } of jobs) {
+    // Small icons take turns; a fresh canvas (never drawn) is drawn straight away.
+    if (!force && small && c.width && (frameNo + i) % SMALL_EVERY !== 0) continue;
     if (c.classList.contains('wpn3d')) { paintWeapon(c, w, h, now); continue; }
     const key = c.dataset.model!;
     const p = build(key, c.dataset.fly === '1');
     if (!p) continue;
     if (!ticked.has(key)) { ticked.add(key); p.mixer.update(dt); }
-    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
-    const size = r.getSize(new THREE.Vector2());
-    if (size.x !== w || size.y !== h) r.setSize(w, h, false);
-    cam.aspect = w / h;
-    // Frame the 1-unit model with a little headroom, seen slightly from above.
-    cam.position.set(0, 1.0, 2.9);
-    cam.lookAt(0, 0.5, 0);
-    cam.updateProjectionMatrix();
-    p.obj.rotation.y = 0.45 + Math.sin(now / 1000 * 0.6 + p.phase) * 0.35;
-    sc.add(p.obj);
-    r.render(sc, cam);
-    sc.remove(p.obj);
-    const ctx = c.getContext('2d');
-    if (!ctx) continue;
-    ctx.clearRect(0, 0, w, h);
-    ctx.drawImage(r.domElement, 0, 0);
-    c.parentElement?.classList.add('has3d');
+    blit(c, w, h, () => {
+      cam.aspect = w / h;
+      // Frame the 1-unit model with a little headroom, seen slightly from above.
+      cam.position.set(0, 1.0, 2.9);
+      cam.lookAt(0, 0.5, 0);
+      cam.updateProjectionMatrix();
+      p.obj.rotation.y = 0.45 + Math.sin(now / 1000 * 0.6 + p.phase) * 0.35;
+      sc.add(p.obj);
+      renderer!.render(sc, cam);
+      sc.remove(p.obj);
+    });
   }
   if (!raf) { last = now; raf = requestAnimationFrame(loop); }
 }
@@ -146,29 +180,25 @@ export function paintMonsterPortraits(): void {
 function paintWeapon(c: HTMLCanvasElement, w: number, h: number, now: number): void {
   const form = Number(c.dataset.form), rarity = Number(c.dataset.rarity);
   const p = Number.isFinite(form) && Number.isFinite(rarity) ? buildWeapon(form, rarity) : null;
-  const ctx = c.getContext('2d');
-  if (!p || !ctx) {
+  if (!p) {
     // Not ready (or the slot emptied): show the drawn stand-in underneath.
     c.parentElement?.classList.remove('has3d');
+    const ctx = c.getContext('2d');
     if (ctx && c.width) ctx.clearRect(0, 0, c.width, c.height);
     return;
   }
-  const r = renderer!, sc = scene!;
+  const sc = scene!;
   if (!wcam) { wcam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 50); wcam.position.set(0, 0, 10); }
-  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
-  const size = r.getSize(new THREE.Vector2());
-  if (size.x !== w || size.y !== h) r.setSize(w, h, false);
-  const a = w / h;
-  wcam.left = -a; wcam.right = a; wcam.top = 1; wcam.bottom = -1;
-  wcam.updateProjectionMatrix();
-  // A slow sway so the model reads as 3D without going edge-on.
-  p.obj.rotation.y = Math.sin(now / 1000 * 0.9 + p.phase) * 0.55;
-  sc.add(p.obj);
-  r.render(sc, wcam);
-  sc.remove(p.obj);
-  ctx.clearRect(0, 0, w, h);
-  ctx.drawImage(r.domElement, 0, 0);
-  c.parentElement?.classList.add('has3d');
+  blit(c, w, h, () => {
+    const a = w / h;
+    wcam!.left = -a; wcam!.right = a; wcam!.top = 1; wcam!.bottom = -1;
+    wcam!.updateProjectionMatrix();
+    // A slow sway so the model reads as 3D without going edge-on.
+    p.obj.rotation.y = Math.sin(now / 1000 * 0.9 + p.phase) * 0.55;
+    sc.add(p.obj);
+    renderer!.render(sc, wcam!);
+    sc.remove(p.obj);
+  });
 }
 
 /**
@@ -185,9 +215,7 @@ export function monsterSnapshot(area: number, slot: number, size = 96): HTMLCanv
   const fly = slot < 3 && areaFor(area).def.monsters[slot]?.shape === 'bat';
   const p = build(key, fly);
   if (!p) return null;
-  const r = renderer!, sc = scene!, cam = camera!;
-  const size0 = r.getSize(new THREE.Vector2());
-  if (size0.x !== size || size0.y !== size) r.setSize(size, size, false);
+  const sc = scene!, cam = camera!;
   const rot = p.obj.rotation.y;
   p.obj.rotation.y = 0.5;
   // Frame the monster as it actually stands in its idle pose (flyers hover well above the ground).
@@ -196,17 +224,17 @@ export function monsterSnapshot(area: number, slot: number, size = 96): HTMLCanv
   const c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
   const span = Math.max(sz.x, sz.y, sz.z * 0.8, 0.3);
   const dist = (span * 0.62) / Math.tan((cam.fov * Math.PI) / 360);
-  cam.aspect = 1;
-  cam.position.set(c.x, c.y + dist * 0.28, c.z + dist);
-  cam.lookAt(c.x, c.y, c.z);
-  cam.updateProjectionMatrix();
-  sc.add(p.obj);
-  r.render(sc, cam);
-  sc.remove(p.obj);
-  p.obj.rotation.y = rot;
   const out = document.createElement('canvas');
-  out.width = out.height = size;
-  out.getContext('2d')!.drawImage(r.domElement, 0, 0);
+  blit(out, size, size, () => {
+    cam.aspect = 1;
+    cam.position.set(c.x, c.y + dist * 0.28, c.z + dist);
+    cam.lookAt(c.x, c.y, c.z);
+    cam.updateProjectionMatrix();
+    sc.add(p.obj);
+    renderer!.render(sc, cam);
+    sc.remove(p.obj);
+  });
+  p.obj.rotation.y = rot;
   snapshots.set(`${key}|${size}`, out);
   return out;
 }
@@ -215,7 +243,7 @@ function loop(now: number): void {
   raf = requestAnimationFrame(loop);
   if (now - last < FRAME_MS - 2) return;
   last = now;
-  paintMonsterPortraits();
+  paintMonsterPortraits(false);
 }
 
 /**
