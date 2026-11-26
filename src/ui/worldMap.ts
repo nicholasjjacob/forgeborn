@@ -14,7 +14,7 @@ import { bindSheetTaps } from './tap';
  * The World Map: the whole Greenwood Forest as one big 3D picture (the real scenery, drawn from
  * high above), greyed out wherever the hero hasn't been yet. Tap a region to fly in: a sharper
  * close-up of it (drag to look around), what's been found there (monster haunts, hordes, the boss
- * lair, landmarks) and fast travel. Locked regions show what they need.
+ * lair, landmarks) and travel (walking there). Locked regions show what they need.
  *
  * The view works in map coordinates: X = world x, D = how far down the tilted picture a point
  * sits ((y - mapH / 2) · sin(tilt) - height · cos(tilt)), so the whole-map picture and the
@@ -140,7 +140,9 @@ export class WorldMapUI {
     else if (act === 'region') { sfx.play('tick'); this.zoomTo(Number(arg)); }
     else if (act === 'travel') {
       if (this.sim.bossActive) { this.toast('Finish the boss fight first'); return; }
-      if (this.sim.travelTo(Number(arg))) { sfx.play('area'); this.close(); }
+      // Walk there along the trails (through the region's pass); fast travel only if no way is found.
+      if (this.sim.walkToRegion(Number(arg))) { sfx.play('tick'); this.close(); }
+      else if (this.sim.travelTo(Number(arg))) { sfx.play('area'); this.close(); }
     } else if (act === 'locked') {
       sfx.play('tick');
       this.toast(this.lockText(Number(arg)));

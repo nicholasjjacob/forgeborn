@@ -505,6 +505,34 @@ export class Sim {
     return true;
   }
 
+  /**
+   * World Map "Travel here": walk along the trails to the region's pass and a few steps through it
+   * (rather than appearing there). False if there's no way there (the caller can fast travel).
+   */
+  walkToRegion(biome: number): boolean {
+    const b = BIOMES[biome];
+    if (!this.map.forest || !b || biome === this.biome) return false;
+    const hub = biomeArrival(biome);
+    if (!this.walkToSpot(hub.x, hub.y)) return false;
+    // Cut the route a little past where it first crosses into the region.
+    const r = this.route, STEP = 10, IN = 90;
+    let px = this.hero.x, py = this.hero.y, inside = -1;
+    for (let i = 0; i < r.length; i++) {
+      const dx = r[i].x - px, dy = r[i].y - py, len = Math.hypot(dx, dy);
+      for (let d = STEP; d <= len; d += STEP) {
+        const x = px + (dx * d) / len, y = py + (dy * d) / len;
+        if (inside < 0 && forestRegion(x, y) === biome) inside = 0;
+        else if (inside >= 0 && (inside += STEP) >= IN) {
+          r.length = i;
+          r.push({ x, y });
+          return true;
+        }
+      }
+      px = r[i].x; py = r[i].y;
+    }
+    return true; // the region's heart is close to its pass: walk all the way
+  }
+
   /** Waypoints the hero is walking along (World Map "go there"); empty when not. */
   readonly route: { x: number; y: number }[] = [];
   private routeBest = Infinity;
