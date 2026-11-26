@@ -65,4 +65,20 @@ describe('World Map: walking to a spot', () => {
     sim.setMove(1, 0);
     expect(sim.route.length).toBe(0);
   });
+
+  it('stops on the map icon itself: every haunt and boss lair of the open regions', () => {
+    const save = freshSave();
+    Object.assign(save, { zone: 0, zoneBosses: 3, zoneBest: 2, level: 60, auto: false });
+    save.upgrades.hp = 400; save.upgrades.atk = 400;
+    const sim = new Sim(save, 9);
+    const f = sim.map.forest!;
+    const spots = [...f.territories.filter((t) => t.zone <= 2), ...f.lairs.filter((l) => l.zone <= 2)];
+    for (const t of spots) {
+      sim.hero.hp = sim.hero.maxHp;
+      expect(sim.walkToSpot(t.x, t.y, 0), `${t.x},${t.y}`).toBe(true);
+      walk(sim, 90);
+      sim.bossActive = false; // (a lair's boss rose: leave it)
+      expect(Math.hypot(sim.hero.x - t.x, sim.hero.y - t.y), `${t.x},${t.y}`).toBeLessThan(25);
+    }
+  });
 });

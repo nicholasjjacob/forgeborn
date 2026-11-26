@@ -461,7 +461,7 @@ export class WorldMapUI {
         if (t.biome !== this.region || !seen(t.x, t.y)) continue;
         const p = at(t.x, t.y);
         const r = (t.horde ? 17 : 13) * scale;
-        this.targets.push({ x: p.x, y: p.y, r: r * 1.35, spotX: t.x, spotY: t.y, keepOut: t.r * 0.5, zone: t.zone });
+        this.targets.push({ x: p.x, y: p.y, r: r * 1.35, spotX: t.x, spotY: t.y, keepOut: 0, zone: t.zone });
         const disc = g.createRadialGradient(p.x, p.y - r * 0.3, r * 0.1, p.x, p.y, r);
         disc.addColorStop(0, '#f4f7ff'); disc.addColorStop(1, '#b9c6ea');
         g.fillStyle = disc;
@@ -505,7 +505,7 @@ export class WorldMapUI {
       g.fillStyle = '#fff'; g.font = `${12 * scale}px system-ui, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
       g.fillText('☠', p.x, p.y + 0.5 * scale);
       if (zoomed && l.biome === this.region) {
-        this.targets.push({ x: p.x, y: p.y, r: r * 1.8, spotX: l.x, spotY: l.y, keepOut: l.r + 26, zone: l.zone });
+        this.targets.push({ x: p.x, y: p.y, r: r * 1.8, spotX: l.x, spotY: l.y, keepOut: 0, zone: l.zone });
         // Its name, or while the boss recovers, when it rises again.
         const left = this.sim.lairCooldownLeft(l.zone);
         const secs = Math.ceil(left);
@@ -528,7 +528,7 @@ export class WorldMapUI {
       g.fillStyle = '#fff'; g.font = `${15 * scale}px system-ui, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
       g.fillText('☠', p.x, p.y + 0.5 * scale);
       if (zoomed && wl.biome === this.region) {
-        this.targets.push({ x: p.x, y: p.y, r: r * 1.8, spotX: wl.x, spotY: wl.y, keepOut: wl.r + 26, zone: wl.zone });
+        this.targets.push({ x: p.x, y: p.y, r: r * 1.8, spotX: wl.x, spotY: wl.y, keepOut: 0, zone: wl.zone });
         const secs = Math.ceil(left);
         const label = !open ? `${wl.name} · sealed (${this.sim.save.zoneBosses}/${PLAYABLE_ZONES} bosses)`
           : left > 0 ? `${wl.name} · back in ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}` : `${wl.name} · World boss`;
