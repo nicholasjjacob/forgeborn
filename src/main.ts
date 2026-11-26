@@ -71,6 +71,10 @@ async function boot() {
   loadingStep(0.14, 'Painting the heroes…');
   await Promise.race([loadRenderedArt(), new Promise((r) => setTimeout(r, 2500))]);
   const loaded = await savePromise;
+  // Test switch: ?bones=knight (or several, comma-separated) unlocks those heroes' skeleton forms
+  // without mastering them, and puts them on.
+  const testBones = (new URLSearchParams(location.search).get('bones') ?? '').split(',').filter((id) => SKINS.some((k) => k.id === id));
+  for (const id of testBones) loaded.bones[id] = true;
   // Every 3D model the forest needs (a few MB the first time, cached after), with the bar
   // following along. A very slow connection carries on after a while: the rest pops in later.
   loadingStep(0.2, 'Loading the forest…');
@@ -87,6 +91,7 @@ async function boot() {
   const bootReward = offlineReward(loaded, (Date.now() - loaded.savedAt) / 1000, OFFLINE_CAP_HOURS + loaded.perks.offline);
   if (hasReward(bootReward)) applyOfflineReward(loaded, bootReward);
   const sim = new Sim(loaded);
+  for (const id of testBones) sim.testBones.add(id);
   if (import.meta.env.DEV) (window as unknown as { __sim: Sim }).__sim = sim; // dev-only handle for testing
   let saving = true;
   const save = () => { if (saving) writeSave(sim.save); };

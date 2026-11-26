@@ -48,6 +48,17 @@ describe('hero mastery', () => {
     expect(again.mastery.junk).toBeUndefined();
   });
 
+  it('a test unlock (?bones=) lets a hero wear its skeleton form without mastery', () => {
+    const save = freshSave();
+    save.skins = ['knight']; save.skin = 'knight';
+    const sim = new Sim(save, 1);
+    expect(sim.setSkeleton('knight', true)).toBe(false);
+    sim.testBones.add('knight');
+    expect(sim.skeletonUnlocked('knight')).toBe(true);
+    expect(sim.setSkeleton('knight', true)).toBe(true);
+    expect(sim.skeletonUnlocked('mage')).toBe(false);
+  });
+
   it('the skeleton form unlocks at 100% and can be worn or taken off', () => {
     const save = freshSave();
     save.skins = ['knight', 'mage'];

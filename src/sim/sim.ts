@@ -1197,9 +1197,15 @@ export class Sim {
   }
 
   /** Choose a style for an owned hero (cosmetic). */
+  /** Heroes whose skeleton form is unlocked for testing (the ?bones= switch), mastered or not. */
+  readonly testBones = new Set<string>();
+
+  /** Can hero `skin` wear its skeleton form? (Mastered 100%, or unlocked for testing.) */
+  skeletonUnlocked(skin: string): boolean { return this.testBones.has(skin) || this.mastery(skin).complete; }
+
   /** Wear (or take off) hero `skin`'s skeleton form: unlocked by mastering that hero (100%). */
   setSkeleton(skin: string, on: boolean): boolean {
-    if (!this.ownsSkin(skin) || (on && !this.mastery(skin).complete)) return false;
+    if (!this.ownsSkin(skin) || (on && !this.skeletonUnlocked(skin))) return false;
     if (on) this.save.bones[skin] = true;
     else delete this.save.bones[skin];
     return true;

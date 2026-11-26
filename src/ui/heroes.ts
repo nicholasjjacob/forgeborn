@@ -393,7 +393,7 @@ export class HeroesUI {
       : '';
     if (def.palette) void this.makeThumbs(def.id);
     // The mastery reward: the hero's skeleton form, worn once they're 100% complete.
-    const earned = this.sim.mastery(def.id).complete;
+    const earned = this.sim.skeletonUnlocked(def.id);
     this.wrap.querySelector('.hero-forms')!.innerHTML = [
       `<button type="button" role="radio" aria-checked="${!bones}" class="${bones ? '' : 'on'}" data-act="form:hero"${owned ? '' : ' disabled'}>${def.name}</button>`,
       `<button type="button" role="radio" aria-checked="${bones}" class="${bones ? 'on' : ''} ${earned ? '' : 'he-locked'}" data-act="form:skel"${owned ? '' : ' disabled'}>${gi(earned ? 'crown' : 'padlock', earned ? 'gold' : 'grey')}${def.skeleton.name}</button>`,
