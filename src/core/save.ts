@@ -189,9 +189,15 @@ export function migrate(input: unknown): SaveData {
   save.bossReady = save.bossReady && typeof save.bossReady === 'object' ? save.bossReady : {};
   save.explored = typeof save.explored === 'string' ? save.explored : '';
   save.minimap = save.minimap === 'square' ? 'square' : 'circle';
-  // Skins: always own the default; the selected skin must be owned.
-  save.skins = Array.isArray(save.skins) ? [...new Set([DEFAULT_SKIN, ...save.skins.filter((x) => typeof x === 'string')])] : [DEFAULT_SKIN];
-  if (typeof save.skin !== 'string' || !save.skins.includes(save.skin)) save.skin = DEFAULT_SKIN;
+  // Skins: whatever is owned (the first-launch pick need not be the Knight); never none. The
+  // selected skin must be owned. Saves from before the first-launch choice count as chosen, and
+  // always started as the Knight, so they keep it.
+  const legacy = typeof (data as { starterChosen?: unknown }).starterChosen !== 'boolean';
+  save.starterChosen = legacy || (data as { starterChosen: boolean }).starterChosen;
+  const owned = Array.isArray(save.skins) ? save.skins.filter((x) => typeof x === 'string') : [];
+  save.skins = [...new Set(legacy ? [DEFAULT_SKIN, ...owned] : owned)];
+  if (!save.skins.length) save.skins = [DEFAULT_SKIN];
+  if (typeof save.skin !== 'string' || !save.skins.includes(save.skin)) save.skin = save.skins[0];
   const looks: Record<string, string> = {};
   for (const [k, v] of Object.entries(save.looks && typeof save.looks === 'object' ? save.looks : {})) if (typeof v === 'string') looks[k] = v;
   save.looks = looks;

@@ -15,11 +15,18 @@ import { Input } from './ui/input';
 import { zoneArea, zoneName } from './sim/zones';
 import { areaMonsterModels, preloadArea } from './render/world3d';
 import { loadingDone, loadingFailed, loadingPaint, loadingStep } from './ui/loading';
+import { chooseStarter } from './ui/starter';
+import { STARTERS } from './sim/skins';
+import { loadModel } from './render/models';
+import { heroAnimFiles } from './render/heroRig';
 import { OFFLINE_CAP_HOURS, applyOfflineReward, hasReward, offlineReward } from './sim/offline';
 import { showWelcome } from './ui/welcome';
 import { openSettings } from './ui/settings';
 import { sfx } from './audio/sfx';
 import { registerPwa } from './pwa';
+
+/** A hero's model and animations (for the first-launch hero choice). */
+const preloadHero = (id: string) => Promise.all([`hero_${id}`, ...heroAnimFiles(id)].map((n) => loadModel(n).catch(() => null)));
 
 const MAX_STEPS_PER_FRAME = 8;   // avoid a "spiral of death" on slow frames
 const HUD_INTERVAL = 0.1;        // seconds
@@ -63,8 +70,11 @@ async function boot() {
   // following along. A very slow connection carries on after a while: the rest pops in later.
   loadingStep(0.2, 'Loading the forest…');
   const area = zoneArea(loaded.zone ?? 0);
+  // First launch: the hero choice shows all three starters, so fetch the other two as well.
+  const firstRun = !loaded.starterChosen;
+  const starters = firstRun ? STARTERS.filter((id) => id !== loaded.skin).map((id) => preloadHero(id)) : [];
   await Promise.race([
-    preloadArea(area, loaded.skin, (f) => loadingStep(0.2 + 0.5 * f, `Loading the forest… ${Math.round(f * 100)}%`)),
+    Promise.all([preloadArea(area, loaded.skin, (f) => loadingStep(0.2 + 0.5 * f, `Loading the forest… ${Math.round(f * 100)}%`)), ...starters]),
     new Promise((r) => setTimeout(r, 20000)),
   ]);
   // Offline earnings since the last save (rewards are granted immediately, then shown).
@@ -171,11 +181,13 @@ async function boot() {
 
   // Fixed-timestep simulation with render interpolation.
   let acc = 0;
+  // First launch: the game waits (no ticks) while the player picks their hero.
+  let choosing = firstRun;
   let hudT = 0;
   let saveT = 0;
   app.ticker.add((ticker) => {
     const dt = Math.min(ticker.deltaMS / 1000, 0.25);
-    acc += dt;
+    acc = choosing ? 0 : acc + dt;
     let steps = 0;
     while (acc >= TICK && steps < MAX_STEPS_PER_FRAME) {
       sim.tick();
@@ -219,6 +231,8 @@ async function boot() {
     }
   });
   window.addEventListener('pagehide', save);
+  // The hero choice sits under the loading screen, which fades away to reveal it.
+  if (firstRun) void chooseStarter(sim).then(() => { choosing = false; save(); });
   loadingDone();
 
   if (import.meta.env.DEV) {

@@ -36,7 +36,7 @@ export interface SkinDef {
   /** Class title shown under the name. */
   role: string;
   blurb: string;
-  /** Gem price; 0 = owned from the start. */
+  /** Gem price (the starting hero, chosen on first launch, is owned without paying). */
   cost: number;
   /** Hero level needed before it can be unlocked (on top of the gems). */
   minLevel?: number;
@@ -55,7 +55,7 @@ export interface SkinDef {
 }
 
 export const SKINS: readonly SkinDef[] = [
-  { id: 'knight', name: 'Knight', role: 'Guardian', blurb: 'Plate armour, a crested helm and a red cape.', cost: 0,
+  { id: 'knight', name: 'Knight', role: 'Guardian', blurb: 'Plate armour, a crested helm and a red cape.', cost: 250,
     forms: [0, 3], perk: '+40% HP and takes 20% less damage', mods: { hp: 1.4, dmgTaken: 0.8 }, palette: 'knight',
     looks: [{ id: 'open', name: 'Visor up' }, { id: 'visor', name: 'Visor down', visor: true }, { id: 'bare', name: 'No helmet', hide: ['Knight_Helmet', 'Knight_HelmetVisor'] }] },
   { id: 'barbarian', name: 'Barbarian', role: 'Berserker', blurb: 'Bear-skin hat, bare arms, big attitude.', cost: 150,
@@ -87,6 +87,9 @@ export const SKINS: readonly SkinDef[] = [
 ];
 
 export const DEFAULT_SKIN = 'knight';
+
+/** The heroes a new player chooses between on first launch (the rest are unlocked later). */
+export const STARTERS: readonly string[] = ['knight', 'ranger', 'mage'];
 
 export function skinDef(id: string): SkinDef {
   return SKINS.find((s) => s.id === id) ?? SKINS[0];

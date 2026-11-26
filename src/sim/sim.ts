@@ -1,5 +1,5 @@
 import { Explored } from './explore';
-import { DEFAULT_SKIN, SKINS, canWield, skinDef, type ClassMods } from './skins';
+import { DEFAULT_SKIN, SKINS, STARTERS, canWield, skinDef, type ClassMods } from './skins';
 import { Rng } from '../core/rng';
 import { areaFor, type MonsterDef } from './areas';
 import {
@@ -125,6 +125,8 @@ export interface SaveData {
   bossReady: Record<string, number>;
   /** Forest fog of war: the cells the hero has seen (base64 bitset, see Explored). Kept through Reforge. */
   explored: string;
+  /** Has the player picked their first hero (the first-launch choice)? Old saves count as yes. */
+  starterChosen: boolean;
   /** Recent earnings per second, used to pay out offline progress. */
   rates: { gold: number; shards: number };
   savedAt: number;
@@ -141,7 +143,7 @@ export function freshSave(): SaveData {
     missions: freshMissions(),
     level: 1, xp: 0, levelClaimed: [],
     zone: 0, zoneBosses: 0, zoneBest: 0,
-    skin: DEFAULT_SKIN, skins: [DEFAULT_SKIN], looks: {}, palettes: {}, bossReady: {}, explored: '',
+    skin: DEFAULT_SKIN, skins: [DEFAULT_SKIN], looks: {}, palettes: {}, bossReady: {}, explored: '', starterChosen: false,
     savedAt: Date.now(),
   };
 }
@@ -1042,6 +1044,23 @@ export class Sim {
   // --- Hero skins (cosmetic) ------------------------------------------------------------
 
   ownsSkin(id: string): boolean { return this.save.skins.includes(id); }
+
+  /**
+   * First launch: start as one of the STARTERS. It becomes the only hero owned (the other two wait
+   * in the Heroes screen with the rest), with its own starter weapon. Only once per save.
+   */
+  chooseStarter(id: string): boolean {
+    const s = this.save;
+    if (s.starterChosen || !STARTERS.includes(id)) return false;
+    s.skins = [id];
+    s.skin = id;
+    s.gear = {};
+    s.equipped = starterWeapon(skinDef(id).forms[0], s.nextWeaponId++);
+    s.starterChosen = true;
+    for (const sh of this.heroShots) sh.alive = false;
+    this.applyWeaponChange();
+    return true;
+  }
 
   /** Buy a skin with gems. Returns false if already owned, unknown or unaffordable. */
   buySkin(id: string): boolean {

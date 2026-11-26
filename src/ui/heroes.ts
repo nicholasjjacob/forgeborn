@@ -270,64 +270,8 @@ export class HeroesUI {
     r.render(scene, cam);
   }
 
-  /** A posed, normalised copy of a skin (1.5 units tall, feet on the ground). */
-  private async build(id: string, sized = true, palette?: number): Promise<{ obj: THREE.Object3D; mixer: THREE.AnimationMixer } | null> {
-    const [g, rig] = await Promise.all([loadModel(`hero_${id}`), loadHeroAnims(id)]).catch(() => [null, null]);
-    if (!g || !rig) return null;
-    const anims = rig.anims;
-    const inner = cloneActor(g);
-    // The battlefield may be wearing this same model: undo its placement and its hero render layer.
-    inner.position.set(0, 0, 0);
-    inner.scale.setScalar(1);
-    inner.rotation.set(0, 0, 0);
-    inner.traverse((o) => {
-      o.layers.set(0);
-      // The battlefield hero flashes red when hit: a copy made mid-flash would keep the glow.
-      const m = o as THREE.SkinnedMesh;
-      if (m.isSkinnedMesh) for (const mat of Array.isArray(m.material) ? m.material : [m.material]) (mat as THREE.MeshLambertMaterial).emissive?.setHex(0);
-    });
-    for (const n of ['weapon-hand', 'weapon-kit-r', 'weapon-kit-l']) inner.getObjectByName(n)?.removeFromParent(); // the battlefield's weapon, if cloned along
-    applyLook(inner, id, lookOf(id, this.sim.save.looks));
-    // Wait for the colour scheme's texture: drawn before it arrives, the hero (and its one-shot
-    // portrait) would come out black.
-    const pal = palette ?? this.sim.save.palettes[id] ?? 0;
-    await paletteReady(id, pal);
-    applyPalette(inner, id, pal);
-    // The clone copies whatever pose the battlefield hero was in (mid-run, mid-swing): measure it at rest.
-    inner.traverse((o) => { if ((o as THREE.SkinnedMesh).isSkinnedMesh) (o as THREE.SkinnedMesh).skeleton.pose(); });
-    const dims = measure(inner);
-    // On the stage heroes keep their relative size (the Warlord towers); portraits are all fitted.
-    const k = (1.5 * (sized ? heroScale(id) : 1)) / dims.h;
-    inner.scale.setScalar(k);
-    inner.position.set(-dims.cx * k, -dims.minY * k, -dims.cz * k);
-    // The hero holds their weapon: the equipped one, or what they would draw when picked.
-    // (Added after measuring, so a tall staff does not shrink the hero.)
-    const s = this.sim.save;
-    const w = id === s.skin ? s.equipped : s.gear[id] ?? null;
-    await Promise.all(kitModels(w?.form ?? skinDef(id).forms[0], w?.rarity ?? 0).map((n) => loadModel(n).catch(() => null)));
-    const kit = buildKitWeapon(w?.form ?? skinDef(id).forms[0], w?.rarity ?? 0);
-    if (kit) {
-      kit.group.scale.multiplyScalar(heroWeaponScale(id));
-      const form = w?.form ?? skinDef(id).forms[0];
-      // The stage shows the weapon's idle; one-handed weapons (unarmed idle) are held upright.
-      holdWeapon(kit.group, form, showcaseUpright(id, form) ? idleTilt(form) : 0);
-      kit.off?.scale.multiplyScalar(heroWeaponScale(id));
-      inner.getObjectByName('handslotr')?.add(kit.group);
-      if (kit.off) inner.getObjectByName('handslotl')?.add(kit.off);
-    }
-    const obj = new THREE.Group();
-    obj.add(inner);
-    const mixer = new THREE.AnimationMixer(inner);
-    const idleName = showcaseIdle(id, w?.form ?? skinDef(id).forms[0]);
-    const idle = heroClip(anims, idleName);
-    if (idle) {
-      const a = mixer.clipAction(idle);
-      if (holdsPose(idleName)) { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; }
-      a.play();
-    }
-    mixer.update(0.4);
-    centerOnHips(obj);
-    return { obj, mixer };
+  private build(id: string, sized = true, palette?: number): Promise<{ obj: THREE.Object3D; mixer: THREE.AnimationMixer } | null> {
+    return buildHeroModel(this.sim, id, sized, palette);
   }
 
   private async showModel(id: string): Promise<void> {
@@ -424,6 +368,69 @@ const thumbs = new Map<string, string>();
 const thumbKey = (id: string, look: string, n: number) => `${id}:${look}:${n}`;
 
 const _hip = new THREE.Vector3();
+/**
+ * A posed, normalised copy of a hero (1.5 units tall, feet on the ground) holding their weapon,
+ * playing their showcase idle. Shared by the Heroes screen and the first-run hero choice.
+ */
+export async function buildHeroModel(sim: Sim, id: string, sized = true, palette?: number): Promise<{ obj: THREE.Object3D; mixer: THREE.AnimationMixer } | null> {
+  const [g, rig] = await Promise.all([loadModel(`hero_${id}`), loadHeroAnims(id)]).catch(() => [null, null]);
+  if (!g || !rig) return null;
+  const anims = rig.anims;
+  const inner = cloneActor(g);
+  // The battlefield may be wearing this same model: undo its placement and its hero render layer.
+  inner.position.set(0, 0, 0);
+  inner.scale.setScalar(1);
+  inner.rotation.set(0, 0, 0);
+  inner.traverse((o) => {
+    o.layers.set(0);
+    // The battlefield hero flashes red when hit: a copy made mid-flash would keep the glow.
+    const m = o as THREE.SkinnedMesh;
+    if (m.isSkinnedMesh) for (const mat of Array.isArray(m.material) ? m.material : [m.material]) (mat as THREE.MeshLambertMaterial).emissive?.setHex(0);
+  });
+  for (const n of ['weapon-hand', 'weapon-kit-r', 'weapon-kit-l']) inner.getObjectByName(n)?.removeFromParent(); // the battlefield's weapon, if cloned along
+  applyLook(inner, id, lookOf(id, sim.save.looks));
+  // Wait for the colour scheme's texture: drawn before it arrives, the hero (and its one-shot
+  // portrait) would come out black.
+  const pal = palette ?? sim.save.palettes[id] ?? 0;
+  await paletteReady(id, pal);
+  applyPalette(inner, id, pal);
+  // The clone copies whatever pose the battlefield hero was in (mid-run, mid-swing): measure it at rest.
+  inner.traverse((o) => { if ((o as THREE.SkinnedMesh).isSkinnedMesh) (o as THREE.SkinnedMesh).skeleton.pose(); });
+  const dims = measure(inner);
+  // On the stage heroes keep their relative size (the Warlord towers); portraits are all fitted.
+  const k = (1.5 * (sized ? heroScale(id) : 1)) / dims.h;
+  inner.scale.setScalar(k);
+  inner.position.set(-dims.cx * k, -dims.minY * k, -dims.cz * k);
+  // The hero holds their weapon: the equipped one, or what they would draw when picked.
+  // (Added after measuring, so a tall staff does not shrink the hero.)
+  const s = sim.save;
+  const w = id === s.skin ? s.equipped : s.gear[id] ?? null;
+  await Promise.all(kitModels(w?.form ?? skinDef(id).forms[0], w?.rarity ?? 0).map((n) => loadModel(n).catch(() => null)));
+  const kit = buildKitWeapon(w?.form ?? skinDef(id).forms[0], w?.rarity ?? 0);
+  if (kit) {
+    kit.group.scale.multiplyScalar(heroWeaponScale(id));
+    const form = w?.form ?? skinDef(id).forms[0];
+    // The stage shows the weapon's idle; one-handed weapons (unarmed idle) are held upright.
+    holdWeapon(kit.group, form, showcaseUpright(id, form) ? idleTilt(form) : 0);
+    kit.off?.scale.multiplyScalar(heroWeaponScale(id));
+    inner.getObjectByName('handslotr')?.add(kit.group);
+    if (kit.off) inner.getObjectByName('handslotl')?.add(kit.off);
+  }
+  const obj = new THREE.Group();
+  obj.add(inner);
+  const mixer = new THREE.AnimationMixer(inner);
+  const idleName = showcaseIdle(id, w?.form ?? skinDef(id).forms[0]);
+  const idle = heroClip(anims, idleName);
+  if (idle) {
+    const a = mixer.clipAction(idle);
+    if (holdsPose(idleName)) { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; }
+    a.play();
+  }
+  mixer.update(0.4);
+  centerOnHips(obj);
+  return { obj, mixer };
+}
+
 /**
  * Keep the hero standing on the turntable's axis: shift the model so its hips sit at the centre
  * (x/z only), whatever pose or animation it is in. Otherwise it can orbit off to one side as it spins.

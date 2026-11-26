@@ -119,7 +119,10 @@ describe('hero skins', () => {
     expect(sim.buySkin('barbarian')).toBe(false); // already owned
     expect(sim.selectSkin('mage')).toBe(false);   // not owned
     expect(sim.selectSkin('knight')).toBe(true);
-    const back = migrate(JSON.parse(JSON.stringify({ ...sim.save, skin: 'ghost', skins: ['barbarian'] })));
+    // A save from before the first-launch hero choice always started as the Knight: it keeps it.
+    const old = JSON.parse(JSON.stringify({ ...sim.save, skin: 'ghost', skins: ['barbarian'] }));
+    delete old.starterChosen;
+    const back = migrate(old);
     expect(back.skins).toEqual(['knight', 'barbarian']);
     expect(back.skin).toBe('knight');
   });
