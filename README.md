@@ -14,7 +14,7 @@ A 3D top-down action idle RPG that runs in the browser and installs as an app on
 - **Maps:**
   - A minimap that shows either the land around you (circle) or the whole forest (square).
   - A 3D World Map of the whole forest, greyed out until explored, with a close-up of each region and fast travel.
-- **Heroes:** six classes (Knight, Barbarian, Rogue, Mage, Shadow Rogue and the giant Warlord), each with a skeleton counterpart planned as its mastery reward, each with its own perks, weapons, styles and colour schemes. Each hero has their own run (map progress, level, gold, upgrades, bag and forge) and a Mastery goal list to 100% (bosses, exploring, level, forge, a Legendary weapon; the skeleton skin reward is coming), while gems, embers, perks, quests and achievements are shared. New players choose their first hero from any of them but the Warlord; the rest are unlocked with gems.
+- **Heroes:** six classes (Knight, Barbarian, Rogue, Mage, Shadow Rogue and the giant Warlord), each with a skeleton form (KayKit Skeletons) earned by mastering it, each with its own perks, weapons, styles and colour schemes. Each hero has their own run (map progress, level, gold, upgrades, bag and forge) and a Mastery goal list to 100% (bosses, exploring, level, forge, a Legendary weapon), which unlocks that hero's skeleton form, worn from Heroes → Edit. Gems, embers, perks, quests and achievements are shared. New players choose their first hero from any of them but the Warlord; the rest are unlocked with gems.
 - **Forge:** turn monster shards into class weapons, then merge three of a kind into the next rarity (Common → Uncommon → Rare → Epic → Legendary → Mythic → Divine).
 - **Grow:**
   - Progression: upgrades, the Level Road and Reforge (restart for embers that buy permanent perks).
@@ -50,7 +50,7 @@ The 3D models in `public/models/` are built from the source packs:
 
 ## Credits
 
-- **KayKit by [Kay Lousberg](https://kaylousberg.com) (CC0):** heroes, animations, weapons and the forest. The packs used are Adventurers, Character Animations, Fantasy Weapons Bits and Forest Nature Pack.
+- **KayKit by [Kay Lousberg](https://kaylousberg.com) (CC0):** heroes, animations, weapons and the forest. The packs used are Adventurers, Skeletons, Character Animations, Fantasy Weapons Bits and Forest Nature Pack.
 - **Monsters by [Quaternius](https://quaternius.com) (CC0):** from Ultimate Monsters.
 - **UI icons from [game-icons.net](https://game-icons.net)** by Lorc, Delapouite and contributors (CC BY 3.0), restyled in code.
 - **Fonts:** Lilita One and Fredoka (SIL OFL).

@@ -11,7 +11,7 @@ import { Fx3D } from './fx3d';
 import { BOLT_MODEL, arrowModel, buildKitWeapon, heldLeft, holdWeapon, idleTilt, buildWeapon, weaponTrailColor, type WeaponView } from './weapons3d';
 import { applyLook, applyPalette } from './heroLook';
 import { attackPlayback, heroAnimFiles, heroClip, heroScale, heroWeaponScale, loadHeroAnims, weaponAnims, type HeroAnims, holdsPose } from './heroRig';
-import { lookOf } from '../sim/skins';
+import { heroModelFile, lookOf } from '../sim/skins';
 
 /**
  * The 3D battlefield (Three.js). Game coordinates map straight onto the ground plane:
@@ -113,8 +113,8 @@ export function areaMonsterModels(area: number): string[] {
  * Download everything a terrain needs (hero, monsters, scenery). `onProgress` gets the share of
  * models loaded so far (0-1), for the loading screen.
  */
-export function preloadArea(area: number, skin = 'knight', onProgress?: (f: number) => void): Promise<unknown> {
-  const names = new Set<string>([`hero_${skin}`, ...heroAnimFiles(skin), ...areaMonsterModels(area)]);
+export function preloadArea(area: number, skin = 'knight', onProgress?: (f: number) => void, heroFile = `hero_${skin}`): Promise<unknown> {
+  const names = new Set<string>([heroFile, ...heroAnimFiles(skin), ...areaMonsterModels(area)]);
   if (area === 0) for (const n of FOREST_MODELS) names.add(n);
   else {
     for (const p of areaFor(area).def.props) for (const n of PROP_SPECS[p.kind].models) if (!n.startsWith('@')) names.add(n);
@@ -236,6 +236,9 @@ export class World3D {
   private heldTilt = 0;
   /** Which hero the shown model is (it lags the save's skin while a new hero loads). */
   private heroModelSkin = '';
+  /** The hero's model file (its own, or its skeleton form), wanted and on screen. */
+  private heroFile = '';
+  private heroModelFile = '';
   /** Hero projectiles: an arrow, a crossbow bolt and a magic orb per slot (one shown at a time). */
   private readonly heroShotViews: { root: THREE.Group; arrow: THREE.Group; bolt: THREE.Group; magic: THREE.Mesh; core: THREE.Mesh; kit?: string }[] = [];
   private area = -1;
@@ -656,10 +659,11 @@ export class World3D {
   }
 
   /** Show the given skin: load its model and the shared animations, then swap it in. */
-  private loadHero(id: string): void {
+  private loadHero(id: string, file: string): void {
     this.heroSkin = id;
-    void Promise.all([loadModel(`hero_${id}`), loadHeroAnims(id)])
-      .then(([g, anims]) => { if (this.heroSkin === id) { this.setupHero(g, anims, heroScale(id)); this.heroModelSkin = id; } })
+    this.heroFile = file;
+    void Promise.all([loadModel(file), loadHeroAnims(id)])
+      .then(([g, anims]) => { if (this.heroSkin === id && this.heroFile === file) { this.setupHero(g, anims, heroScale(id)); this.heroModelSkin = id; this.heroModelFile = file; } })
       .catch(() => {});
   }
 
@@ -834,11 +838,14 @@ export class World3D {
 
     if (sim.map.forest) this.syncGates(sim.map);
     // Hero
-    if (sim.save.skin !== this.heroSkin) this.loadHero(sim.save.skin);
+    const file = heroModelFile(sim.save.skin, sim.save.bones);
+    if (sim.save.skin !== this.heroSkin || file !== this.heroFile) this.loadHero(sim.save.skin, file);
     const look = lookOf(sim.save.skin, sim.save.looks);
     const pal = sim.save.palettes[sim.save.skin] ?? 0;
     // Only once the loaded model is this hero's (while a new hero loads, the old model is still up).
-    if (this.heroModel && this.heroModelSkin === sim.save.skin && this.heroLookOn !== `${this.heroModel.uuid}${look}${pal}`) {
+    // The skeleton form has no styles or colour schemes of its own.
+    if (this.heroModel && this.heroModelSkin === sim.save.skin && this.heroModelFile === file && file.startsWith('hero_')
+      && this.heroLookOn !== `${this.heroModel.uuid}${look}${pal}`) {
       applyLook(this.heroModel, this.heroSkin, look);
       // (Retried next frame while the colour scheme's texture is still loading.)
       if (applyPalette(this.heroModel, this.heroSkin, pal)) this.heroLookOn = `${this.heroModel.uuid}${look}${pal}`;

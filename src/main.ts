@@ -18,7 +18,7 @@ import { warmHeroStage } from './ui/heroes';
 import { loadingDone, loadingFailed, loadingPaint, loadingStep } from './ui/loading';
 import { chooseStarter } from './ui/starter';
 import { installCursors } from './ui/cursor';
-import { SKINS } from './sim/skins';
+import { SKINS, heroModelFile } from './sim/skins';
 import { loadModel } from './render/models';
 import { heroAnimFiles } from './render/heroRig';
 import { OFFLINE_CAP_HOURS, applyOfflineReward, hasReward, offlineReward } from './sim/offline';
@@ -28,7 +28,7 @@ import { sfx } from './audio/sfx';
 import { registerPwa } from './pwa';
 
 /** A hero's model and animations (for the first-launch hero choice). */
-const preloadHero = (id: string) => Promise.all([`hero_${id}`, ...heroAnimFiles(id)].map((n) => loadModel(n).catch(() => null)));
+const preloadHero = (id: string, file = `hero_${id}`) => Promise.all([file, ...heroAnimFiles(id)].map((n) => loadModel(n).catch(() => null)));
 
 const MAX_STEPS_PER_FRAME = 8;   // avoid a "spiral of death" on slow frames
 const HUD_INTERVAL = 0.1;        // seconds
@@ -75,9 +75,10 @@ async function boot() {
   const area = zoneArea(loaded.zone ?? 0);
   // Every hero (the first-launch choice shows the three starters; the Heroes screen shows them all).
   const firstRun = !loaded.starterChosen;
-  const starters = SKINS.filter((k) => k.id !== loaded.skin).map((k) => preloadHero(k.id));
+  // (Heroes wearing their skeleton form show it on the Heroes screen.)
+  const starters = SKINS.filter((k) => k.id !== loaded.skin).map((k) => preloadHero(k.id, heroModelFile(k.id, loaded.bones)));
   await Promise.race([
-    Promise.all([preloadArea(area, loaded.skin, (f) => loadingStep(0.2 + 0.5 * f, `Loading the forest… ${Math.round(f * 100)}%`)), ...starters]),
+    Promise.all([preloadArea(area, loaded.skin, (f) => loadingStep(0.2 + 0.5 * f, `Loading the forest… ${Math.round(f * 100)}%`), heroModelFile(loaded.skin, loaded.bones)), ...starters]),
     new Promise((r) => setTimeout(r, 20000)),
   ]);
   // Offline earnings since the last save (rewards are granted immediately, then shown).

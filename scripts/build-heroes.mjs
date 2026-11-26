@@ -5,7 +5,7 @@
 //   public/models/hero_anims_large.glb  Rig_Large  (the Large Barbarian; it borrows the medium
 //                                        rig's attack clip at runtime: same bone names)
 // Animations come from KayKit Character Animations 1.1 (same rigs, many more clips).
-// Run: node scripts/build-heroes.mjs [KayKit_Adventurers_2.0_SOURCE folder] [KayKit_Character_Animations_1.1 folder]
+// Run: node scripts/build-heroes.mjs [KayKit_Adventurers_2.0_SOURCE folder] [KayKit_Character_Animations_1.1 folder] [KayKit_Skeletons_1.1_SOURCE folder]
 import { copyFileSync, existsSync, mkdirSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -35,6 +35,16 @@ for (const name of ['knight', 'barbarian', 'rogue', 'mage']) {
   copyFileSync(join(SRC, 'Textures', `${name}_texture.png`), join(OUT, 'tex', `${name}_0.png`)); // for the swatch
 }
 console.log('textures copied');
+
+// Skeleton forms (mastery rewards) from KayKit Skeletons 1.1: same rigs, texture inside the model.
+const SKEL = process.argv[4] ?? join(homedir(), 'Downloads', 'KayKit_Skeletons_1.1_SOURCE');
+if (existsSync(SKEL)) {
+  for (const name of ['Minion', 'Warrior', 'Rogue', 'Mage', 'Golem']) {
+    const dst = join(OUT, `skel_${name.toLowerCase()}.glb`);
+    copyFileSync(join(SKEL, 'characters', 'gltf', `Skeleton_${name}.glb`), dst);
+    console.log('skeleton', name, statSync(dst).size);
+  }
+} else console.warn(`Skeletons folder not found (skipped): ${SKEL}`);
 
 const io = new NodeIO();
 async function buildAnims(rigName, files, keep, out) {

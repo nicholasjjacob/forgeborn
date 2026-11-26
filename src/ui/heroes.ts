@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { sfx } from '../audio/sfx';
 import { cloneActor, loadModel, measure } from '../render/models';
-import { SKINS, lookOf, skinDef } from '../sim/skins';
+import { SKINS, heroModelFile, lookOf, skinDef } from '../sim/skins';
 import { applyLook, applyPalette, paletteReady } from '../render/heroLook';
 import { heroClip, heroScale, heroWeaponScale, holdsPose, loadHeroAnims, showcaseIdle, showcaseUpright } from '../render/heroRig';
 import { buildKitWeapon, heldLeft, holdWeapon, idleTilt, kitModels } from '../render/weapons3d';
@@ -64,7 +64,7 @@ const ready = new Map<string, { obj: THREE.Object3D; mixer: THREE.AnimationMixer
 function modelKey(sim: Sim, id: string): string {
   const s = sim.save;
   const w = id === s.skin ? s.equipped : s.runs[id]?.equipped ?? null;
-  return [id, lookOf(id, s.looks), s.palettes[id] ?? 0, w?.form ?? -1, w?.rarity ?? 0].join('|');
+  return [heroModelFile(id, s.bones), lookOf(id, s.looks), s.palettes[id] ?? 0, w?.form ?? -1, w?.rarity ?? 0].join('|');
 }
 
 /**
@@ -156,7 +156,8 @@ export class HeroesUI {
   private mixer: THREE.AnimationMixer | null = null;
   private shown = '';
   /** The hero now on the stage (shelved in `ready` when replaced). */
-  private modelId = '';
+  /** What the stage hero was built as (its shelf key): kept, since the save may change under it. */
+  private modelKeyOn = '';
   private raf = 0;
   private last = 0;
   /** Turntable: spin speed (rad/s), the direction it settles back to, and an active drag. */
@@ -191,6 +192,8 @@ export class HeroesUI {
             <div class="hero-looks" role="radiogroup" aria-label="Style"></div>
             <b class="he-title">Colours</b>
             <div class="hero-palettes" role="radiogroup" aria-label="Colours"></div>
+            <b class="he-title">Mastery skin</b>
+            <div class="hero-looks hero-forms" role="radiogroup" aria-label="Mastery skin"></div>
             <button type="button" class="btn big green he-done" data-act="edit:done">Done</button>
           </div>
           <div class="hero-action"></div>
@@ -215,7 +218,7 @@ export class HeroesUI {
     // with the hero on it, so the next open shows them at once.
     if (this.model && this.mixer && this.scene) {
       this.scene.remove(this.model);
-      ready.set(modelKey(this.sim, this.modelId), { obj: this.model, mixer: this.mixer });
+      ready.set(this.modelKeyOn, { obj: this.model, mixer: this.mixer });
     }
     this.renderer = null; this.scene = null; this.camera = null; this.model = null; this.mixer = null; this.shown = '';
     this.wrap.remove();
@@ -244,6 +247,15 @@ export class HeroesUI {
         void this.makePortraits();
         if (act === 'look') void this.makeThumbs(this.pick); // the colour thumbnails show the new style
       }
+    } else if (act === 'form') {
+      const d = skinDef(this.pick);
+      if (sim.setSkeleton(this.pick, id === 'skel')) {
+        sfx.play(id === 'skel' ? 'achieve' : 'tick');
+        this.shown = ''; // a different model: rebuild the stage hero
+        void this.showModel(this.pick);
+        portraits.delete(this.pick);
+        void this.makePortraits();
+      } else { sfx.play('tick'); this.toast(`Master ${d.name} (100%) to unlock ${d.skeleton.name}`); }
     } else if (act === 'edit') {
       // Customizing: the style and colour pickers take the place of the button and hero list.
       if (id === 'open' && !sim.ownsSkin(this.pick)) return;
@@ -281,7 +293,7 @@ export class HeroesUI {
         <div><b>${g.goal.name}</b><small>${g.goal.desc}</small><i class="hm-bar"><i style="width:${Math.round(g.frac * 100)}%"></i></i></div>
         <span>${g.done ? gi('check-mark', 'green') : g.goal.show(g.value)}</span></li>`).join('')}</ul>
       <div class="hm-reward ${m.complete ? 'ready' : ''}">${gi('present', m.complete ? 'gold' : 'grey')}
-        <div><b>Reward: Mastery skin</b><small>${m.complete ? 'Earned! It arrives in a coming update.' : `A special look for ${def.name} (coming soon)`}</small></div></div>
+        <div><b>Reward: ${def.skeleton.name}</b><small>${m.complete ? 'Unlocked! Wear it from Edit.' : `${def.name}'s skeleton form, to wear any time`}</small></div></div>
     </div>`;
   }
 
@@ -332,9 +344,11 @@ export class HeroesUI {
     const cur = lookOf(def.id, s.looks);
     // Shown for every hero (locked ones greyed out), so the screen keeps the same size whichever
     // hero is picked.
-    const lock = owned ? '' : ' disabled';
+    // (The skeleton form has no styles or colours of its own: those wait greyed out while it's worn.)
+    const bones = !!s.bones[def.id];
+    const lock = owned && !bones ? '' : ' disabled';
     looksEl.hidden = !def.looks;
-    looksEl.classList.toggle('locked', !owned);
+    looksEl.classList.toggle('locked', !owned || bones);
     looksEl.innerHTML = def.looks
       ? def.looks.map((l) => `<button type="button" role="radio" aria-checked="${l.id === cur}" class="${l.id === cur ? 'on' : ''}" data-act="look:${l.id}"${lock}>${l.name}</button>`).join('')
       : '';
@@ -342,7 +356,7 @@ export class HeroesUI {
     const palEl = this.wrap.querySelector<HTMLElement>('.hero-palettes')!;
     const pal = s.palettes[def.id] ?? 0;
     palEl.hidden = !def.palette;
-    palEl.classList.toggle('locked', !owned);
+    palEl.classList.toggle('locked', !owned || bones);
     palEl.innerHTML = def.palette
       ? [0, 1, 2, 3].map((n) => {
         const img = thumbs.get(thumbKey(def.id, lookOf(def.id, s.looks), n));
@@ -350,6 +364,12 @@ export class HeroesUI {
       }).join('')
       : '';
     if (def.palette) void this.makeThumbs(def.id);
+    // The mastery reward: the hero's skeleton form, worn once they're 100% complete.
+    const earned = this.sim.mastery(def.id).complete;
+    this.wrap.querySelector('.hero-forms')!.innerHTML = [
+      `<button type="button" role="radio" aria-checked="${!bones}" class="${bones ? '' : 'on'}" data-act="form:hero"${owned ? '' : ' disabled'}>${def.name}</button>`,
+      `<button type="button" role="radio" aria-checked="${bones}" class="${bones ? 'on' : ''} ${earned ? '' : 'he-locked'}" data-act="form:skel"${owned ? '' : ' disabled'}>${gi(earned ? 'crown' : 'padlock', earned ? 'gold' : 'grey')}${def.skeleton.name}</button>`,
+    ].join('');
     this.renderMastery();
     this.wrap.querySelector('.hero-grid')!.innerHTML = this.order().map((k) => {
       const have = this.sim.ownsSkin(k.id);
@@ -479,13 +499,13 @@ export class HeroesUI {
     if (this.model && this.mixer) {
       // Put the last hero back on the shelf, as they are now (style and colours may have changed).
       this.scene.remove(this.model);
-      ready.set(modelKey(this.sim, this.modelId), { obj: this.model, mixer: this.mixer });
+      ready.set(this.modelKeyOn, { obj: this.model, mixer: this.mixer });
     }
     built.obj.rotation.y = 0.5;
     this.scene.add(built.obj);
     this.model = built.obj;
     this.mixer = built.mixer;
-    this.modelId = id;
+    this.modelKeyOn = key;
   }
 
   /** Restyle the hero on the stage in place: its spin and animation carry on. */
@@ -493,8 +513,10 @@ export class HeroesUI {
     const pal = this.sim.save.palettes[id] ?? 0;
     await paletteReady(id, pal); // (applying a scheme before its texture loads draws the hero black)
     if (!this.model || this.shown !== id) return;
+    if (this.modelKeyOn.startsWith('skel_')) return; // the skeleton form keeps its own look
     applyLook(this.model, id, lookOf(id, this.sim.save.looks));
     applyPalette(this.model, id, pal);
+    this.modelKeyOn = modelKey(this.sim, id);
   }
 
   private snapshot(obj: THREE.Object3D, pos: [number, number, number], look: [number, number, number], size: number): string | null {
@@ -549,7 +571,10 @@ const _hip = new THREE.Vector3();
  * playing their showcase idle. Shared by the Heroes screen and the first-run hero choice.
  */
 export async function buildHeroModel(sim: Sim, id: string, sized = true, palette?: number): Promise<{ obj: THREE.Object3D; mixer: THREE.AnimationMixer } | null> {
-  const [g, rig] = await Promise.all([loadModel(`hero_${id}`), loadHeroAnims(id)]).catch(() => [null, null]);
+  // Its skeleton form when worn (colour thumbnails, which pass a palette, always show the hero).
+  const file = palette === undefined ? heroModelFile(id, sim.save.bones) : `hero_${id}`;
+  const skel = !file.startsWith('hero_');
+  const [g, rig] = await Promise.all([loadModel(file), loadHeroAnims(id)]).catch(() => [null, null]);
   if (!g || !rig) return null;
   const anims = rig.anims;
   const inner = cloneActor(g);
@@ -564,12 +589,14 @@ export async function buildHeroModel(sim: Sim, id: string, sized = true, palette
     if (m.isSkinnedMesh) for (const mat of Array.isArray(m.material) ? m.material : [m.material]) (mat as THREE.MeshLambertMaterial).emissive?.setHex(0);
   });
   for (const n of ['weapon-hand', 'weapon-kit-r', 'weapon-kit-l']) inner.getObjectByName(n)?.removeFromParent(); // the battlefield's weapon, if cloned along
-  applyLook(inner, id, lookOf(id, sim.save.looks));
-  // Wait for the colour scheme's texture: drawn before it arrives, the hero (and its one-shot
-  // portrait) would come out black.
-  const pal = palette ?? sim.save.palettes[id] ?? 0;
-  await paletteReady(id, pal);
-  applyPalette(inner, id, pal);
+  if (!skel) {
+    applyLook(inner, id, lookOf(id, sim.save.looks));
+    // Wait for the colour scheme's texture: drawn before it arrives, the hero (and its one-shot
+    // portrait) would come out black.
+    const pal = palette ?? sim.save.palettes[id] ?? 0;
+    await paletteReady(id, pal);
+    applyPalette(inner, id, pal);
+  }
   // The clone copies whatever pose the battlefield hero was in (mid-run, mid-swing): measure it at rest.
   inner.traverse((o) => { if ((o as THREE.SkinnedMesh).isSkinnedMesh) (o as THREE.SkinnedMesh).skeleton.pose(); });
   const dims = measure(inner);

@@ -216,6 +216,9 @@ export function migrate(input: unknown): SaveData {
   const palettes: Record<string, number> = {};
   for (const [k, v] of Object.entries(save.palettes && typeof save.palettes === 'object' ? save.palettes : {})) if (Number.isInteger(v) && v >= 0 && v <= 3) palettes[k] = v;
   save.palettes = palettes;
+  const bones: Record<string, boolean> = {};
+  for (const [k, v] of Object.entries(save.bones && typeof save.bones === 'object' ? save.bones : {})) if (v === true && SKINS.some((d) => d.id === k)) bones[k] = true;
+  save.bones = bones;
   // v6 → v7: Spears (old type 2) become Swords: type 2 is now the Barbarian's Greataxe.
   const known = (w: unknown): Weapon | null => {
     if (!w || typeof w !== 'object') return null;

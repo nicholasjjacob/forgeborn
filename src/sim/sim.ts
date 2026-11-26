@@ -127,6 +127,8 @@ export interface SaveData {
   looks: Record<string, string>;
   /** Chosen colour scheme per hero (0 = default, 1-3 = alternates), by skin id. Cosmetic. */
   palettes: Record<string, number>;
+  /** Heroes wearing their skeleton form (the mastery reward), by skin id. Cosmetic. */
+  bones: Record<string, boolean>;
   /** Zone → wall-clock time (ms) when its beaten boss can be rematched again. */
   bossReady: Record<string, number>;
   /** Forest fog of war: the cells the hero has seen (base64 bitset, see Explored). Kept through Reforge. */
@@ -149,7 +151,7 @@ export function freshSave(): SaveData {
     missions: freshMissions(),
     level: 1, xp: 0, levelClaimed: [],
     zone: 0, zoneBosses: 0, zoneBest: 0,
-    skin: DEFAULT_SKIN, skins: [DEFAULT_SKIN], looks: {}, palettes: {}, bossReady: {}, explored: '', starterChosen: false,
+    skin: DEFAULT_SKIN, skins: [DEFAULT_SKIN], looks: {}, palettes: {}, bones: {}, bossReady: {}, explored: '', starterChosen: false,
     savedAt: Date.now(),
   };
 }
@@ -1125,6 +1127,14 @@ export class Sim {
   }
 
   /** Choose a style for an owned hero (cosmetic). */
+  /** Wear (or take off) hero `skin`'s skeleton form: unlocked by mastering that hero (100%). */
+  setSkeleton(skin: string, on: boolean): boolean {
+    if (!this.ownsSkin(skin) || (on && !this.mastery(skin).complete)) return false;
+    if (on) this.save.bones[skin] = true;
+    else delete this.save.bones[skin];
+    return true;
+  }
+
   setLook(skin: string, look: string): boolean {
     if (!this.ownsSkin(skin) || !skinDef(skin).looks?.some((l) => l.id === look)) return false;
     this.save.looks[skin] = look;
@@ -1162,7 +1172,7 @@ export class Sim {
     const s = this.save;
     const was = masteryState(s.mastery[s.skin] ?? []).complete;
     if (recordMastery(s.mastery, s.skin, masteryValues(takeRun(s), this.exploredNow())) && !was && masteryState(s.mastery[s.skin]).complete) {
-      this.notices.push(`👑 ${skinDef(s.skin).name} mastered! 100% complete`);
+      this.notices.push(`👑 ${skinDef(s.skin).name} mastered! ${skinDef(s.skin).skeleton.name} unlocked (Heroes → Edit)`);
     }
   }
 

@@ -53,26 +53,28 @@ export interface SkinDef {
   /** Animation rig ('large' for the Warlord) and size relative to the other heroes. */
   rig?: 'medium' | 'large';
   scale?: number;
+  /** The skeleton version (KayKit Skeletons, same rig): its model file and name. The mastery reward. */
+  skeleton: { model: string; name: string };
 }
 
 export const SKINS: readonly SkinDef[] = [
   { id: 'knight', name: 'Knight', role: 'Guardian', blurb: 'Plate armour, a crested helm and a red cape.', cost: 250,
-    forms: [0, 3], perk: '+40% HP and takes 20% less damage', mods: { hp: 1.4, dmgTaken: 0.8 }, palette: 'knight',
+    forms: [0, 3], perk: '+40% HP and takes 20% less damage', mods: { hp: 1.4, dmgTaken: 0.8 }, palette: 'knight', skeleton: { model: 'skel_minion', name: 'Skeleton Knight' },
     looks: [{ id: 'open', name: 'Visor up' }, { id: 'visor', name: 'Visor down', visor: true }, { id: 'bare', name: 'No helmet', hide: ['Knight_Helmet', 'Knight_HelmetVisor'] }] },
   { id: 'barbarian', name: 'Barbarian', role: 'Berserker', blurb: 'Bear-skin hat, bare arms, big attitude.', cost: 150,
-    forms: [1, 2], perk: 'Rage: up to +60% damage as HP drops · wider swings', mods: { rage: 0.6, arc: 1.2, hp: 1.1 }, palette: 'barbarian',
+    forms: [1, 2], perk: 'Rage: up to +60% damage as HP drops · wider swings', mods: { rage: 0.6, arc: 1.2, hp: 1.1 }, palette: 'barbarian', skeleton: { model: 'skel_warrior', name: 'Skeleton Barbarian' },
     looks: [{ id: 'hat', name: 'Bear hat' }, { id: 'nohat', name: 'No hat', hide: ['Barbarian_BearHat'] }] },
   { id: 'rogue', name: 'Rogue', role: 'Duelist', blurb: 'Light leathers for quick work.', cost: 150,
-    forms: [4, 5], perk: '+25% attack speed and +10% crit chance', mods: { aspd: 1.25, crit: 0.1 }, palette: 'rogue',
+    forms: [4, 5], perk: '+25% attack speed and +10% crit chance', mods: { aspd: 1.25, crit: 0.1 }, palette: 'rogue', skeleton: { model: 'skel_rogue', name: 'Skeleton Rogue' },
     looks: [{ id: 'cape', name: 'Cape' }, { id: 'nocape', name: 'No cape', hide: ['Rogue_Cape'] }] },
   { id: 'mage', name: 'Mage', role: 'Sorcerer', blurb: 'Robes, a tall hat and a head full of lightning.', cost: 250,
-    forms: [8, 9], perk: '+15% chain shock chance · shocks jump to 5 enemies', mods: { shock: 0.15, shockJumps: 2 }, palette: 'mage',
+    forms: [8, 9], perk: '+15% chain shock chance · shocks jump to 5 enemies', mods: { shock: 0.15, shockJumps: 2 }, palette: 'mage', skeleton: { model: 'skel_mage', name: 'Skeleton Mage' },
     looks: [{ id: 'hat', name: 'Hat' }, { id: 'nohat', name: 'No hat', hide: ['Mage_Hat'] }] },
   { id: 'rogue_hooded', name: 'Shadow Rogue', role: 'Assassin', blurb: 'The rogue, hooded and masked.', cost: 400,
-    forms: [10, 11], perk: 'Ambush: hits on unhurt enemies always crit · +80% crit damage', mods: { ambush: true, critDmg: 0.8 }, palette: 'rogue',
+    forms: [10, 11], perk: 'Ambush: hits on unhurt enemies always crit · +80% crit damage', mods: { ambush: true, critDmg: 0.8 }, palette: 'rogue', skeleton: { model: 'skel_rogue', name: 'Skeleton Shadow Rogue' },
     looks: [{ id: 'mask', name: 'Mask' }, { id: 'nomask', name: 'No mask', hide: ['RogueHooded_Mask'] }] },
   { id: 'barbarian_large', name: 'Warlord', role: 'Giant', blurb: 'A towering barbarian chieftain. Hard to earn.', cost: 2500, minLevel: 40,
-    forms: [15, 16], perk: '+80% HP and +40% damage · towers over the battlefield', mods: { hp: 1.8, dmg: 1.4 }, palette: 'barbarian',
+    forms: [15, 16], perk: '+80% HP and +40% damage · towers over the battlefield', mods: { hp: 1.8, dmg: 1.4 }, palette: 'barbarian', skeleton: { model: 'skel_golem', name: 'Skeleton Golem' },
     rig: 'large', scale: 1.4,
     looks: [{ id: 'full', name: 'Full gear' }, { id: 'nohat', name: 'No hat', hide: ['Barbarian_Large_BearHat'] },
       { id: 'bare', name: 'Bare', hide: ['Barbarian_Large_BearHat', 'Barbarian_Large_BearPelt', 'Barbarian_Large_ShoulderpadLeft', 'Barbarian_Large_ShoulderpadRight'] }] },
@@ -96,6 +98,11 @@ export function lookOf(skin: string, looks: Record<string, string>): string {
   if (!all) return '';
   const want = looks[skin];
   return all.some((l) => l.id === want) ? want : all[0].id;
+}
+
+/** The model file hero `skin` is drawn with: its skeleton version when worn (`bones`), else its own. */
+export function heroModelFile(skin: string, bones: Readonly<Record<string, boolean>> | undefined): string {
+  return bones?.[skin] ? skinDef(skin).skeleton.model : `hero_${skin}`;
 }
 
 /** Can hero `skin` wield weapon type `form`? */
