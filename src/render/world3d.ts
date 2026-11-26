@@ -9,9 +9,9 @@ import { ELITE, MAX_ENEMIES, MAX_HERO_SHOTS, MAX_SHOTS, SLAM_RADIUS, SLAM_WIND, 
 import { cloneActor, findClip, loadModel, measure, model } from './models';
 import { Fx3D } from './fx3d';
 import { BOLT_MODEL, arrowModel, buildKitWeapon, heldLeft, holdWeapon, idleTilt, buildWeapon, weaponTrailColor, type WeaponView } from './weapons3d';
-import { applyLook, applyPalette } from './heroLook';
+import { applyBonesLooks, applyLook, applyPalette } from './heroLook';
 import { attackPlayback, heroAnimFiles, heroClip, heroScale, heroWeaponScale, loadHeroAnims, weaponAnims, type HeroAnims, holdsPose } from './heroRig';
-import { heroModelFile, lookOf, skeletonLookOf } from '../sim/skins';
+import { heroModelFile, lookOf, paletteOf, styleKey } from '../sim/skins';
 
 /**
  * The 3D battlefield (Three.js). Game coordinates map straight onto the ground plane:
@@ -841,17 +841,15 @@ export class World3D {
     const file = heroModelFile(sim.save.skin, sim.save.bones);
     if (sim.save.skin !== this.heroSkin || file !== this.heroFile) this.loadHero(sim.save.skin, file);
     const skel = !file.startsWith('hero_');
-    const look = skel ? skeletonLookOf(sim.save.skin, sim.save.looks) : lookOf(sim.save.skin, sim.save.looks);
-    const pal = sim.save.palettes[sim.save.skin] ?? 0;
+    const look = styleKey(sim.save.skin, sim.save.bones, sim.save.looks);
+    const pal = paletteOf(sim.save.skin, sim.save.bones, sim.save.palettes);
     // Only once the loaded model is this hero's (while a new hero loads, the old model is still up).
-    // The skeleton form has styles of its own (some), but no colour schemes.
-    if (this.heroModel && this.heroModelSkin === sim.save.skin && this.heroModelFile === file && skel
-      && this.heroLookOn !== `${this.heroModel.uuid}${look}`) {
-      applyLook(this.heroModel, this.heroSkin, look, true);
-      this.heroLookOn = `${this.heroModel.uuid}${look}`;
-    } else if (this.heroModel && this.heroModelSkin === sim.save.skin && this.heroModelFile === file && !skel
+    // A skeleton form has its own styles (some), and takes the hero's colour schemes on any
+    // borrowed hero pieces (the Skeleton Knight's armour).
+    if (this.heroModel && this.heroModelSkin === sim.save.skin && this.heroModelFile === file
       && this.heroLookOn !== `${this.heroModel.uuid}${look}${pal}`) {
-      applyLook(this.heroModel, this.heroSkin, look);
+      if (skel) applyBonesLooks(this.heroModel, this.heroSkin, sim.save.looks);
+      else applyLook(this.heroModel, this.heroSkin, lookOf(sim.save.skin, sim.save.looks));
       // (Retried next frame while the colour scheme's texture is still loading.)
       if (applyPalette(this.heroModel, this.heroSkin, pal)) this.heroLookOn = `${this.heroModel.uuid}${look}${pal}`;
     }

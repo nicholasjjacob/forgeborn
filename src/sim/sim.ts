@@ -1,5 +1,5 @@
 import { Explored } from './explore';
-import { DEFAULT_SKIN, SKINS, STARTERS, bonesLookKey, canWield, skinDef, type ClassMods } from './skins';
+import { DEFAULT_SKIN, SKINS, STARTERS, bonesLookKey, canWield, skinDef, type BonesStyle, type ClassMods } from './skins';
 import { Rng } from '../core/rng';
 import { areaFor, type MonsterDef } from './areas';
 import {
@@ -1190,9 +1190,10 @@ export class Sim {
   }
 
   /** Choose a colour scheme for an owned hero: 0 = its own, 1-3 = the alternates (cosmetic). */
-  setPalette(skin: string, n: number): boolean {
-    if (!this.ownsSkin(skin) || !skinDef(skin).palette || !Number.isInteger(n) || n < 0 || n > 3) return false;
-    this.save.palettes[skin] = n;
+  setPalette(skin: string, n: number, skeleton = false): boolean {
+    const def = skinDef(skin);
+    if (!this.ownsSkin(skin) || !def.palette || (skeleton && !def.skeleton.palette) || !Number.isInteger(n) || n < 0 || n > 3) return false;
+    this.save.palettes[skeleton ? bonesLookKey(skin) : skin] = n;
     return true;
   }
 
@@ -1211,10 +1212,11 @@ export class Sim {
     return true;
   }
 
-  setLook(skin: string, look: string, skeleton = false): boolean {
+  setLook(skin: string, look: string, skeleton: boolean | BonesStyle = false): boolean {
     const def = skinDef(skin);
-    if (!this.ownsSkin(skin) || !(skeleton ? def.skeleton.looks : def.looks)?.some((l) => l.id === look)) return false;
-    this.save.looks[skeleton ? bonesLookKey(skin) : skin] = look;
+    const kind: BonesStyle = skeleton === 'outfits' ? 'outfits' : 'looks';
+    if (!this.ownsSkin(skin) || !(skeleton ? def.skeleton[kind] : def.looks)?.some((l) => l.id === look)) return false;
+    this.save.looks[skeleton ? bonesLookKey(skin, kind) : skin] = look;
     return true;
   }
 

@@ -55,17 +55,23 @@ export interface SkinDef {
   scale?: number;
   /**
    * The skeleton version (KayKit Skeletons, same rig): its model file and name, and optional
-   * styles of its own (the first is the default). The mastery reward.
+   * styles and outfits of its own (the first is the default); `palette`: the hero's colour schemes
+   * apply to its borrowed hero pieces (the Skeleton Knight's armour). The mastery reward.
    */
-  skeleton: { model: string; name: string; looks?: readonly LookDef[] };
+  skeleton: { model: string; name: string; looks?: readonly LookDef[]; outfits?: readonly LookDef[]; palette?: boolean };
 }
 
 export const SKINS: readonly SkinDef[] = [
   { id: 'knight', name: 'Knight', role: 'Guardian', blurb: 'Plate armour, a crested helm and a red cape.', cost: 250,
     forms: [0, 3], perk: '+40% HP and takes 20% less damage', mods: { hp: 1.4, dmgTaken: 0.8 }, palette: 'knight', skeleton: {
       model: 'skel_minion', name: 'Skeleton Knight',
-      // The Knight's own helmet and visor (built into the model, see scripts/build-heroes.mjs).
+      // The Knight's own helmet, visor and suit (built into the model, see scripts/build-heroes.mjs).
       looks: [{ id: 'bare', name: 'No helmet', hide: ['Knight_Helmet', 'Knight_HelmetVisor'] }, { id: 'helm', name: 'Helmet' }, { id: 'visor', name: 'Visor down', visor: true }],
+      outfits: [
+        { id: 'bones', name: 'Skeleton', hide: ['Knight_Body', 'Knight_Cape', 'Knight_ArmLeft', 'Knight_ArmRight', 'Knight_LegLeft', 'Knight_LegRight'] },
+        { id: 'armour', name: 'Knight armour', hide: ['Skeleton_Minion_Body', 'Skeleton_Minion_Cloak', 'Skeleton_Minion_ArmLeft', 'Skeleton_Minion_ArmRight', 'Skeleton_Minion_LegLeft', 'Skeleton_Minion_LegRight'] },
+      ],
+      palette: true,
     },
     looks: [{ id: 'open', name: 'Visor up' }, { id: 'visor', name: 'Visor down', visor: true }, { id: 'bare', name: 'No helmet', hide: ['Knight_Helmet', 'Knight_HelmetVisor'] }] },
   { id: 'barbarian', name: 'Barbarian', role: 'Berserker', blurb: 'Bear-skin hat, bare arms, big attitude.', cost: 150,
@@ -107,15 +113,31 @@ export function lookOf(skin: string, looks: Record<string, string>): string {
   return all.some((l) => l.id === want) ? want : all[0].id;
 }
 
-/** Where the skeleton form's style is saved (in `looks`, beside the hero's own). */
-export const bonesLookKey = (skin: string) => `bones:${skin}`;
+/** The skeleton form's two kinds of style: `looks` (the helmet) and `outfits`. */
+export type BonesStyle = 'looks' | 'outfits';
 
-/** The style hero `skin`'s skeleton form wears ('' if it has none). */
-export function skeletonLookOf(skin: string, looks: Record<string, string>): string {
-  const all = skinDef(skin).skeleton.looks;
+/**
+ * Where the skeleton form's choices are saved, beside the hero's own: its style and outfit in
+ * `looks`, its colour scheme in `palettes` (under the 'looks' key).
+ */
+export const bonesLookKey = (skin: string, kind: BonesStyle = 'looks') => (kind === 'looks' ? `bones:${skin}` : `bonesfit:${skin}`);
+
+/** The style (or outfit) hero `skin`'s skeleton form wears ('' if it has none). */
+export function skeletonLookOf(skin: string, looks: Record<string, string>, kind: BonesStyle = 'looks'): string {
+  const all = skinDef(skin).skeleton[kind];
   if (!all) return '';
-  const want = looks[bonesLookKey(skin)];
+  const want = looks[bonesLookKey(skin, kind)];
   return all.some((l) => l.id === want) ? want : all[0].id;
+}
+
+/** The colour scheme hero `skin` wears in its current form (a skeleton form keeps its own, if it takes one). */
+export function paletteOf(skin: string, bones: Readonly<Record<string, boolean>>, palettes: Readonly<Record<string, number>>): number {
+  return (bones[skin] ? palettes[bonesLookKey(skin)] : palettes[skin]) ?? 0;
+}
+
+/** Everything that changes how hero `skin` looks in its current form (to key cached models and pictures). */
+export function styleKey(skin: string, bones: Readonly<Record<string, boolean>>, looks: Record<string, string>): string {
+  return bones[skin] ? `bones:${skeletonLookOf(skin, looks)}:${skeletonLookOf(skin, looks, 'outfits')}` : `hero:${lookOf(skin, looks)}`;
 }
 
 /** The model file hero `skin` is drawn with: its skeleton version when worn (`bones`), else its own. */

@@ -3,7 +3,7 @@ import { Sim, freshSave } from '../src/sim/sim';
 import { MASTERY_GOALS } from '../src/sim/mastery';
 import { PLAYABLE_ZONES } from '../src/sim/zones';
 import { migrate } from '../src/core/save';
-import { SKINS, heroModelFile, lookOf, skeletonLookOf } from '../src/sim/skins';
+import { SKINS, heroModelFile, lookOf, paletteOf, skeletonLookOf } from '../src/sim/skins';
 
 describe('hero mastery', () => {
   it('starts near 0% and reaches 100% when every goal is met', () => {
@@ -59,6 +59,21 @@ describe('hero mastery', () => {
     expect(lookOf('knight', save.looks)).toBe('open'); // the Knight's own style is untouched
     expect(sim.setLook('mage', 'helm', true)).toBe(false); // the Skeleton Mage has no styles
     expect(skeletonLookOf('knight', migrate(JSON.parse(JSON.stringify(save))).looks)).toBe('helm');
+  });
+
+  it('the Skeleton Knight has outfits and its own colour scheme, apart from the Knight', () => {
+    const save = freshSave();
+    save.skins = ['knight', 'mage']; save.skin = 'knight'; save.bones = { knight: true };
+    const sim = new Sim(save, 3);
+    expect(skeletonLookOf('knight', save.looks, 'outfits')).toBe('bones');
+    expect(sim.setLook('knight', 'armour', 'outfits')).toBe(true);
+    expect(skeletonLookOf('knight', save.looks, 'outfits')).toBe('armour');
+    expect(skeletonLookOf('knight', save.looks)).toBe('bare'); // the helmet choice is separate
+    expect(sim.setPalette('knight', 3, true)).toBe(true);
+    expect(paletteOf('knight', save.bones, save.palettes)).toBe(3);
+    expect(save.palettes.knight).toBeUndefined(); // the Knight's own colours are untouched
+    expect(paletteOf('knight', {}, save.palettes)).toBe(0);
+    expect(sim.setPalette('mage', 1, true)).toBe(false); // the Skeleton Mage takes no colour schemes
   });
 
   it('a test unlock (?bones=) lets a hero wear its skeleton form without mastery', () => {

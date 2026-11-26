@@ -1959,6 +1959,23 @@ html.pc :is(button, .btn):disabled { cursor: var(--cur-arrow, default); }
 .heroes-sheet .hero-edit .hero-looks, .heroes-sheet .hero-edit .hero-palettes { margin: 0 0 4px; min-height: 0; }
 .heroes-sheet .hero-edit .hero-palettes button { width: clamp(44px, 14vw, 64px); height: clamp(44px, 14vw, 64px); }
 .hero-edit .he-done { width: 100%; margin-top: 4px; padding: 9px; font-size: 17px; }
+/* Short landscape screens: the pickers side by side (style and outfit left, colours and mastery
+   skin right) with Done across the bottom, so all of it fits under the stage. */
+@media (max-height: 480px) and (min-width: 600px) {
+  .heroes-sheet.editing .hero-edit { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 18px; row-gap: 2px; align-items: center; justify-items: center; }
+  .hero-edit > :nth-child(1) { grid-area: 1 / 1; }
+  .hero-edit > :nth-child(2) { grid-area: 2 / 1; }
+  .hero-edit > :nth-child(3) { grid-area: 3 / 1; }
+  .hero-edit > :nth-child(4) { grid-area: 4 / 1; }
+  .hero-edit > :nth-child(5) { grid-area: 1 / 2; }
+  .hero-edit > :nth-child(6) { grid-area: 2 / 2 / 4 / 3; }
+  .hero-edit > :nth-child(7) { grid-area: 4 / 2; }
+  .hero-edit > :nth-child(8) { grid-area: 5 / 2; }
+  .hero-edit > :nth-child(9) { grid-area: 6 / 1 / 7 / 3; }
+  .heroes-sheet.editing .hero-edit .hero-palettes button { width: 36px; height: 36px; }
+  .heroes-sheet.editing .hero-edit { row-gap: 0; }
+  .heroes-sheet.editing .hero-weapons { display: none; } /* (room for the pickers; it's on the hero card) */
+}
 @media (max-height: 640px) {
   .hero-edit { gap: 3px; }
   .heroes-sheet .hero-edit .hero-palettes button { width: 42px; height: 42px; }

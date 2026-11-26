@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { skinDef } from '../sim/skins';
+import { skeletonLookOf, skinDef, type LookDef } from '../sim/skins';
 
 /**
  * Hero styles (see SkinDef.looks / palette): pieces of the model hidden (a hat, a cape, a mask),
@@ -33,18 +33,29 @@ function closedVisor(open: THREE.BufferGeometry): THREE.BufferGeometry {
 }
 
 /** Apply style `look` to a hero model of skin `skin` (any of its clones). Unknown looks mean the default. */
-export function applyLook(root: THREE.Object3D, skin: string, look: string, skeleton = false): void {
-  // (The skeleton form has its own styles, e.g. the Skeleton Knight's borrowed helmet.)
-  const looks = skeleton ? skinDef(skin).skeleton.looks : skinDef(skin).looks;
+export function applyLook(root: THREE.Object3D, skin: string, look: string): void {
+  applyLookList(root, skinDef(skin).looks, look);
+}
+
+/** The skeleton form's styles and outfit (the Skeleton Knight's helmet and armour), from the saved choices. */
+export function applyBonesLooks(root: THREE.Object3D, skin: string, looks: Record<string, string>): void {
+  const sk = skinDef(skin).skeleton;
+  applyLookList(root, sk.looks, skeletonLookOf(skin, looks));
+  applyLookList(root, sk.outfits, skeletonLookOf(skin, looks, 'outfits'));
+}
+
+/** Show the pieces style `look` keeps (of every piece any style in `looks` can hide), and set the visor. */
+function applyLookList(root: THREE.Object3D, looks: readonly LookDef[] | undefined, look: string): void {
   if (!looks) return;
   const def = looks.find((l) => l.id === look) ?? looks[0];
   const hidden = new Set<string>();
   for (const l of looks) for (const n of l.hide ?? []) hidden.add(n); // every piece any style can hide
+  const visorStyle = looks.some((l) => l.visor);
   root.traverse((o) => {
     const m = o as THREE.Mesh;
     if (!m.isMesh) return;
     if (hidden.has(m.name)) m.visible = !def.hide?.includes(m.name);
-    if (m.name === 'Knight_HelmetVisor') {
+    if (visorStyle && m.name === 'Knight_HelmetVisor') {
       // (Not kept in userData: model clones deep-copy userData as JSON.)
       const open = openOf.get(m.geometry.uuid) ?? m.geometry;
       m.geometry = def.visor ? closedVisor(open) : open;
@@ -58,6 +69,8 @@ const loader = new THREE.TextureLoader();
 /** Alternate palettes: the texture once its image has arrived, or the pending load. */
 const altTex = new Map<string, THREE.Texture>();
 const altLoading = new Map<string, Promise<THREE.Texture | null>>();
+/** The Skeletons pack's own materials (never recoloured). */
+const SKELETON_MATS = new Set(['skeleton', 'Glow']);
 /** Each hero's own palette texture, captured from its model the first time it is restyled. */
 const ownTex = new Map<string, THREE.Texture>();
 
@@ -110,7 +123,8 @@ export function applyPalette(root: THREE.Object3D, skin: string, n: number): boo
     if (!m.isSkinnedMesh) return;
     for (const mat of Array.isArray(m.material) ? m.material : [m.material]) {
       const l = mat as THREE.MeshLambertMaterial;
-      if (!l.map) continue;
+      // (On a skeleton form, only its borrowed hero pieces: its bones keep their own colours.)
+      if (!l.map || SKELETON_MATS.has(l.name)) continue;
       if (!ownTex.has(skin)) ownTex.set(skin, l.map);
       const own = ownTex.get(skin)!;
       if (tex) matchTexture(tex, own);

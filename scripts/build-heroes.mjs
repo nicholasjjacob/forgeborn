@@ -47,7 +47,7 @@ if (existsSync(SKEL)) {
 } else console.warn(`Skeletons folder not found (skipped): ${SKEL}`);
 
 /**
- * The Skeleton Knight's helmet styles: the Knight's helmet and visor, moved onto the skeleton
+ * The Skeleton Knight's helmet styles and armour: the Knight's helmet, visor and suit, moved onto the skeleton
  * (the rigs match bone for bone, so they sit exactly as on the Knight) and bound to its bones.
  * Shown or hidden by the Skeleton Knight's styles (sim/skins.ts), like the Knight's own.
  */
@@ -59,7 +59,8 @@ async function addKnightHelmet(skelFile, knightFile) {
   mainScene.traverse((n) => { if (!bones.has(n.getName())) bones.set(n.getName(), n); });
   const rig = bones.get('Rig_Medium');
   mergeDocuments(doc, await io.read(knightFile));
-  const KEEP = new Set(['Knight_Helmet', 'Knight_HelmetVisor']);
+  // Helmet and visor, and the full suit (armour, cape, arms, legs) for the Knight armour outfit.
+  const KEEP = new Set(['Knight_Helmet', 'Knight_HelmetVisor', 'Knight_Body', 'Knight_Cape', 'Knight_ArmLeft', 'Knight_ArmRight', 'Knight_LegLeft', 'Knight_LegRight']);
   for (const sc of root.listScenes()) {
     if (sc === mainScene) continue;
     sc.traverse((n) => {
