@@ -1727,18 +1727,23 @@ html.pc #panel { width: clamp(340px, min(42vw, calc(50vw - 165px)), 520px); max-
   /* Heroes stand as tall as the stage, but never so wide that the side ones leave the screen;
      any spare height is split above and below them. */
   position: absolute; left: 50%; height: min(100cqh, 64cqw); bottom: calc((100cqh - min(100cqh, 64cqw)) / 2); aspect-ratio: 3 / 4; cursor: pointer;
-  transform-origin: 50% 100%; transition: transform 0.45s cubic-bezier(.2, .9, .3, 1.1), filter 0.45s ease;
+  transform-origin: 50% 100%; /* Only the slide animates: the grey/lit switch is instant (an animated filter on a 3D canvas
+     could get stuck grey on iPhones). */
+  transition: transform 0.45s cubic-bezier(.2, .9, .3, 1.1);
   -webkit-tap-highlight-color: transparent;
 }
 .st-hero.front { z-index: 3; transform: translateX(-50%) scale(1); filter: drop-shadow(0 0 26px #ffd23f55); }
 .st-hero.left { z-index: 1; transform: translateX(-118%) scale(0.72); filter: grayscale(1) brightness(0.42) contrast(0.9); }
 .st-hero.right { z-index: 1; transform: translateX(18%) scale(0.72); filter: grayscale(1) brightness(0.42) contrast(0.9); }
-html.pc .st-hero.left:hover, html.pc .st-hero.right:hover { filter: grayscale(0.7) brightness(0.6); }
+html.pc .st-hero.left:hover, html.pc .st-hero.right:hover { filter: grayscale(0.7) brightness(0.6) contrast(1); }
 .st-card {
   flex: 0 0 auto; width: min(100%, 640px); padding: clamp(10px, 2cqh, 22px) clamp(14px, 3cqw, 28px); border-radius: 20px;
-  display: flex; flex-direction: column; align-items: center; gap: clamp(4px, 1.1cqh, 10px);
+  display: grid; align-items: center;
   background: linear-gradient(var(--card-hi), var(--cream-2)); box-shadow: inset 0 0 0 2.5px var(--wood), 0 4px 0 var(--wood-dark), 0 10px 30px #0006;
 }
+/* Every hero's details sit in the same cell; only the pick's is visible, so the card keeps one size. */
+.st-info { grid-area: 1 / 1; display: flex; flex-direction: column; align-items: center; gap: clamp(4px, 1.1cqh, 10px); visibility: hidden; }
+.st-info.on { visibility: visible; }
 .st-name { font-family: var(--font-display); font-weight: 400; font-size: clamp(26px, min(5cqh, 8cqw), 42px); line-height: 1; letter-spacing: 0.03em; text-shadow: var(--outline); }
 .st-tags { display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap; }
 .st-role { padding: 3px 12px; border-radius: 99px; font-size: clamp(11.5px, min(1.9cqh, 3.2cqw), 15px); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #ffd23f; background: #0a103580; }
@@ -1752,6 +1757,13 @@ html.pc .st-hero.left:hover, html.pc .st-hero.right:hover { filter: grayscale(0.
 .st-perk { margin: 0; font-size: clamp(12.5px, min(2.1cqh, 3.5cqw), 17px); color: #ffd6a0; }
 .st-perk b { margin-right: 4px; color: #ffd23f; }
 .st-go { flex: 0 0 auto; width: min(100%, 440px); padding: clamp(10px, 2cqh, 18px); font-size: clamp(18px, min(3.2cqh, 5.5cqw), 28px); }
+/* Tall layout: the stage is only as tall as the heroes (standing on the card), and the title sits
+   centred in all the space between the top of the screen and the heroes. */
+@media not all and (min-aspect-ratio: 3/2), not all and (min-width: 700px) {
+  .st-head { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; }
+  .st-stage { flex: 0 1 auto; aspect-ratio: 100 / 64; max-height: 100%; height: auto; }
+  .st-hero { height: 100cqh; bottom: 0; }
+}
 /* Wide windows (PC, landscape tablets): heroes on the left, the card and button on the right, so
    both can be big instead of squeezing into one column. */
 @media (min-aspect-ratio: 3/2) and (min-width: 700px) {
@@ -1766,7 +1778,10 @@ html.pc .st-hero.left:hover, html.pc .st-hero.right:hover { filter: grayscale(0.
   .st-stage { grid-column: 1; grid-row: 2 / 6; width: 100%; height: 100%; }
   .st-card { grid-column: 2; grid-row: 3; width: 100%; max-width: 580px; }
   .st-go { grid-column: 2; grid-row: 4; width: 100%; max-width: 580px; }
-  .st-name { font-size: clamp(28px, min(7cqh, 4.2cqw), 52px); }
+  /* Every hero's details sit in the same cell; only the pick's is visible, so the card keeps one size. */
+.st-info { grid-area: 1 / 1; display: flex; flex-direction: column; align-items: center; gap: clamp(4px, 1.1cqh, 10px); visibility: hidden; }
+.st-info.on { visibility: visible; }
+.st-name { font-size: clamp(28px, min(7cqh, 4.2cqw), 52px); }
   .st-style { font-size: clamp(14px, min(3.1cqh, 1.8cqw), 21px); }
   .st-role, .st-level { font-size: clamp(12px, min(2.4cqh, 1.4cqw), 16px); }
   .st-wpn b { font-size: clamp(14px, min(2.9cqh, 1.7cqw), 20px); }

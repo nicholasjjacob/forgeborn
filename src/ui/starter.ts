@@ -32,13 +32,18 @@ export function chooseStarter(sim: Sim): Promise<string> {
         <p>Each hero has their own journey. Unlock more in Heroes.</p>
       </div>
       <div class="st-stage"></div>
-      <div class="st-card">
-        <b class="st-name"></b>
-        <div class="st-tags"><span class="st-role"></span><span class="st-level"></span></div>
-        <p class="st-style"></p>
-        <div class="st-weapons"></div>
-        <p class="st-perk"></p>
-      </div>
+      <div class="st-card">${STARTERS.map((id) => {
+        const def = skinDef(id), info = STYLE[id];
+        // All three heroes' details share one spot (only the pick's shows), so the card is always
+        // the size of the longest and never jumps when you switch.
+        return `<div class="st-info" data-id="${id}">
+          <b class="st-name">${def.name}</b>
+          <div class="st-tags"><span class="st-role">${def.role}</span><span class="st-level" data-level="${info.level.toLowerCase()}">${info.level} to learn</span></div>
+          <p class="st-style">${info.style}</p>
+          <div class="st-weapons">${def.forms.map((f) => `<span class="st-wpn"><b>${FORMS[f].name}</b><small>${FORMS[f].blurb}</small></span>`).join('')}</div>
+          <p class="st-perk"><b>Class perk</b> ${def.perk}</p>
+        </div>`;
+      }).join('')}</div>
       <button type="button" class="btn green st-go"></button>`;
     document.body.appendChild(root);
     const stage = root.querySelector<HTMLElement>('.st-stage')!;
@@ -77,9 +82,7 @@ export function chooseStarter(sim: Sim): Promise<string> {
       return st;
     });
 
-    const name = root.querySelector<HTMLElement>('.st-name')!, role = root.querySelector<HTMLElement>('.st-role')!;
-    const level = root.querySelector<HTMLElement>('.st-level')!, style = root.querySelector<HTMLElement>('.st-style')!;
-    const weapons = root.querySelector<HTMLElement>('.st-weapons')!, perk = root.querySelector<HTMLElement>('.st-perk')!;
+    const infos = [...root.querySelectorAll<HTMLElement>('.st-info')];
     const go = root.querySelector<HTMLButtonElement>('.st-go')!;
 
     /** Lay the stage out around the pick (front and centre; the others behind, either side). */
@@ -90,14 +93,8 @@ export function chooseStarter(sim: Sim): Promise<string> {
         s.el.classList.toggle('left', s.id === others[0]);
         s.el.classList.toggle('right', s.id === others[1]);
       }
-      const def = skinDef(pick), info = STYLE[pick];
-      name.textContent = def.name;
-      role.textContent = def.role;
-      level.textContent = `${info.level} to learn`;
-      level.dataset.level = info.level.toLowerCase();
-      style.textContent = info.style;
-      weapons.innerHTML = def.forms.map((f) => `<span class="st-wpn"><b>${FORMS[f].name}</b><small>${FORMS[f].blurb}</small></span>`).join('');
-      perk.innerHTML = `<b>Class perk</b> ${def.perk}`;
+      for (const el of infos) el.classList.toggle('on', el.dataset.id === pick);
+      const def = skinDef(pick);
       go.textContent = `Play as ${def.name}`;
     }
     show();
