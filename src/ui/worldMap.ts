@@ -147,11 +147,12 @@ export class WorldMapUI {
     }
   }
 
-  /** Fast travel to a haunt or a lair (its region must be open, and no boss fight on). */
+  /** Send the hero walking to a haunt or a lair (its region must be open, and no boss fight on). */
   private travelToSpot(t: { spotX: number; spotY: number; keepOut: number; zone: number }): void {
     if (!this.sim.zoneUnlocked(t.zone)) { sfx.play('tick'); this.toast(this.lockText(t.zone)); return; }
     if (this.sim.bossActive) { this.toast('Finish the boss fight first'); return; }
-    if (this.sim.travelToSpot(t.spotX, t.spotY, t.keepOut)) { sfx.play('area'); this.close(); }
+    if (this.sim.walkToSpot(t.spotX, t.spotY, t.keepOut)) { sfx.play('tick'); this.close(); }
+    else this.toast("Can't find a way there yet");
   }
 
   private lockText(z: number): string {
@@ -595,7 +596,7 @@ export class WorldMapUI {
       const r = cv.getBoundingClientRect();
       const dpr = cv.width / r.width;
       const px = (e.clientX - r.left) * dpr, py = (e.clientY - r.top) * dpr;
-      // Close up: a tap on a haunt or a lair travels there.
+      // Close up: a tap on a haunt or a lair sends the hero walking there.
       if (this.region >= 0) {
         const hit = this.targets.filter((t) => Math.hypot(px - t.x, py - t.y) <= t.r).sort((a, b) => Math.hypot(px - a.x, py - a.y) - Math.hypot(px - b.x, py - b.y))[0];
         if (hit) this.travelToSpot(hit);

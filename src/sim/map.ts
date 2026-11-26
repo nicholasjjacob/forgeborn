@@ -259,6 +259,18 @@ export class GameMap {
     out.y = sy / len;
   }
 
+  /** Like blocked(), with the barricades judged by `gateOpen` (for planning routes ahead). */
+  blockedWith(x: number, y: number, radius: number, gateOpen: (zone: number) => boolean): boolean {
+    const cell = this.grid[this.row(y) * this.cols + this.col(x)];
+    for (let k = 0; k < cell.length; k++) {
+      const p = this.props[cell[k]];
+      if (p.gate !== undefined && gateOpen(p.gate)) continue;
+      const min = p.r + radius;
+      if ((x - p.x) ** 2 + (y - p.y) ** 2 < min * min) return true;
+    }
+    return x < 20 || y < 20 || x > this.w - 20 || y > this.h - 20;
+  }
+
   /** True if a circle at (x, y) would overlap a solid prop. */
   blocked(x: number, y: number, radius: number): boolean {
     const cell = this.grid[this.row(y) * this.cols + this.col(x)];

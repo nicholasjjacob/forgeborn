@@ -14,6 +14,7 @@ import {
   type AchStat, type PerkId, type Perks, type Stats,
 } from './meta';
 import * as RQ from './regionQuests';
+import { forestRoute } from './route';
 import type { Reward } from './missions';
 import { OFFLINE_CAP_HOURS } from './offline';
 import { addRewards, freshMissions, type MissionSave } from './missions';
@@ -375,7 +376,7 @@ export class Sim {
     const k = len > 1 ? 1 / len : 1;
     this.input.moveX = x * k;
     this.input.moveY = y * k;
-    if (len > 0) { this.input.hasTarget = false; this.input.idleT = 0; }
+    if (len > 0) { this.input.hasTarget = false; this.input.idleT = 0; this.route.length = 0; }
   }
 
   /** Click / tap-to-move destination in world coordinates. */
@@ -387,6 +388,7 @@ export class Sim {
     this.input.targetX = t.x;
     this.input.targetY = t.y;
     this.input.hasTarget = true;
+    this.route.length = 0;
     this.input.idleT = 0;
     this.targetBest = Infinity;
     this.targetStall = 0;
@@ -447,6 +449,7 @@ export class Sim {
     s.zone = b.zone;
     s.stage = zoneStage(b.zone);
     this.returnT = 0;
+    this.route.length = 0;
     this.resetField();
     const p = biomeArrival(biome);
     this.hero.x = this.hero.prevX = p.x;
@@ -455,27 +458,32 @@ export class Sim {
     return true;
   }
 
+  /** Waypoints the hero is walking along (World Map "go there"); empty when not. */
+  readonly route: { x: number; y: number }[] = [];
+  private routeBest = Infinity;
+  private routeStall = 0;
+  private routeSkips = 0;
+
   /**
-   * Fast travel to a spot on the World Map (a monster haunt, a boss lair) in a region that's open:
-   * the hero lands on free ground near it, on the side facing the region's way in, at least
-   * `keepOut` away (outside a lair, so the boss only rises when the hero walks in).
+   * Walk to a spot picked on the World Map (a monster haunt, a boss lair), following the trails
+   * through open passes; stops `keepOut` short (outside a lair, so the boss only rises when the
+   * hero steps in). False if the region is closed or there's no way there.
    */
-  travelToSpot(x: number, y: number, keepOut = 0): boolean {
-    const b = forestRegion(x, y);
-    if (b < 0 || !this.travelTo(b)) return false;
-    const a = biomeArrival(b);
-    const toward = Math.atan2(a.y - y, a.x - x);
-    for (let r = keepOut; r < keepOut + 420; r += 20) {
-      for (let k = 0; k < 16; k++) {
-        const ang = toward + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * (Math.PI / 8);
-        const px = x + Math.cos(ang) * r, py = y + Math.sin(ang) * r;
-        if (forestRegion(px, py) !== b || this.map.blocked(px, py, HERO_RADIUS + 4)) continue;
-        this.hero.x = this.hero.prevX = px;
-        this.hero.y = this.hero.prevY = py;
-        return true;
-      }
-    }
-    return true; // nowhere free nearby: the region's way in
+  walkToSpot(x: number, y: number, keepOut = 0): boolean {
+    const f = this.map.forest, b = forestRegion(x, y);
+    if (!f || b < 0 || !this.zoneUnlocked(BIOMES[b].zone) || this.bossActive || this.phase !== 'playing') return false;
+    // Barricades judged by the same rule that opens them (a pass opening this moment counts).
+    const pts = forestRoute(this.map, this.hero.x, this.hero.y, x, y, (z) => this.zoneUnlocked(z), keepOut);
+    if (!pts) return false;
+    this.route.length = 0;
+    this.route.push(...pts);
+    this.input.hasTarget = false;
+    this.input.moveX = this.input.moveY = 0;
+    this.input.idleT = 0;
+    this.routeBest = Infinity;
+    this.routeStall = 0;
+    this.routeSkips = 0;
+    return true;
   }
 
   /** Seconds until a zone's beaten boss rises again (0: ready, or not beaten yet). */
@@ -1149,6 +1157,30 @@ export class Sim {
     } else if (this.detourT > 0) {
       this.detourT -= dt;
       vx = this.detourX; vy = this.detourY;
+    } else if (this.route.length && this.phase === 'playing' && !this.bossActive) {
+      // Walking a World Map route: on to the next waypoint (passed when close). Gives up if it
+      // stops getting anywhere for a few seconds.
+      let w = this.route[0];
+      let d = Math.hypot(w.x - h.x, w.y - h.y);
+      if (d < (this.route.length > 1 ? 18 : 6)) {
+        this.route.shift();
+        this.routeBest = Infinity;
+        w = this.route[0];
+        d = w ? Math.hypot(w.x - h.x, w.y - h.y) : 0;
+      }
+      if (w) {
+        // A waypoint it can't get any closer to (a trail point on rocks by a pass): skip on to
+        // the next one; several in a row and the walk is given up.
+        if (d < this.routeBest - 1) { this.routeBest = d; this.routeStall = 0; this.routeSkips = 0; }
+        else if ((this.routeStall += dt) > 0.8) {
+          this.routeStall = 0;
+          this.routeBest = Infinity;
+          if (this.route.length > 1 && this.routeSkips++ < 4) this.route.shift();
+          else this.route.length = 0;
+        }
+        if (d > 0) { vx = (w.x - h.x) / d; vy = (w.y - h.y) / d; }
+      }
+      inp.idleT = 0;
     } else if (inp.hasTarget) {
       const dx = inp.targetX - h.x, dy = inp.targetY - h.y;
       const d = Math.hypot(dx, dy);
