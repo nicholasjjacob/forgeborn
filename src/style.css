@@ -634,21 +634,25 @@ html.pc #quests-root { --qb-h: min(600px, calc(100dvh - var(--safe-top) - 118px 
 .seg button.active { background: linear-gradient(var(--orange-1), var(--orange-2)); color: #fff; text-shadow: 0 1px 0 #0006; }
 .set-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
 .set-actions .btn { width: 100%; }
-/* Landscape (PC, phones on their side): the settings in two columns, so the card is wide rather
-   than tall; the buttons stay centred under them. */
+/* Landscape (PC, phones on their side): the card a little wider. */
 @media (orientation: landscape) and (min-width: 640px) {
-  .modal-card.settings { width: min(720px, 100%); }
-  .set-rows { display: grid; grid-template-columns: 1fr 1fr; column-gap: 28px; }
-  .set-row small { max-width: 200px; }
-  .settings .set-actions { width: min(440px, 100%); margin-inline: auto; }
+  .modal-card.settings { width: min(430px, 100%); }
+  .set-row small { max-width: 230px; }
 }
 /* Short landscape screens (phones on their side): tighter rows so the whole card fits. */
-@media (orientation: landscape) and (min-width: 640px) and (max-height: 480px) {
+@media (orientation: landscape) and (min-width: 640px) and (max-height: 640px) {
   .modal-card.settings { padding-block: 10px 8px; }
   .settings h2 { margin-bottom: 2px; font-size: 21px; }
   .settings .set-row { padding: 5px 2px; }
   .settings .set-actions { margin-top: 8px; }
   .settings .build-stamp { margin: 8px 0 0; font-size: 10px; }
+}
+/* Phones on their side: one column can't fit the height, so only here the rows go in two columns. */
+@media (orientation: landscape) and (min-width: 640px) and (max-height: 480px) {
+  .modal-card.settings { width: min(640px, 100%); }
+  .set-rows { display: grid; grid-template-columns: 1fr 1fr; column-gap: 24px; }
+  .set-row small { max-width: 170px; }
+  .settings .set-actions { width: min(400px, 100%); margin-inline: auto; }
 }
 
 /* --- Missions sheet -------------------------------------------------------------------- */
