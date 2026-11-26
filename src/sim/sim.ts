@@ -15,6 +15,7 @@ import {
 } from './meta';
 import * as RQ from './regionQuests';
 import { forestRoute } from './route';
+import { MASTERY_GOALS, masteryState, masteryValues, exploredPercent, recordMastery, type MasteryState } from './mastery';
 import type { Reward } from './missions';
 import { OFFLINE_CAP_HOURS } from './offline';
 import { addRewards, freshMissions, type MissionSave } from './missions';
@@ -97,6 +98,8 @@ export interface SaveData {
    * RUN_KEYS fields above are the current hero's, and switching heroes swaps them in and out.
    */
   runs: Record<string, HeroRun>;
+  /** Each hero's best mastery values (see mastery.ts), by skin id. Never goes down. */
+  mastery: Record<string, number[]>;
   nextWeaponId: number;
   // Meta progression (v3)
   embers: number;
@@ -140,7 +143,7 @@ export function freshSave(): SaveData {
     v: 8, stage: 1, highestStage: 1, gold: 0, kills: 0, farming: false,
     upgrades: { atk: 0, hp: 0, aspd: 0, crit: 0, gold: 0 },
     buyMode: 1, fps: 60, auto: true, sound: true, quality: 'high', minimap: 'circle',
-    shards: 0, forgeLevel: 1, weapons: Array(INVENTORY_SIZE).fill(null), equipped: starterWeapon(), runs: {}, nextWeaponId: 2,
+    shards: 0, forgeLevel: 1, weapons: Array(INVENTORY_SIZE).fill(null), equipped: starterWeapon(), runs: {}, mastery: {}, nextWeaponId: 2,
     rates: { gold: 0, shards: 0 },
     embers: 0, embersEarned: 0, perks: freshPerks(), bestEver: 1, stats: freshStats(), regions: RQ.freshRegions(), achievements: {},
     missions: freshMissions(),
@@ -1027,6 +1030,7 @@ export class Sim {
   /** Unlock achievement tiers and announce finished quests (runs twice a second). */
   private checkMeta(): void {
     const s = this.save;
+    this.recordMastery();
     let changed = false;
     for (const a of ACHIEVEMENTS) {
       let tier = s.achievements[a.id] ?? 0;
@@ -1136,6 +1140,7 @@ export class Sim {
     const s = this.save;
     if (!this.ownsSkin(id)) return false;
     if (id === s.skin) return true;
+    this.recordMastery();
     s.runs[s.skin] = takeRun(s);
     const run = s.runs[id] ?? newRun(s, id);
     delete s.runs[id];
@@ -1144,6 +1149,30 @@ export class Sim {
     if (!s.equipped || !canWield(id, s.equipped.form)) s.equipped = starterWeapon(skinDef(id).forms[0], s.nextWeaponId++);
     this.startRun();
     return true;
+  }
+
+  /** Percent of the map the current hero has explored. */
+  private exploredNow(): number {
+    if (!this.explored && !this.map.forest) return exploredPercent(this.save.explored);
+    return this.explorePercents().slice(0, PLAYABLE_ZONES).reduce((x, y) => x + y, 0) / PLAYABLE_ZONES; // cached
+  }
+
+  /** Bank the current hero's mastery progress (announcing a hero completed). */
+  private recordMastery(): void {
+    const s = this.save;
+    const was = masteryState(s.mastery[s.skin] ?? []).complete;
+    if (recordMastery(s.mastery, s.skin, masteryValues(takeRun(s), this.exploredNow())) && !was && masteryState(s.mastery[s.skin]).complete) {
+      this.notices.push(`👑 ${skinDef(s.skin).name} mastered! 100% complete`);
+    }
+  }
+
+  /** A hero's mastery: the best ever reached on their run (see mastery.ts). */
+  mastery(id: string): MasteryState {
+    const s = this.save;
+    const best = s.mastery[id] ?? [];
+    const run = id === s.skin ? takeRun(s) : s.runs[id];
+    const live = run ? masteryValues(run, id === s.skin ? this.exploredNow() : exploredPercent(run.explored)) : [];
+    return masteryState(MASTERY_GOALS.map((_, i) => Math.max(best[i] ?? 0, live[i] ?? 0)));
   }
 
   /** The highest hero level any hero has reached (unlocks heroes like the Warlord). */
@@ -1183,6 +1212,7 @@ export class Sim {
     const gain = this.reforgeGain;
     if (gain <= 0) return 0;
     const s = this.save;
+    this.recordMastery(); // kept through the restart
     s.embers += gain;
     s.embersEarned += gain;
     s.stats.reforges++;

@@ -1760,3 +1760,57 @@ html.pc .purse { gap: 5px; }
 :where(html.pc, html.pc *) { cursor: var(--cur-arrow, default); }
 html.pc :is(button, [role="button"], a, label, select, .chest, .bag-tile, .hero-card, .wm-canvas, .st-hero, .zone-lock, .jday, .minimap, .level-chip, .codex-land, .qb-region):not(:disabled) { cursor: var(--cur-hand, pointer); }
 html.pc :is(button, .btn):disabled { cursor: var(--cur-arrow, default); }
+
+/* Hero mastery: a bar under the hero's name (tap for the goals), a thin bar on each owned
+   hero's card, and a crown once a hero is 100% complete. */
+.hero-sub { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.hero-mastery {
+  display: flex; align-items: center; gap: 5px; padding: 2px 8px 2px 4px;
+  border: 0; border-radius: 999px; font: inherit; font-size: 13px; line-height: 1.2; color: #fff; cursor: pointer;
+  background: #0a1035b0; box-shadow: inset 0 0 0 1.5px #ffd84a70;
+}
+.hero-mastery .gi { width: 16px; height: 16px; flex: none; }
+.hero-mastery .hm-bar { flex: none; width: 36px; height: 6px; }
+.hero-mastery span { font-family: var(--font-display); color: var(--gold); text-shadow: var(--outline); }
+.hero-mastery.locked { box-shadow: none; }
+.hero-mastery.locked span { color: var(--ink-soft); }
+.hm-bar { position: relative; flex: 1 1 auto; height: 8px; border-radius: 6px; background: var(--wood); overflow: hidden; display: block; }
+.hm-bar > i { position: absolute; inset: 0 auto 0 0; border-radius: 6px; background: linear-gradient(#ffe85a, #ffb81c 60%, #e8901c); }
+.hero-mastery.complete { box-shadow: inset 0 0 0 2px #ffd84a, 0 0 10px #ffd84a80; }
+.hero-mbar { position: absolute; left: 6%; right: 6%; bottom: 5%; height: 5px; border-radius: 4px; background: #0a1035c0; overflow: hidden; }
+.hero-mbar > i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #ffb81c, #ffe85a); }
+.hero-crown { position: absolute; right: 3px; top: 3px; line-height: 0; filter: drop-shadow(0 0 4px #ffd84a); }
+.hero-crown .gi { width: clamp(14px, 28%, 22px); height: auto; aspect-ratio: 1; }
+
+/* The goal list: covers the Heroes sheet (so the sheet keeps its size). */
+.hero-mastery-panel { position: absolute; inset: 0; z-index: 5; display: flex; padding: 46px 12px 12px; border-radius: inherit; background: #0b1030d8; container: hmp / size; }
+.hero-mastery-panel[hidden] { display: none; }
+.hm-card {
+  display: flex; flex-direction: column; gap: clamp(4px, 1.6cqh, 10px); width: 100%; max-width: 440px; margin: auto; max-height: 100%; overflow-y: auto;
+  padding: clamp(10px, 2.4cqh, 16px); border-radius: 16px; background: linear-gradient(var(--card-hi), var(--cream)); box-shadow: inset 0 0 0 3px var(--wood), 0 4px 0 var(--wood-dark);
+}
+.hm-head { display: flex; align-items: center; gap: 8px; }
+.hm-head .gi { width: 26px; height: 26px; flex: none; }
+.hm-head b { flex: 1; font-family: var(--font-display); font-weight: 400; font-size: clamp(17px, 4cqh, 22px); letter-spacing: 0.03em; text-shadow: var(--outline); }
+.hm-head span { font-family: var(--font-display); font-size: clamp(16px, 3.6cqh, 20px); color: var(--gold); text-shadow: var(--outline); }
+.hm-x { width: 30px; height: 30px; flex: none; border: 0; border-radius: 9px; font: inherit; font-size: 15px; color: #fff; cursor: pointer; background: linear-gradient(#ff7a6a, #d8443a); box-shadow: inset 0 0 0 2px var(--wood), 0 2px 0 var(--wood-dark); }
+.hm-note { margin: 0; font-size: 12px; color: var(--ink-soft); }
+.hm-goals { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: clamp(4px, 1.4cqh, 8px); }
+.hm-goals li { display: flex; align-items: center; gap: 9px; padding: clamp(5px, 1.4cqh, 9px) 10px; border-radius: 12px; background: #0a103580; box-shadow: inset 0 0 0 2px var(--wood); }
+.hm-goals li > .gi { width: clamp(22px, 5cqh, 30px); height: auto; aspect-ratio: 1; flex: none; }
+.hm-goals li > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.hm-goals b { font-size: 14px; }
+.hm-goals small { font-size: 11.5px; color: var(--ink-soft); }
+.hm-goals .hm-bar { flex: none; height: 6px; margin-top: 2px; }
+.hm-goals li > span { min-width: 3.5em; text-align: right; font-size: 13px; font-weight: 700; white-space: nowrap; }
+.hm-goals li > span .gi { width: 22px; height: 22px; }
+.hm-goals li.done { box-shadow: inset 0 0 0 2px #ffd84a90; }
+.hm-reward { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: #0a103580; box-shadow: inset 0 0 0 2px var(--wood); opacity: 0.85; }
+.hm-reward .gi { width: 30px; height: 30px; flex: none; }
+.hm-reward div { display: flex; flex-direction: column; }
+.hm-reward b { font-size: 14px; }
+.hm-reward small { font-size: 11.5px; color: var(--ink-soft); }
+.hm-reward.ready { opacity: 1; box-shadow: inset 0 0 0 2px #ffd84a, 0 0 12px #ffd84a60; }
+/* Short panels: drop the descriptions under each goal. */
+@container hmp (max-height: 520px) { .hm-goals small, .hm-note { display: none; } }
+@container hmp (max-height: 380px) { .hm-reward small { display: none; } .hm-goals li { padding-block: 3px; } }

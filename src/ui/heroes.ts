@@ -25,6 +25,9 @@ const AUTO_SPIN = 0.7;     // rad/s when left alone
 const DRAG_TURN = 0.012;   // radians per pixel dragged
 const MAX_FLING = 12;      // rad/s
 
+/** Each mastery goal's icon. */
+const GOAL_ICON: Record<string, string> = { bosses: 'skull-crossed-bones', explore: 'compass', level: 'sprint', forge: 'anvil-impact', weapon: 'broadsword' };
+
 export class HeroesUI {
   private wrap: HTMLElement | null = null;
   private pick = '';
@@ -38,6 +41,7 @@ export class HeroesUI {
   private last = 0;
   /** Turntable: spin speed (rad/s), the direction it settles back to, and an active drag. */
   private spin = AUTO_SPIN;
+  private masteryOpen = false;
   private spinDir = 1;
   private drag: { id: number; x: number; t: number } | null = null;
 
@@ -46,6 +50,7 @@ export class HeroesUI {
   open(): void {
     if (this.wrap) return;
     this.pick = this.sim.save.skin;
+    this.masteryOpen = false;
     const wrap = document.createElement('div');
     wrap.className = 'modal sheet-wrap';
     wrap.setAttribute('role', 'dialog');
@@ -57,12 +62,13 @@ export class HeroesUI {
         <button type="button" class="sheet-x" aria-label="Close">✕</button>
         <div class="sheet-body">
           <div class="hero-stage"><canvas></canvas><div class="hero-gems"><i class="jewel"></i><b></b></div></div>
-          <div class="hero-info"><b class="hero-name"></b><span class="hero-role"></span><span class="hero-perk"></span><span class="hero-weapons"></span></div>
+          <div class="hero-info"><b class="hero-name"></b><span class="hero-sub"><span class="hero-role"></span><button type="button" class="hero-mastery" data-act="mastery:open" aria-label="Hero mastery"></button></span><span class="hero-perk"></span><span class="hero-weapons"></span></div>
           <div class="hero-looks" role="radiogroup" aria-label="Style"></div>
           <div class="hero-palettes" role="radiogroup" aria-label="Colours"></div>
           <div class="hero-action"></div>
           <div class="hero-grid"></div>
         </div>
+        <div class="hero-mastery-panel" role="dialog" aria-label="Hero mastery" hidden></div>
       </div>`;
     bindSheetTaps(wrap, (act) => this.run(act));
     document.addEventListener('keydown', this.onKey);
@@ -106,12 +112,40 @@ export class HeroesUI {
         void this.makePortraits();
         if (act === 'look') void this.makeThumbs(this.pick); // the colour thumbnails show the new style
       }
+    } else if (act === 'mastery') {
+      sfx.play('tick');
+      this.masteryOpen = id === 'open';
     } else if (act === 'buy') {
       const d = skinDef(id);
       if (sim.buySkin(id)) { sfx.play('achieve'); this.toast(`New hero: ${d.name}! A fresh journey begins`); }
       else { sfx.play('tick'); this.toast(sim.bestLevel < (d.minLevel ?? 0) ? `Reach hero level ${d.minLevel} first` : 'Not enough gems yet'); }
     }
     this.render();
+  }
+
+  /** The mastery bar under the hero's name, and its goal list (when open). */
+  private renderMastery(): void {
+    const def = skinDef(this.pick);
+    const m = this.sim.mastery(def.id);
+    const owned = this.sim.ownsSkin(def.id);
+    const bar = this.wrap!.querySelector<HTMLElement>('.hero-mastery')!;
+    bar.classList.toggle('complete', m.complete);
+    bar.classList.toggle('locked', !owned);
+    bar.innerHTML = `${gi('crown', m.complete ? 'gold' : owned ? 'orange' : 'grey')}<i class="hm-bar"><i style="width:${m.pct}%"></i></i><span>${m.pct}%</span>`;
+    const panel = this.wrap!.querySelector<HTMLElement>('.hero-mastery-panel')!;
+    panel.hidden = !this.masteryOpen;
+    if (!this.masteryOpen) return;
+    panel.innerHTML = `<div class="hm-card">
+      <div class="hm-head">${gi('crown', m.complete ? 'gold' : 'orange')}<b>${def.name} Mastery</b><span>${m.pct}%</span>
+        <button type="button" class="hm-x" data-act="mastery:close" aria-label="Back">✕</button></div>
+      <p class="hm-note">${owned ? `Complete every goal on ${def.name}'s own journey.` : `Unlock ${def.name} to start their journey.`}</p>
+      <ul class="hm-goals">${m.goals.map((g) => `<li class="${g.done ? 'done' : ''}">
+        ${gi(GOAL_ICON[g.goal.id] ?? 'bullseye', g.done ? 'gold' : 'grey')}
+        <div><b>${g.goal.name}</b><small>${g.goal.desc}</small><i class="hm-bar"><i style="width:${Math.round(g.frac * 100)}%"></i></i></div>
+        <span>${g.done ? gi('check-mark', 'green') : g.goal.show(g.value)}</span></li>`).join('')}</ul>
+      <div class="hm-reward ${m.complete ? 'ready' : ''}">${gi('present', m.complete ? 'gold' : 'grey')}
+        <div><b>Reward: Mastery skin</b><small>${m.complete ? 'Earned! It arrives in a coming update.' : `A special look for ${def.name} (coming soon)`}</small></div></div>
+    </div>`;
   }
 
   private readonly onResize = () => { if (this.wrap) this.wrap.style.removeProperty('--hp'); this.fit(); };
@@ -174,17 +208,24 @@ export class HeroesUI {
       }).join('')
       : '';
     if (def.palette) void this.makeThumbs(def.id);
+    this.renderMastery();
     this.wrap.querySelector('.hero-grid')!.innerHTML = this.order().map((k) => {
       const have = this.sim.ownsSkin(k.id);
       const tag = s.skin === k.id ? `${gi('check-mark', 'green')} Lv ${s.level}` : have ? `Owned · Lv ${s.runs[k.id]?.level ?? 1}`
         : this.sim.bestLevel < (k.minLevel ?? 0) ? `Lv ${k.minLevel}` : `<i class="jewel"></i>${k.cost}`;
       const img = portraits.get(k.id);
       return `<button type="button" class="hero-card ${k.id === this.pick ? 'sel' : ''} ${have ? 'owned' : 'locked'}" data-act="pick:${k.id}">
-        <span class="hero-portrait">${img ? `<img alt="" src="${img}" />` : ''}${have ? '' : `<i class="hero-lock">${gi('padlock', 'grey')}</i>`}</span>
+        <span class="hero-portrait">${img ? `<img alt="" src="${img}" />` : ''}${have ? this.cardMastery(k.id) : `<i class="hero-lock">${gi('padlock', 'grey')}</i>`}</span>
         <span class="hero-card-name">${k.name}</span><span class="hero-card-role">${k.role}</span><span class="hero-tag">${tag}</span></button>`;
     }).join('');
     this.fit();
     void this.showModel(this.pick);
+  }
+
+  /** An owned hero's mastery on their card: a thin bar, or a crown once complete. */
+  private cardMastery(id: string): string {
+    const m = this.sim.mastery(id);
+    return m.complete ? `<i class="hero-crown">${gi('crown', 'gold')}</i>` : `<i class="hero-mbar"><i style="width:${m.pct}%"></i></i>`;
   }
 
   /**

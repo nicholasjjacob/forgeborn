@@ -6,6 +6,7 @@ import { canWield, skinDef } from '../sim/skins';
 import { freshPerks, freshStats } from '../sim/meta';
 import { freshMissions } from '../sim/missions';
 import { cleanRegions } from '../sim/regionQuests';
+import { cleanMastery } from '../sim/mastery';
 
 const KEY = 'forgeborn.save';
 const DB_NAME = 'forgeborn';
@@ -283,6 +284,7 @@ export function migrate(input: unknown): SaveData {
     });
   }
   save.runs = runs;
+  save.mastery = cleanMastery((data as { mastery?: unknown }).mastery);
   delete (save as { gear?: unknown }).gear;
   return save;
 }
