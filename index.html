@@ -8,6 +8,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Forgeborn</title>
     <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="preload" as="image" href="./loading-heroes.webp" />
     <link rel="icon" type="image/png" href="./icons/favicon-32.png" />
     <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -31,17 +32,21 @@
         font-family: 'Lilita One', 'Arial Black', system-ui, sans-serif; transition: opacity 0.45s ease;
       }
       #loading.gone { opacity: 0; pointer-events: none; }
-      #loading img { width: 112px; height: 112px; border-radius: 26px; image-rendering: pixelated; box-shadow: 0 0 0 4px #8a5a2b, 0 8px 0 4px #4a2c12, 0 14px 30px #0008; animation: ld-bob 1.6s ease-in-out infinite alternate; }
-      #loading h1 { margin: 6px 0 0; font-size: 44px; font-weight: 400; letter-spacing: 0.04em; text-shadow: 0 3px 0 #0a1035, 0 0 18px #6f8cff66; }
+      /* The nine heroes in a lineup (a pre-rendered picture, so it shows before any code loads),
+         with the title tucked up under their feet. Sizes follow the screen. */
+      .ld-heroes { position: relative; width: min(94vw, 880px, calc(62dvh * 3.44)); aspect-ratio: 1632 / 475; }
+      .ld-heroes::before { content: ''; position: absolute; inset: -12% -4% -22%; background: radial-gradient(closest-side, #6f8cff50, transparent); pointer-events: none; }
+      .ld-heroes img { position: relative; display: block; width: 100%; height: 100%; opacity: 0; transform: translateY(8px); transition: opacity 0.5s ease, transform 0.5s ease; }
+      .ld-heroes img.in { opacity: 1; transform: none; }
+      #loading h1 { margin: -2px 0 0; font-size: clamp(40px, 9vw, 72px); font-weight: 400; letter-spacing: 0.04em; line-height: 1; text-shadow: 0 4px 0 #0a1035, 0 0 22px #6f8cff88; }
       .ld-bar { position: relative; width: min(300px, 74vw); height: 18px; border-radius: 10px; overflow: hidden; background: #0a1035; box-shadow: 0 0 0 3px #8a5a2b, 0 4px 0 3px #4a2c12, inset 0 2px 0 #0008; }
       .ld-fill { position: absolute; inset: 0; transform-origin: left; transform: scaleX(0.03); background: linear-gradient(#ffe85a, #ffb81c 60%, #e8901c); transition: transform 0.35s ease-out; }
       .ld-text { min-height: 1.2em; font-family: Fredoka, system-ui, sans-serif; font-weight: 600; font-size: 14px; color: #a9b8ee; }
-      @keyframes ld-bob { to { transform: translateY(-6px); } }
     </style>
   </head>
   <body>
     <div id="loading" role="progressbar" aria-label="Loading Forgeborn">
-      <img src="./icons/icon-192.png" alt="" />
+      <div class="ld-heroes"><img src="./loading-heroes.webp" alt="" onload="this.classList.add('in')" /></div>
       <h1>Forgeborn</h1>
       <div class="ld-bar"><div class="ld-fill"></div></div>
       <div class="ld-text">Loading…</div>
