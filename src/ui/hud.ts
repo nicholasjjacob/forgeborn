@@ -65,6 +65,18 @@ export class Hud {
 
   constructor(root: HTMLElement, private readonly sim: Sim, weaponIcons: string[][], codexIcon: (area: number, slot: number) => string, onSettings: () => void) {
     const $ = <T extends HTMLElement = HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
+    // Side button labels never run past their button's rim: whatever the font renders at (Windows
+    // display scaling draws some text wider), a label too wide is squeezed to fit.
+    const fitLabels = () => {
+      for (const l of root.querySelectorAll<HTMLElement>('.side-lbl')) {
+        l.style.transform = '';
+        const room = (l.parentElement?.clientWidth ?? 0) - 12;
+        const w = l.scrollWidth;
+        if (room > 0 && w > room) l.style.transform = `scale(${(room / w).toFixed(3)})`;
+      }
+    };
+    new ResizeObserver(fitLabels).observe(root.querySelector('.side-icons') ?? root);
+    void document.fonts?.ready.then(fitLabels);
     this.el = {
       stage: $('#stage-label'),
       area: $('#area-label'),

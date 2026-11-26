@@ -142,7 +142,7 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 .side-btn:active { transform: translateY(3px); box-shadow: inset 0 0 0 2.5px var(--wood), 0 1px 0 var(--wood-dark); }
 .side-btn[hidden] { display: none; }
 .side-ico { font-size: 22px; line-height: 1; filter: drop-shadow(0 1px 0 #0003); }
-.side-lbl { font-size: 10px; color: #fff; text-shadow: var(--outline); margin-top: 1px; }
+.side-lbl { font-size: 10px; color: #fff; text-shadow: var(--outline); margin-top: 1px; white-space: nowrap; display: block; transform-origin: 50% 50%; }
 .dot {
   position: absolute; top: -5px; right: -5px;
   min-width: 19px; height: 19px; padding: 0 5px;
@@ -1552,7 +1552,7 @@ html.pc .side-icons { --sb: clamp(54px, calc((100dvh - 300px) / 6.8), 78px); gap
 @media (min-height: 950px) { html.pc .side-icons { --sb: clamp(54px, calc((100dvh - 330px) / 8.2), 78px); } }
 html.pc .side-btn { width: var(--sb); height: var(--sb); border-radius: calc(var(--sb) * 0.23); }
 html.pc .side-ico .gi { width: calc(var(--sb) * 0.5); height: calc(var(--sb) * 0.5); }
-html.pc .side-lbl { font-size: clamp(10px, calc(var(--sb) * 0.17), 13px); margin-top: 2px; }
+html.pc .side-lbl { font-size: clamp(8px, min(calc(var(--sb) * 0.17), calc((var(--sb) - 16px) / 4.6)), 13px); margin-top: 2px; }
 html.pc .side-btn .dot { transform: scale(1.15); }
 html.pc .chips { gap: 9px; }
 html.pc #auto-btn { font-size: 17px; padding: 8px 18px; }
