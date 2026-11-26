@@ -1814,3 +1814,9 @@ html.pc :is(button, .btn):disabled { cursor: var(--cur-arrow, default); }
 /* Short panels: drop the descriptions under each goal. */
 @container hmp (max-height: 520px) { .hm-goals small, .hm-note { display: none; } }
 @container hmp (max-height: 380px) { .hm-reward small { display: none; } .hm-goals li { padding-block: 3px; } }
+
+/* A boss card says where its lair is (or that its land is still to come). */
+.codex-where { display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 11px; font-weight: 600; color: #ffd6dc; line-height: 1.2; }
+.codex-where .gi { width: 14px; height: 14px; flex: none; }
+.codex-card.boss.later { background: linear-gradient(#5a3a4a, #3a2030); }
+.codex-card.boss.later .codex-where { color: var(--ink-soft); flex: 0 0 30px; }

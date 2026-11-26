@@ -1,6 +1,6 @@
 import { monsterSlot, paintMonsterPortraits } from './monsterPreview';
 import { gi, terrainIcon } from './icons';
-import { zoneName } from '../sim/zones';
+import { bossLairZone, zoneLevel, zoneName } from '../sim/zones';
 import { haptic, sfx } from '../audio/sfx';
 import { rewardSpill, starBurst } from './rewardFx';
 import { actionElement, bindSheetTaps } from './tap';
@@ -295,6 +295,7 @@ export class MissionsUI {
     const m = this.sim.missions;
     let stars = 0, total = 0, ready = false;
     for (let slot = 0; slot < 4; slot++) {
+      if (slot === 3 && bossLairZone(area) < 0) continue; // not in any land yet: not counted
       stars += Math.min(m.codexClaimed(area, slot), codexTiers(slot).length);
       total += codexTiers(slot).length;
       if (m.canClaimCodex(area, slot)) ready = true;
@@ -339,6 +340,18 @@ export class MissionsUI {
         const maxed = tier >= tiers.length, goal = maxed ? tiers[tiers.length - 1] : tiers[tier];
         const ready = m.canClaimCodex(area, slot), seen = kills > 0;
         const reward = maxed ? null : codexReward(slot, tier);
+        // Bosses say where their lair is (or that their land is still to come).
+        const lair = slot === 3 ? bossLairZone(area) : -1, later = slot === 3 && lair < 0;
+        const where = slot !== 3 ? '' : later ? `<div class="codex-where">${gi('padlock', 'grey')} Arrives with a future land</div>`
+          : `<div class="codex-where">${gi('position-marker', 'red')} Lair: ${zoneName(lair)}${this.sim.zoneUnlocked(lair) ? '' : ` · Lv ${zoneLevel(lair)}`}</div>`;
+        if (later) {
+          return `<div class="codex-card boss later">
+          <span class="boss-tag">BOSS</span>
+          <div class="codex-portrait"><img alt="" src="${this.codexIcon(area, slot)}" class="unseen" /><canvas class="mon3d unseen" data-model="m${area % 6}_${slot}" data-fly="0"></canvas></div>
+          <div class="codex-name">???</div>
+          ${where}
+        </div>`;
+        }
         return `<div class="codex-card ${slot === 3 ? 'boss' : ''} ${ready ? 'ready' : ''} ${maxed ? 'maxed' : ''}">
           ${slot === 3 ? '<span class="boss-tag">BOSS</span>' : ''}
           <div class="codex-portrait"><img alt="" src="${this.codexIcon(area, slot)}" class="${seen ? '' : 'unseen'}" /><canvas class="mon3d ${seen ? '' : 'unseen'}" data-model="m${area % 6}_${slot}" data-fly="${slot < 3 && mon.shape === 'bat' ? 1 : 0}"></canvas></div>
@@ -346,6 +359,7 @@ export class MissionsUI {
           <div class="stars">${tiers.map((_, i) => `<i class="${i < tier ? 'on' : ''}">★</i>`).join('')}</div>
           <div class="bar thin"><div class="bar-fill" style="transform:scaleX(${Math.min(1, kills / goal)})"></div></div>
           <div class="codex-count">${count(Math.min(kills, goal))}/${count(goal)} defeated</div>
+          ${where}
           ${ready ? `<button type="button" class="btn small green" data-act="codex:${area}:${slot}">Claim</button>`
             : maxed ? '<div class="codex-next done">Complete!</div>'
             : `<div class="codex-next">Next ${chips(reward!)}</div>`}

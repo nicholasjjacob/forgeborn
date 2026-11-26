@@ -101,6 +101,15 @@ export function bossCooldown(zone: number): number {
   return Math.round((120 + 60 * Math.max(0, zone)) * (isTerrainBossZone(zone) ? 1.5 : 1));
 }
 
+/** The playable zone whose lair holds terrain `area`'s own boss, or -1 while none does yet. */
+export function bossLairZone(area: number): number {
+  for (let z = 0; z < PLAYABLE_ZONES; z++) {
+    const b = zoneBoss(z);
+    if (b.area === area && b.slot === 3) return z;
+  }
+  return -1;
+}
+
 export function zoneBossName(zone: number): string {
   const { area, slot } = zoneBoss(zone);
   const { def } = areaFor(area);
