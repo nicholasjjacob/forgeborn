@@ -25,6 +25,11 @@ const AUTO_SPIN = 0.7;     // rad/s when left alone
 const DRAG_TURN = 0.012;   // radians per pixel dragged
 const MAX_FLING = 12;      // rad/s
 
+/** Wait for the next frame (or a moment, where frames are paused in a hidden tab). */
+function nextFrame(): Promise<void> {
+  return new Promise((r) => { requestAnimationFrame(() => r()); setTimeout(r, 50); });
+}
+
 /** Each mastery goal's icon. */
 const GOAL_ICON: Record<string, string> = { bosses: 'skull-crossed-bones', explore: 'compass', level: 'sprint', forge: 'anvil-impact', weapon: 'broadsword' };
 
@@ -325,8 +330,17 @@ export class HeroesUI {
     return buildHeroModel(this.sim, id, sized, palette);
   }
 
-  private async showModel(id: string): Promise<void> {
-    if (this.shown === id || !this.scene) return;
+  /** Settles once the stage's first hero has been shown (or failed to load). */
+  private modelReady: Promise<void> = Promise.resolve();
+
+  private showModel(id: string): Promise<void> {
+    if (this.shown === id || !this.scene) return this.modelReady;
+    const p = this.loadModelOnStage(id);
+    if (!this.model) this.modelReady = p.then(() => nextFrame()); // let the stage draw it first
+    return p;
+  }
+
+  private async loadModelOnStage(id: string): Promise<void> {
     this.shown = id;
     const built = await this.build(id);
     if (!built || !this.scene || this.shown !== id) return;
@@ -382,10 +396,16 @@ export class HeroesUI {
     return c.toDataURL('image/png');
   }
 
-  /** Render each skin once, facing the camera, into a portrait image for its card. */
+  /**
+   * Render each skin once, facing the camera, into a portrait image for its card. Runs after the
+   * stage's hero is up, one portrait per frame, so the first open shows the hero straight away.
+   */
   private async makePortraits(): Promise<void> {
+    await this.modelReady;
     for (const k of SKINS) {
       if (portraits.has(k.id)) continue;
+      await nextFrame();
+      if (!this.renderer) return;
       const built = await this.build(k.id, false);
       if (!built || !this.renderer) return;
       const img = this.snapshot(built.obj, [0, 1.05, 3.1], [0, 0.8, 0], 160);
