@@ -46,6 +46,50 @@ if (existsSync(SKEL)) {
   }
 } else console.warn(`Skeletons folder not found (skipped): ${SKEL}`);
 
+/**
+ * The Skeleton Knight's helmet styles: the Knight's helmet and visor, moved onto the skeleton
+ * (the rigs match bone for bone, so they sit exactly as on the Knight) and bound to its bones.
+ * Shown or hidden by the Skeleton Knight's styles (sim/skins.ts), like the Knight's own.
+ */
+async function addKnightHelmet(skelFile, knightFile) {
+  const doc = await io.read(skelFile);
+  const root = doc.getRoot();
+  const [mainScene] = root.listScenes();
+  const bones = new Map();
+  mainScene.traverse((n) => { if (!bones.has(n.getName())) bones.set(n.getName(), n); });
+  const rig = bones.get('Rig_Medium');
+  mergeDocuments(doc, await io.read(knightFile));
+  const KEEP = new Set(['Knight_Helmet', 'Knight_HelmetVisor']);
+  for (const sc of root.listScenes()) {
+    if (sc === mainScene) continue;
+    sc.traverse((n) => {
+      if (!KEEP.has(n.getName())) return;
+      // Re-bind the piece's skin to the skeleton's bones (same names, same order kept).
+      const skin = n.getSkin();
+      if (skin) {
+        const joints = skin.listJoints();
+        for (const j of joints) skin.removeJoint(j);
+        for (const j of joints) skin.addJoint(bones.get(j.getName()) ?? j);
+        skin.setSkeleton(bones.get('root') ?? null);
+      }
+      n.detach?.();
+      rig.addChild(n);
+    });
+    sc.dispose();
+  }
+  const live = new Set();
+  mainScene.traverse((n) => live.add(n));
+  for (const n of root.listNodes()) if (!live.has(n)) n.dispose();
+  for (const a of root.listAnimations()) a.dispose();
+  const buf = root.listBuffers()[0];
+  for (const a of root.listAccessors()) a.setBuffer(buf);
+  for (const b of root.listBuffers()) if (b !== buf) b.dispose();
+  await doc.transform(prune());
+  await io.write(skelFile, doc);
+  console.log('skeleton knight helmet added', statSync(skelFile).size);
+}
+
+
 const io = new NodeIO();
 async function buildAnims(rigName, files, keep, out) {
   const rig = join(ANIM, 'Animations', 'gltf', rigName);
@@ -159,3 +203,6 @@ if (existsSync(SKEL)) {
   await io.write(dst, doc);
   console.log('boss_necromancer', root.listAnimations().map((a) => a.getName()).join(', '), statSync(dst).size);
 }
+
+// (Last: the helmet goes onto the freshly copied Skeleton Knight.)
+if (existsSync(SKEL)) await addKnightHelmet(join(OUT, 'skel_minion.glb'), join(OUT, 'hero_knight.glb'));

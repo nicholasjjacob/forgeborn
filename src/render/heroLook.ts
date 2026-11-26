@@ -33,8 +33,9 @@ function closedVisor(open: THREE.BufferGeometry): THREE.BufferGeometry {
 }
 
 /** Apply style `look` to a hero model of skin `skin` (any of its clones). Unknown looks mean the default. */
-export function applyLook(root: THREE.Object3D, skin: string, look: string): void {
-  const looks = skinDef(skin).looks;
+export function applyLook(root: THREE.Object3D, skin: string, look: string, skeleton = false): void {
+  // (The skeleton form has its own styles, e.g. the Skeleton Knight's borrowed helmet.)
+  const looks = skeleton ? skinDef(skin).skeleton.looks : skinDef(skin).looks;
   if (!looks) return;
   const def = looks.find((l) => l.id === look) ?? looks[0];
   const hidden = new Set<string>();

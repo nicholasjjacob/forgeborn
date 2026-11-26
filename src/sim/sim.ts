@@ -1,5 +1,5 @@
 import { Explored } from './explore';
-import { DEFAULT_SKIN, SKINS, STARTERS, canWield, skinDef, type ClassMods } from './skins';
+import { DEFAULT_SKIN, SKINS, STARTERS, bonesLookKey, canWield, skinDef, type ClassMods } from './skins';
 import { Rng } from '../core/rng';
 import { areaFor, type MonsterDef } from './areas';
 import {
@@ -1211,9 +1211,10 @@ export class Sim {
     return true;
   }
 
-  setLook(skin: string, look: string): boolean {
-    if (!this.ownsSkin(skin) || !skinDef(skin).looks?.some((l) => l.id === look)) return false;
-    this.save.looks[skin] = look;
+  setLook(skin: string, look: string, skeleton = false): boolean {
+    const def = skinDef(skin);
+    if (!this.ownsSkin(skin) || !(skeleton ? def.skeleton.looks : def.looks)?.some((l) => l.id === look)) return false;
+    this.save.looks[skeleton ? bonesLookKey(skin) : skin] = look;
     return true;
   }
 
