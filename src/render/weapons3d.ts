@@ -189,6 +189,8 @@ interface KitDef {
   grip?: readonly [number, number, number];
   /** Slide the weapon along its length in the hand (model units): polearms are held up the shaft. */
   slide?: number;
+  /** Held in the left hand (bows: the pack's bow animations hold the bow left and draw right). */
+  left?: boolean;
 }
 const KIT: Record<number, KitDef> = {
   0: { tiers: ['fw_sword_A', 'fw_sword_B', 'w_sword_1handed', 'fw_sword_F'] },               // Sword → flame sword
@@ -197,8 +199,8 @@ const KIT: Record<number, KitDef> = {
   3: { tiers: ['w_sword_2handed', 'fw_sword_E', 'w_sword_2handed_color', 'fw_sword_G'] },     // Greatsword → ice blade
   4: { tiers: ['w_dagger', 'fw_dagger_A', 'fw_dagger_B', 'fw_dagger_C'] },                     // Dagger → poison blade
   5: { tiers: ['w_crossbow_1handed', 'w_crossbow_1handed', 'w_crossbow_2handed', 'w_crossbow_2handed'] },
-  6: { tiers: ['fw_bow_A_withString', 'w_bow_withString', 'fw_bow_B_withString', 'fw_bow_C_withString'] }, // → bone bow
-  7: { tiers: ['w_bow_withString', 'fw_bow_B_withString', 'fw_bow_C_withString', 'fw_bow_C_withString'], scale: 1.15 },
+  6: { tiers: ['fw_bow_A_withString', 'w_bow_withString', 'fw_bow_B_withString', 'fw_bow_C_withString'], left: true }, // → bone bow
+  7: { tiers: ['w_bow_withString', 'fw_bow_B_withString', 'fw_bow_C_withString', 'fw_bow_C_withString'], scale: 1.15, left: true },
   8: { tiers: ['fw_staff_A', 'w_staff', 'fw_staff_B', 'fw_staff_D'] },                         // Staff → sun staff
   9: { tiers: ['w_wand', 'fw_wand_A', 'fw_wand_A', 'fw_wand_B'] },                             // Wand → void orb
   10: { tiers: ['fw_sword_C', 'fw_sword_C', 'fw_sword_D', 'fw_scythe'] },                      // Katana → reaper's scythe
@@ -231,6 +233,9 @@ export function holdWeapon(holder: THREE.Object3D, form: number, tilt: number): 
   const g = KIT[form]?.grip ?? [0, 0, 0];
   holder.rotation.set(g[0], g[1], g[2] + tilt);
 }
+
+/** Is weapon type `form` held in the left hand (bows)? */
+export const heldLeft = (form: number) => !!KIT[form]?.left;
 
 /** Rarity tier (0-3) for the model ladder. */
 export const kitTier = (rarity: number) => (rarity >= 6 ? 3 : rarity >= 4 ? 2 : rarity >= 2 ? 1 : 0);

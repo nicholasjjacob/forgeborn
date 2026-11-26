@@ -4,7 +4,7 @@ import { cloneActor, loadModel, measure } from '../render/models';
 import { SKINS, lookOf, skinDef } from '../sim/skins';
 import { applyLook, applyPalette, paletteReady } from '../render/heroLook';
 import { heroClip, heroScale, heroWeaponScale, holdsPose, loadHeroAnims, showcaseIdle, showcaseUpright } from '../render/heroRig';
-import { buildKitWeapon, holdWeapon, idleTilt, kitModels } from '../render/weapons3d';
+import { buildKitWeapon, heldLeft, holdWeapon, idleTilt, kitModels } from '../render/weapons3d';
 import { FORMS } from '../sim/weapons';
 import type { Sim } from '../sim/sim';
 import { gi } from './icons';
@@ -423,7 +423,7 @@ export async function buildHeroModel(sim: Sim, id: string, sized = true, palette
     // The stage shows the weapon's idle; one-handed weapons (unarmed idle) are held upright.
     holdWeapon(kit.group, form, showcaseUpright(id, form) ? idleTilt(form) : 0);
     kit.off?.scale.multiplyScalar(heroWeaponScale(id));
-    inner.getObjectByName('handslotr')?.add(kit.group);
+    inner.getObjectByName(heldLeft(form) ? 'handslotl' : 'handslotr')?.add(kit.group);
     if (kit.off) inner.getObjectByName('handslotl')?.add(kit.off);
   }
   const obj = new THREE.Group();

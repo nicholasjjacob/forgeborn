@@ -8,7 +8,7 @@ import { PLAYABLE_ZONES, zoneBoss } from '../sim/zones';
 import { ELITE, MAX_ENEMIES, MAX_HERO_SHOTS, MAX_SHOTS, SLAM_RADIUS, SLAM_WIND, STYLE_DASHER, type Enemy, type Sim } from '../sim/sim';
 import { cloneActor, findClip, loadModel, measure, model } from './models';
 import { Fx3D } from './fx3d';
-import { BOLT_MODEL, arrowModel, buildKitWeapon, holdWeapon, idleTilt, buildWeapon, weaponTrailColor, type WeaponView } from './weapons3d';
+import { BOLT_MODEL, arrowModel, buildKitWeapon, heldLeft, holdWeapon, idleTilt, buildWeapon, weaponTrailColor, type WeaponView } from './weapons3d';
 import { applyLook, applyPalette } from './heroLook';
 import { attackPlayback, heroAnimFiles, heroClip, heroScale, heroWeaponScale, loadHeroAnims, weaponAnims, type HeroAnims, holdsPose } from './heroRig';
 import { lookOf } from '../sim/skins';
@@ -745,7 +745,8 @@ export class World3D {
     if (kit) {
       kit.group.traverse((o) => o.layers.set(HERO_LAYER));
       kit.off?.traverse((o) => o.layers.set(HERO_LAYER));
-      this.kitHand.add(kit.group);
+      // Bows go in the left hand (the bow animations draw the string with the right).
+      (heldLeft(form) ? this.kitOff : this.kitHand).add(kit.group);
       if (kit.off) this.kitOff.add(kit.off);
       this.weapon = kit;
       return;
@@ -878,7 +879,7 @@ export class World3D {
       const attacking = h.swingT > 0 || this.heroCur === this.heroAct.attack;
       const tilt = attacking || h.moving || dead || !set.upright ? 0 : idleTilt(eq?.form ?? 0);
       this.heldTilt += (tilt - this.heldTilt) * (1 - Math.exp(-dt * (attacking ? 30 : 8)));
-      holdWeapon(this.kitHand, eq?.form ?? 0, this.heldTilt);
+      holdWeapon(heldLeft(eq?.form ?? 0) ? this.kitOff : this.kitHand, eq?.form ?? 0, this.heldTilt);
     }
     this.heroDead = dead;
     this.heroSwing = h.swingT;
