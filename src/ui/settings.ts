@@ -22,12 +22,14 @@ export function openSettings(sim: Sim, act: SettingsActions): void {
   wrap.innerHTML = `
     <div class="modal-card settings">
       <h2>Settings</h2>
+      <div class="set-rows">
       <div class="set-row"><span>Sound</span><div class="seg" data-key="sound"><button data-v="on">On</button><button data-v="off">Off</button></div></div>
       <div class="set-row"><span>Graphics<small>Low: sharper on weak phones, fewer particles, no shake</small></span><div class="seg" data-key="quality"><button data-v="high">High</button><button data-v="low">Low</button></div></div>
       <div class="set-row"><span>Frame rate<small>30 saves battery</small></span><div class="seg" data-key="fps"><button data-v="60">60</button><button data-v="30">30</button></div></div>
       <div class="set-row"><span>Reforge<small>Restart stronger: trade this run for embers and perks</small></span><button type="button" class="btn small primary" id="open-reforge">Open<span class="badge" id="set-reforge-badge"></span></button></div>
       <div class="set-row"><span>Minimap<small>Frame shape</small></span><div class="seg" data-key="minimap"><button data-v="circle">Circle</button><button data-v="square">Square</button></div></div>
       <div class="set-row fullscreen-row" hidden><span>Full screen<small>Hide the browser bars (Esc leaves)</small></span><div class="seg" data-key="fullscreen"><button data-v="on">On</button><button data-v="off">Off</button></div></div>
+      </div>
       <div class="set-actions">
         <button type="button" class="btn ghost" id="reset-progress">Reset progress</button>
         <button type="button" class="btn primary" id="close-settings">Done</button>
