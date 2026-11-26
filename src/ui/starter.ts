@@ -21,7 +21,25 @@ const STYLE: Record<string, { style: string; level: string }> = {
   rogue_hooded: { style: 'Up close: swift katana cuts and claw flurries. Strike unhurt monsters for a guaranteed critical hit.', level: 'Hard' },
 };
 
-interface Stand { id: string; el: HTMLCanvasElement; renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera; mixer: THREE.AnimationMixer | null; model: THREE.Object3D | null }
+interface Stand { id: string; el: HTMLCanvasElement; renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera; mixer: THREE.AnimationMixer | null; model: THREE.Object3D | null; lit: number; target: number }
+
+/** How lit each slot is (1 = full colour; lower is darker and greyer). */
+const LIT: Record<string, number> = { front: 1, left: 0.42, right: 0.42, 'far-left': 0.3, 'far-right': 0.3 };
+
+/**
+ * The heroes behind are greyed and darkened inside the 3D render itself, as the last step of each
+ * pixel (three.js's "custom tone mapping", fed the stand's exposure). A CSS filter on the canvas
+ * did the same, but iPhones would sometimes leave the front hero stuck grey. Only these stands use
+ * custom tone mapping, so nothing else in the game is affected.
+ */
+THREE.ShaderChunk.tonemapping_pars_fragment = THREE.ShaderChunk.tonemapping_pars_fragment.replace(
+  'vec3 CustomToneMapping( vec3 color ) { return color; }',
+  `vec3 CustomToneMapping( vec3 color ) {
+    float grey = clamp( ( 1.0 - toneMappingExposure ) * 3.0, 0.0, 1.0 );
+    color = mix( color, vec3( dot( color, vec3( 0.2126, 0.7152, 0.0722 ) ) ), grey );
+    return color * pow( toneMappingExposure, 2.2 );
+  }`,
+);
 
 export function chooseStarter(sim: Sim): Promise<string> {
   return new Promise((resolve) => {
@@ -49,6 +67,8 @@ export function chooseStarter(sim: Sim): Promise<string> {
       <button type="button" class="btn green st-go"></button>`;
     document.body.appendChild(root);
     const stage = root.querySelector<HTMLElement>('.st-stage')!;
+    // The golden glow behind the front hero (a plain gradient, not a filter on the 3D canvas).
+    stage.insertAdjacentHTML('beforeend', '<div class="st-glow"></div>');
 
     // One small 3D stage per hero (each its own canvas, so the slots can glide and grey out in CSS).
     const stands: Stand[] = STARTERS.map((id) => {
@@ -59,6 +79,7 @@ export function chooseStarter(sim: Sim): Promise<string> {
       const renderer = new THREE.WebGLRenderer({ canvas: el, antialias: true, alpha: true });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
       renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.CustomToneMapping;
       const scene = new THREE.Scene();
       scene.add(new THREE.HemisphereLight(0xdfe8ff, 0x3a4a7a, 2.2));
       const sun = new THREE.DirectionalLight(0xfff2dc, 2.5);
@@ -71,7 +92,7 @@ export function chooseStarter(sim: Sim): Promise<string> {
       // Close in: the hero fills most of their slot (feet near the bottom, a little room overhead).
       camera.position.set(0, 1.05, 3.7);
       camera.lookAt(0, 0.82, 0);
-      const st: Stand = { id, el, renderer, scene, camera, mixer: null, model: null };
+      const st: Stand = { id, el, renderer, scene, camera, mixer: null, model: null, lit: 1, target: 1 };
       void buildHeroModel(sim, id, false, 0).then((b) => {
         if (!b) return;
         b.obj.rotation.y = 0.35;
@@ -105,12 +126,14 @@ export function chooseStarter(sim: Sim): Promise<string> {
       for (const s of stands) {
         const off = ((STARTERS.indexOf(s.id) - at + n + Math.floor(n / 2)) % n) - Math.floor(n / 2);
         s.el.dataset.slot = slot[off + 2] ?? 'front';
+        s.target = LIT[s.el.dataset.slot] ?? 1;
       }
       for (const el of infos) el.classList.toggle('on', el.dataset.id === pick);
       const def = skinDef(pick);
       go.textContent = `Play as ${def.name}`;
     }
     show();
+    for (const s of stands) s.lit = s.target;
 
     let raf = 0, last = performance.now();
     const loop = (now: number) => {
@@ -119,6 +142,10 @@ export function chooseStarter(sim: Sim): Promise<string> {
       last = now;
       for (const s of stands) {
         s.mixer?.update(dt);
+        // Fade towards the slot's light as the hero glides there.
+        s.lit += (s.target - s.lit) * Math.min(1, dt * 9);
+        if (Math.abs(s.target - s.lit) < 0.002) s.lit = s.target;
+        s.renderer.toneMappingExposure = s.lit;
         const w = s.el.clientWidth, h = s.el.clientHeight;
         if (!w || !h) continue;
         const pr = s.renderer.getPixelRatio();
