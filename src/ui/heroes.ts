@@ -30,6 +30,58 @@ function nextFrame(): Promise<void> {
   return new Promise((r) => { requestAnimationFrame(() => r()); setTimeout(r, 50); });
 }
 
+/**
+ * The Heroes screen's 3D stage: one WebGL context for the whole session (made during the loading
+ * screen), so opening the screen never waits for a new context, shader compiles or texture uploads.
+ */
+interface HeroStage { renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera; bound: boolean }
+let stage: HeroStage | null = null;
+function heroStage(): HeroStage {
+  if (stage) return stage;
+  const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+  r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  const scene = new THREE.Scene();
+  scene.add(new THREE.HemisphereLight(0xdfe8ff, 0x3a4a7a, 2.2));
+  const sun = new THREE.DirectionalLight(0xfff2dc, 2.4);
+  sun.position.set(-3, 6, 5);
+  scene.add(sun);
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(1, 40), new THREE.MeshBasicMaterial({ color: 0x0a1035, transparent: true, opacity: 0.35 }));
+  floor.rotation.x = -Math.PI / 2;
+  floor.scale.setScalar(0.62);
+  scene.add(floor);
+  const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
+  camera.position.set(...STAGE_CAM);
+  camera.lookAt(...STAGE_LOOK);
+  stage = { renderer: r, scene, camera, bound: false };
+  return stage;
+}
+
+/** The stage hero kept from last time (or the warm-up), and what it was built as. */
+let shelf: { key: string; obj: THREE.Object3D; mixer: THREE.AnimationMixer } | null = null;
+function modelKey(sim: Sim, id: string): string {
+  const s = sim.save;
+  const w = id === s.skin ? s.equipped : s.runs[id]?.equipped ?? null;
+  return [id, lookOf(id, s.looks), s.palettes[id] ?? 0, w?.form ?? -1, w?.rarity ?? 0].join('|');
+}
+
+/**
+ * Behind the loading screen: make the stage and put the current hero on it, drawn once, so the
+ * first open of the Heroes screen shows them straight away.
+ */
+export async function warmHeroStage(sim: Sim): Promise<void> {
+  const st = heroStage();
+  const built = await buildHeroModel(sim, sim.save.skin);
+  if (!built) return;
+  st.scene.add(built.obj);
+  st.renderer.setSize(200, 200, false);
+  st.camera.aspect = 1;
+  st.camera.updateProjectionMatrix();
+  st.renderer.compile(st.scene, st.camera);
+  st.renderer.render(st.scene, st.camera);
+  st.scene.remove(built.obj);
+  shelf = { key: modelKey(sim, sim.save.skin), obj: built.obj, mixer: built.mixer };
+}
+
 /** Each mastery goal's icon. */
 const GOAL_ICON: Record<string, string> = { bosses: 'skull-crossed-bones', explore: 'compass', level: 'sprint', forge: 'anvil-impact', weapon: 'broadsword' };
 
@@ -66,7 +118,7 @@ export class HeroesUI {
         <div class="ribbon"><span class="ribbon-text">Heroes</span></div>
         <button type="button" class="sheet-x" aria-label="Close">✕</button>
         <div class="sheet-body">
-          <div class="hero-stage"><canvas></canvas><div class="hero-gems"><i class="jewel"></i><b></b></div></div>
+          <div class="hero-stage"><div class="hero-gems"><i class="jewel"></i><b></b></div></div>
           <div class="hero-info"><b class="hero-name"></b><span class="hero-sub"><span class="hero-role"></span><button type="button" class="hero-mastery" data-act="mastery:open" aria-label="Hero mastery"></button></span><span class="hero-perk"></span><span class="hero-weapons"></span></div>
           <div class="hero-looks" role="radiogroup" aria-label="Style"></div>
           <div class="hero-palettes" role="radiogroup" aria-label="Colours"></div>
@@ -80,7 +132,7 @@ export class HeroesUI {
     window.addEventListener('resize', this.onResize);
     document.body.appendChild(wrap);
     this.wrap = wrap;
-    this.setupStage(wrap.querySelector('canvas')!);
+    this.setupStage(wrap.querySelector<HTMLElement>('.hero-stage')!);
     this.render();
     void this.makePortraits();
   }
@@ -88,9 +140,12 @@ export class HeroesUI {
   close(): void {
     if (!this.wrap) return;
     cancelAnimationFrame(this.raf);
-    this.mixer?.stopAllAction();
-    this.renderer?.dispose();
-    this.renderer?.forceContextLoss();
+    // The stage (its WebGL context, compiled shaders and textures) is kept for next time, along
+    // with the hero on it, so the next open shows them at once.
+    if (this.model && this.mixer && this.scene) {
+      this.scene.remove(this.model);
+      shelf = { key: modelKey(this.sim, this.shown), obj: this.model, mixer: this.mixer };
+    }
     this.renderer = null; this.scene = null; this.camera = null; this.model = null; this.mixer = null; this.shown = '';
     this.wrap.remove();
     this.wrap = null;
@@ -245,23 +300,13 @@ export class HeroesUI {
 
   // --- 3D preview ------------------------------------------------------------------------
 
-  private setupStage(canvas: HTMLCanvasElement): void {
-    const r = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
-    r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    this.renderer = r;
-    const scene = new THREE.Scene();
-    scene.add(new THREE.HemisphereLight(0xdfe8ff, 0x3a4a7a, 2.2));
-    const sun = new THREE.DirectionalLight(0xfff2dc, 2.4);
-    sun.position.set(-3, 6, 5);
-    scene.add(sun);
-    const floor = new THREE.Mesh(new THREE.CircleGeometry(1, 40), new THREE.MeshBasicMaterial({ color: 0x0a1035, transparent: true, opacity: 0.35 }));
-    floor.rotation.x = -Math.PI / 2;
-    floor.scale.setScalar(0.62);
-    scene.add(floor);
-    this.scene = scene;
-    this.camera = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
-    this.camera.position.set(...STAGE_CAM);
-    this.camera.lookAt(...STAGE_LOOK);
+  private setupStage(host: HTMLElement): void {
+    const st = heroStage();
+    const canvas = st.renderer.domElement;
+    host.prepend(canvas);
+    this.renderer = st.renderer;
+    this.scene = st.scene;
+    this.camera = st.camera;
     this.last = performance.now();
     const loop = (now: number) => {
       this.raf = requestAnimationFrame(loop);
@@ -277,6 +322,8 @@ export class HeroesUI {
       this.draw();
     };
     this.raf = requestAnimationFrame(loop);
+    if (st.bound) return; // the canvas keeps its listeners between opens
+    st.bound = true;
 
     // Drag left/right to turn the hero by hand; let go and it carries on spinning.
     canvas.addEventListener('pointerdown', (e) => {
@@ -342,7 +389,9 @@ export class HeroesUI {
 
   private async loadModelOnStage(id: string): Promise<void> {
     this.shown = id;
-    const built = await this.build(id);
+    const kept = shelf && shelf.key === modelKey(this.sim, id) ? shelf : null;
+    if (kept) shelf = null;
+    const built = kept ?? await this.build(id);
     if (!built || !this.scene || this.shown !== id) return;
     if (this.model) this.scene.remove(this.model);
     this.mixer?.stopAllAction();

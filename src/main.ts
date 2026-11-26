@@ -14,6 +14,7 @@ import { Hud } from './ui/hud';
 import { Input } from './ui/input';
 import { zoneArea, zoneName } from './sim/zones';
 import { areaMonsterModels, preloadArea } from './render/world3d';
+import { warmHeroStage } from './ui/heroes';
 import { loadingDone, loadingFailed, loadingPaint, loadingStep } from './ui/loading';
 import { chooseStarter } from './ui/starter';
 import { installCursors } from './ui/cursor';
@@ -175,6 +176,7 @@ async function boot() {
   loadingStep(0.93, 'Drawing the map…');
   await loadingPaint();
   hud.worldMap.warm();
+  await Promise.race([warmHeroStage(sim).catch(() => {}), new Promise((r) => setTimeout(r, 1500))]); // the Heroes screen's 3D stage
   if (sim.save.sound) sfx.prepare(); // audio set up now; the first tap only switches it on
   // The battlefield also changes size without a window resize (hiding/showing the menu).
   // Redraw at once: a resized canvas is blank until its next frame, which would flicker
@@ -234,7 +236,7 @@ async function boot() {
   });
   window.addEventListener('pagehide', save);
   // The hero choice sits under the loading screen, which fades away to reveal it.
-  if (firstRun) void chooseStarter(sim).then(() => { choosing = false; save(); });
+  if (firstRun) void chooseStarter(sim).then(() => { choosing = false; save(); void warmHeroStage(sim).catch(() => {}); });
   loadingDone();
 
   if (import.meta.env.DEV) {
