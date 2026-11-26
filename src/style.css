@@ -1749,3 +1749,8 @@ html.pc .st-hero.left:hover, html.pc .st-hero.right:hover { filter: grayscale(0.
   .st-style { font-size: 12px; }
   .st-wpn { padding: 3px 8px; }
 }
+
+/* PC: the currency pills a touch bigger (icons and numbers together); the side buttons below
+   take what's left of the column, so they still fit above the minimap. */
+html.pc .purse > .gold, html.pc .purse > .shards, html.pc .purse > .embers, html.pc .purse > .gems { zoom: 1.18; }
+html.pc .purse { gap: 5px; }
