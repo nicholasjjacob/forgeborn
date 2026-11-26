@@ -7,7 +7,7 @@ import { PLAYABLE_ZONES, zoneBossName, zoneLevel, zoneStage } from './zones';
 
 /**
  * Region quests (the Quest Book): every region of the Greenwood has its own quest ladder that
- * never rerolls: hunt each of its three monsters, slay its elites, defeat its boss and explore it.
+ * never rerolls: hunt each of its two monsters, slay its elites, defeat its boss and explore it.
  * Each quest has three tiers; every tier claimed earns a star (and gold and shards). Stars add up
  * to region milestones: gems, and on mastering a region (every star) a permanent damage and gold
  * bonus. Progress is lifetime (kept through Reforge), so outgrown regions are worth revisiting.
@@ -16,7 +16,7 @@ import { PLAYABLE_ZONES, zoneBossName, zoneLevel, zoneStage } from './zones';
 
 /** Lifetime progress in one region (zone). */
 export interface RegionProgress {
-  /** Kills of each of the region's three monsters (in REGION_MONSTERS order). */
+  /** Kills of each of the region's two monsters (in REGION_MONSTERS order). */
   hunt: number[];
   elites: number;
   bosses: number;
@@ -29,7 +29,7 @@ export interface RegionProgress {
 export type RegionQuestKind = 'hunt' | 'elites' | 'boss' | 'explore';
 export interface RegionQuest {
   kind: RegionQuestKind;
-  /** For 'hunt': which of the region's monsters (0-2). */
+  /** For 'hunt': which of the region's monsters (0-1). */
   slot: number;
   name: string;
   /** Goal text with {n} for the tier's target. */
@@ -47,7 +47,7 @@ const BOSS_TIERS = [1, 5, 15];
 /** Percent of the region's land seen. Not 100: rocks and ponds hide a few corners. */
 const EXPLORE_TIERS = [40, 70, 85];
 
-export const QUESTS_PER_REGION = 6;
+export const QUESTS_PER_REGION = 5;
 export const STARS_PER_REGION = QUESTS_PER_REGION * 3;
 
 const questCache = new Map<number, RegionQuest[]>();
@@ -86,11 +86,39 @@ export function questGoal(q: RegionQuest, tier: number): string {
 }
 
 export function freshRegion(): RegionProgress {
-  return { hunt: [0, 0, 0], elites: 0, bosses: 0, claimed: new Array(QUESTS_PER_REGION).fill(0), milestones: 0 };
+  return { hunt: [0, 0], elites: 0, bosses: 0, claimed: new Array(QUESTS_PER_REGION).fill(0), milestones: 0 };
 }
 
 export function freshRegions(): RegionProgress[] {
   return Array.from({ length: PLAYABLE_ZONES }, freshRegion);
+}
+
+/** Each region's three monsters before v10 (when monsters were shared between regions), by biome. */
+const OLD_REGION_MONSTERS: [number, number][][] = [
+  [[0, 0], [0, 1], [0, 2]], [[2, 2], [2, 1], [2, 0]], [[1, 0], [1, 2], [1, 1]], [[4, 2], [0, 0], [1, 2]], [[5, 0], [5, 2], [2, 1]],
+  [[4, 0], [4, 1], [4, 2]], [[5, 1], [3, 2], [0, 2]], [[3, 1], [3, 0], [5, 2]], [[1, 1], [4, 1], [1, 0]],
+];
+
+/**
+ * v9 → v10: regions went from three shared monsters (six quests) to two of their own (five).
+ * A hunt carries over (kills and stars) where its monster still lives in that region; the
+ * elites, boss and explore quests move up to their new places.
+ */
+export function regionsFromV9(raw: unknown): unknown {
+  if (!Array.isArray(raw)) return raw;
+  return raw.map((r: Partial<RegionProgress> | null, zone) => {
+    const b = zoneBiome(zone);
+    if (!r || typeof r !== 'object' || b < 0) return r;
+    const hunt = [0, 0], claimed = [0, 0, 0, 0, 0];
+    OLD_REGION_MONSTERS[b].forEach(([a, s], i) => {
+      const j = REGION_MONSTERS[b].findIndex(([na, ns]) => na === a && ns === s);
+      if (j < 0) return;
+      hunt[j] = r.hunt?.[i] ?? 0;
+      claimed[j] = r.claimed?.[i] ?? 0;
+    });
+    for (let q = 0; q < 3; q++) claimed[2 + q] = r.claimed?.[3 + q] ?? 0;
+    return { ...r, hunt, claimed };
+  });
 }
 
 /** Repair saved region progress (missing, short or corrupt entries). */
@@ -109,7 +137,7 @@ export function cleanRegions(raw: unknown): RegionProgress[] {
   });
 }
 
-/** Which of a region's monsters (0-2) an enemy is, or -1. */
+/** Which of a region's monsters (0-1) an enemy is, or -1. */
 export function huntSlot(zone: number, area: number, monster: number): number {
   const b = zoneBiome(zone);
   if (b < 0) return -1;
@@ -182,8 +210,8 @@ export interface Milestone {
 
 /** Star thresholds for each region's milestones (the last is mastering the region). */
 export const MILESTONES: readonly { stars: number; gems: number; mastery?: boolean }[] = [
-  { stars: 6, gems: 15 },
-  { stars: 12, gems: 30 },
+  { stars: 5, gems: 15 },
+  { stars: 10, gems: 30 },
   { stars: STARS_PER_REGION, gems: 60, mastery: true },
 ];
 

@@ -1725,10 +1725,11 @@ html.pc #panel { width: clamp(340px, min(42vw, calc(50vw - 165px)), 520px); max-
   #quests-root .ach .bar.thin { grid-column: 1 / -1; grid-row: 3; height: clamp(5px, 7.5cqh, 10px); }
 }
 
-/* ...and the six region quests as a 2x3 grid of cards: name and stars, goal, bar, then the
+/* ...and the region quests as a two-column grid of cards: name and stars, goal, bar, then the
    reward (or Claim) along the bottom. */
 @container qbp (max-height: 470px) and (min-width: 400px) {
   .qb-quests { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); gap: 6px; }
+  .qb-quests > .rq:last-child:nth-child(odd) { grid-column: 1 / -1; } /* an odd last quest spans the row */
   .rq { flex-direction: column; align-items: stretch; justify-content: center; gap: clamp(1px, 3cqh, 4px); padding: clamp(3px, 6cqh, 8px) 10px; }
   .rq-main { gap: clamp(1px, 3cqh, 3px); }
   .rq-name { font-size: clamp(11px, 17cqh, 15px); }

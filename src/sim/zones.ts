@@ -84,14 +84,14 @@ export const isTerrainBossZone = (zone: number) => zoneIndex(zone) === zonesIn(z
  */
 const REGION_BOSSES: readonly { pick: number; name: string }[] = [
   { pick: 0, name: 'Big Mossy' },           // Meadow Outskirts: Moss Blob
-  { pick: 1, name: 'Goldhorn' },            // Goldenrod Fields: Dune Dino
-  { pick: 2, name: 'Gloomglub' },           // Mistwater Glade: Bog Glub
+  { pick: 0, name: 'Goldhorn' },            // Goldenrod Fields: Dune Dino
+  { pick: 0, name: 'Gloomglub' },           // Mistwater Glade: Bog Glub
   { pick: 0, name: 'Warchief Cinderjaw' },  // Emberleaf Woods: Cinder Orc
-  { pick: 2, name: 'Queen Thornbuzz' },     // Bloomwood Groves: Mire Bee
+  { pick: 0, name: 'Queen Thornbuzz' },     // Bloomwood Groves: Mire Bee
   { pick: 0, name: 'Old Rimeback' },        // Tidepine Thicket: Frost Yeti
   { pick: 0, name: 'Hollowshade' },         // Crimson Hollow: Cave Ghost
   { pick: 0, name: 'Gristlegrind' },        // Old Mill Crossing: Bone Brute
-  { pick: 1, name: 'Deepcoil' },            // Emerald Mere: Ice Squid
+  { pick: 0, name: 'Deepcoil' },            // Emerald Mere: Ice Squid
 ];
 
 /**

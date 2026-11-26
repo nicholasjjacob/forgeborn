@@ -5,7 +5,7 @@ import { FORMS, INVENTORY_SIZE, INVENTORY_STEP, MAX_INVENTORY, starterWeapon, up
 import { RETIRED, SKINS, canWield, skinDef } from '../sim/skins';
 import { freshPerks, freshStats } from '../sim/meta';
 import { freshMissions } from '../sim/missions';
-import { cleanRegions } from '../sim/regionQuests';
+import { cleanRegions, regionsFromV9 } from '../sim/regionQuests';
 import { cleanMastery } from '../sim/mastery';
 
 const KEY = 'forgeborn.save';
@@ -131,7 +131,7 @@ export function migrate(input: unknown): SaveData {
   const base = freshSave();
   if (!input || typeof input !== 'object') return base;
   const data = { ...(input as Record<string, unknown>) } as Omit<Partial<SaveData>, 'v'> & { v?: number };
-  if (data.v !== 1 && data.v !== 2 && data.v !== 3 && data.v !== 4 && data.v !== 5 && data.v !== 6 && data.v !== 7 && data.v !== 8 && data.v !== 9) return base;
+  if (data.v !== 1 && data.v !== 2 && data.v !== 3 && data.v !== 4 && data.v !== 5 && data.v !== 6 && data.v !== 7 && data.v !== 8 && data.v !== 9 && data.v !== 10) return base;
   const oldVersion = data.v;
 
   // v1 → v2: forge added (shards, forge level, inventory, starter weapon).
@@ -141,12 +141,13 @@ export function migrate(input: unknown): SaveData {
   // v5 → v6: world map zones (see below).
   // v6 → v7: heroes are classes with class-locked weapons (see below).
   // v7 → v8: each hero has their own run (see below).
+  // v9 → v10: every region has two monsters of its own (Quest Book hunts remapped, see regionsFromV9).
   // v8 → v9: every region has a named boss with its own Codex entry; the Necromancer is the world boss (see below).
   // All additions are filled from defaults by the merge below.
   const fm = freshMissions();
   const dm = (data.missions ?? {}) as Partial<typeof fm>;
   const save = {
-    ...base, ...data, v: 9,
+    ...base, ...data, v: 10,
     missions: {
       ...fm, ...dm,
       attendance: { ...fm.attendance, ...dm.attendance },
@@ -161,7 +162,7 @@ export function migrate(input: unknown): SaveData {
     perks: { ...freshPerks(), ...data.perks },
     stats: { ...freshStats(), ...data.stats },
     achievements: { ...data.achievements },
-    regions: cleanRegions((data as { regions?: unknown }).regions),
+    regions: cleanRegions(oldVersion < 10 ? regionsFromV9((data as { regions?: unknown }).regions) : (data as { regions?: unknown }).regions),
     levelClaimed: Array.isArray(data.levelClaimed) ? data.levelClaimed : [],
   } as SaveData;
   delete (save as { quests?: unknown }).quests; // the old rolling quests (now region quests)

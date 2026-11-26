@@ -13,7 +13,7 @@ describe('region and world bosses', () => {
     for (let z = 0; z < PLAYABLE_ZONES; z++) {
       const b = zoneBoss(z);
       expect(b.slot).toBeLessThan(3); // a giant regular monster, never a terrain boss
-      expect(codexEntries(z).slice(0, 3)).toContainEqual([b.area, b.slot]); // one of the region's own
+      expect(codexEntries(z).slice(0, 2)).toContainEqual([b.area, b.slot]); // one of the region's own
       const name = zoneBossName(z);
       expect(name).not.toMatch(/Champion|^The /);
       names.add(name);
@@ -63,10 +63,13 @@ describe('region and world bosses', () => {
 });
 
 describe('codex by region', () => {
-  it('shows only regions reached, each with its three monsters and its boss', () => {
+  it('shows only regions reached, each with its two monsters and its boss', () => {
     const sim = new Sim(freshSave(), 3);
     expect(sim.missions.codexPages()).toEqual([0]);
-    expect(codexEntries(0)).toHaveLength(4);
+    expect(codexEntries(0)).toHaveLength(3);
+    // Killing a Meadow monster doesn't reveal any other region's page (no monster is shared).
+    sim.missions.recordKill(0, 0);
+    expect(sim.missions.codexPages()).toEqual([0]);
     expect(codexEntry(regionBossKey(1), 3).name).toBe(zoneBossName(1));
     const save = freshSave();
     save.zoneBest = 2;

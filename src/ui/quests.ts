@@ -3,7 +3,7 @@ import { sfx } from '../audio/sfx';
 import { ACHIEVEMENTS, ACH_BONUS_PER_TIER, ROMAN, achGoal } from '../sim/meta';
 import { BIOMES, zoneBiome } from '../sim/forest';
 import {
-  MASTERY_BONUS, MILESTONES, STARS_PER_REGION, masteredRegions, milestoneReward, questGoal, regionLockText, regionName,
+  MASTERY_BONUS, MILESTONES, QUESTS_PER_REGION, STARS_PER_REGION, masteredRegions, milestoneReward, questGoal, regionLockText, regionName,
   regionQuests, regionStars, tierReward,
 } from '../sim/regionQuests';
 import { PLAYABLE_ZONES, zoneLevel } from '../sim/zones';
@@ -100,9 +100,9 @@ export class QuestPanel {
       this.miles.push({ root: c, need: c.querySelector('.qbm-need')!, reward: c.querySelector('.qbm-reward')!, btn });
     }
 
-    // The region's six quests.
+    // The region's quests.
     const ql = root.querySelector('.qb-quests')!;
-    for (let qi = 0; qi < 6; qi++) {
+    for (let qi = 0; qi < QUESTS_PER_REGION; qi++) {
       const li = document.createElement('li');
       li.className = 'rq';
       li.innerHTML = `

@@ -227,37 +227,38 @@ const LMK: Landmark[] = LANDMARKS.map(([b, name, dx, dy, style]) => {
 const L = (name: string) => LMK.find((l) => l.name === name)!;
 
 /**
- * Each region's own three monsters, borrowed from every terrain's roster: [terrain, slot].
+ * Each region's own two monsters, borrowed from every terrain's roster: [terrain, slot]. No monster
+ * lives in two regions (all 18 are used once); the first is the one its region boss is a giant of.
  * Terrains: 0 Greenwood, 1 Mirewood, 2 Sunscar, 3 Hollow Deep, 4 Frostveil, 5 Emberforge.
  */
 export const REGION_MONSTERS: [number, number][][] = [
-  [[0, 0], [0, 1], [0, 2]], // Meadow Outskirts: Moss Blob, Meadow Pigeon, Mushnub
-  [[2, 2], [2, 1], [2, 0]], // Goldenrod Fields: Sand Alpaca, Dune Dino, Cactling
-  [[1, 0], [1, 2], [1, 1]], // Mistwater Glade: Spiky Blob, Mire Bee, Bog Glub
-  [[4, 2], [0, 0], [1, 2]], // Bloomwood Groves: Snow Sprite, Moss Blob, Mire Bee
-  [[5, 0], [5, 2], [2, 1]], // Emberleaf Woods: Cinder Orc, Ember Demon, Dune Dino
-  [[4, 0], [4, 1], [4, 2]], // Tidepine Thicket: Frost Yeti, Ice Squid, Snow Sprite
-  [[5, 1], [3, 2], [0, 2]], // Old Mill Crossing: Bone Brute, Golemite, Mushnub
-  [[3, 1], [3, 0], [5, 2]], // Crimson Hollow: Cave Ghost, Cave Alien, Ember Demon
-  [[1, 1], [4, 1], [1, 0]], // Emerald Mere: Bog Glub, Ice Squid, Spiky Blob
+  [[0, 0], [0, 1]], // Meadow Outskirts: Moss Blob, Meadow Pigeon
+  [[2, 1], [2, 0]], // Goldenrod Fields: Dune Dino, Cactling
+  [[1, 1], [1, 0]], // Mistwater Glade: Bog Glub, Spiky Blob
+  [[1, 2], [0, 2]], // Bloomwood Groves: Mire Bee, Mushnub
+  [[5, 0], [5, 2]], // Emberleaf Woods: Cinder Orc, Ember Demon
+  [[4, 0], [4, 2]], // Tidepine Thicket: Frost Yeti, Snow Sprite
+  [[5, 1], [3, 2]], // Old Mill Crossing: Bone Brute, Golemite
+  [[3, 1], [3, 0]], // Crimson Hollow: Cave Ghost, Cave Alien
+  [[4, 1], [2, 2]], // Emerald Mere: Ice Squid, Sand Alpaca
 ];
 /** Every monster model the forest's regions use (to preload). */
 export const FOREST_MONSTERS: string[] = [...new Set(REGION_MONSTERS.flat().map(([a, s]) => `m${a}_${s}`))];
 
-/** [landmark, which of the region's monsters (0-2), dx, dy, radius, count, horde] (the haunt sits off its landmark). */
+/** [landmark, which of the region's monsters (0-1), dx, dy, radius, count, horde] (the haunt sits off its landmark). */
 const HAUNTS: [string, number, number, number, number, number, boolean?][] = [
   // Meadow tier
-  ['Mossy Boulders', 0, 40, 30, 140, 6], ['Standing Stones', 1, 110, -90, 120, 5], ['Great Oak', 2, 0, 60, 110, 4], ['Old Watchtree', 0, -60, 40, 110, 4],
-  ['Sunflower Steps', 1, -40, -90, 150, 6], ['Harvest Stones', 2, -80, 60, 130, 5], ['Golden Barrow', 0, 80, -60, 210, 15, true],
-  ['Heron Stones', 1, 90, 80, 120, 6], ['Drowned Oak', 0, 80, -40, 130, 6], ['Mossy Ford', 2, -70, -40, 200, 14, true],
+  ['Mossy Boulders', 0, 40, 30, 140, 6], ['Standing Stones', 1, 110, -90, 120, 5], ['Great Oak', 1, 0, 60, 110, 4], ['Old Watchtree', 0, -60, 40, 110, 4],
+  ['Sunflower Steps', 1, -40, -90, 150, 6], ['Harvest Stones', 1, -80, 60, 130, 5], ['Golden Barrow', 0, 80, -60, 210, 15, true],
+  ['Heron Stones', 1, 90, 80, 120, 6], ['Drowned Oak', 0, 80, -40, 130, 6], ['Mossy Ford', 1, -70, -40, 200, 14, true],
   // Bloomwood tier
-  ['Fairy Ring', 2, 60, -40, 140, 7], ['Twin Spires', 1, 110, -110, 120, 7], ['Petal Falls', 0, 60, 80, 210, 16, true],
-  ['Bramble Hollow', 0, 40, 60, 130, 7], ['Ember Stump', 2, -60, -70, 130, 7], ['Fox Den', 1, 80, -60, 210, 16, true],
-  ['Tidepine Spire', 1, -80, 70, 130, 7], ['Driftwood Hollow', 2, 70, -50, 140, 7], ['Blue Cairn', 0, -80, -60, 120, 6],
+  ['Fairy Ring', 1, 60, -40, 140, 7], ['Twin Spires', 1, 110, -110, 120, 7], ['Petal Falls', 0, 60, 80, 210, 16, true],
+  ['Bramble Hollow', 1, 40, 60, 130, 7], ['Ember Stump', 1, -60, -70, 130, 7], ['Fox Den', 0, 80, -60, 210, 16, true],
+  ['Tidepine Spire', 0, -80, 70, 130, 7], ['Driftwood Hollow', 1, 70, -50, 140, 7], ['Blue Cairn', 1, -80, -60, 120, 6],
   // Old Mill tier
-  ['Old Well', 0, 70, -50, 130, 7], ['Wayfarer Cairn', 1, 100, -100, 120, 7], ['Hollow Stump', 2, 60, 60, 140, 8],
-  ['Bloodroot Altar', 2, -70, 70, 220, 18, true], ['Crimson Spires', 1, 90, -70, 130, 8], ['Raven Stump', 0, -80, -60, 130, 8],
-  ['Sunken Shrine', 1, 90, 70, 140, 8], ['Heron Isle', 2, -90, 80, 130, 8], ['Mossback Barrow', 0, 90, -70, 220, 18, true],
+  ['Old Well', 1, 70, -50, 130, 7], ['Wayfarer Cairn', 0, 100, -100, 120, 7], ['Hollow Stump', 1, 60, 60, 140, 8],
+  ['Bloodroot Altar', 1, -70, 70, 220, 18, true], ['Crimson Spires', 0, 90, -70, 130, 8], ['Raven Stump', 0, -80, -60, 130, 8],
+  ['Sunken Shrine', 0, 90, 70, 140, 8], ['Heron Isle', 0, -90, 80, 130, 8], ['Mossback Barrow', 1, 90, -70, 220, 18, true],
 ];
 
 /** The forest is crowded: every haunt holds about twice its listed pack (hordes nearly so). */

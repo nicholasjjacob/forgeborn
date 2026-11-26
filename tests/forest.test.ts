@@ -73,12 +73,15 @@ describe('forest borders', () => {
 });
 
 describe('forest monsters', () => {
-  it('every region has its own three monsters, and its haunts use them', () => {
-    const sets = REGION_MONSTERS.map((r) => r.map(([a, s]) => `${a}.${s}`).sort().join(','));
-    expect(REGION_MONSTERS.every((r) => r.length === 3)).toBe(true);
-    expect(new Set(sets).size).toBe(9); // no two regions share the same trio
+  it('every region has two monsters of its own (none shared), each with a haunt there', () => {
+    expect(REGION_MONSTERS.every((r) => r.length === 2)).toBe(true);
+    const all = REGION_MONSTERS.flat().map(([a, s]) => `${a}.${s}`);
+    expect(new Set(all).size).toBe(all.length); // no monster lives in two regions
     for (const t of FOREST.territories) {
       expect(REGION_MONSTERS[t.biome].some(([a, s]) => a === t.area && s === t.monster), t.landmark).toBe(true);
     }
+    REGION_MONSTERS.forEach((r, b) => r.forEach(([a, s]) => {
+      expect(FOREST.territories.some((t) => t.biome === b && t.area === a && t.monster === s), `${b}: ${a}.${s}`).toBe(true);
+    }));
   });
 });

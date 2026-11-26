@@ -11,7 +11,7 @@ import { Explored } from '../src/sim/explore';
 const tickN = (sim: Sim, n: number) => { for (let i = 0; i < n; i++) { sim.tick(); sim.events.clear(); } };
 
 describe('region quests', () => {
-  it('every region has its own six quests, hunting its own three monsters', () => {
+  it('every region has its own five quests, hunting its own two monsters', () => {
     for (let z = 0; z < PLAYABLE_ZONES; z++) {
       const qs = regionQuests(z);
       expect(qs.length).toBe(QUESTS_PER_REGION);
@@ -53,7 +53,7 @@ describe('region quests', () => {
     expect(sim.canClaimRegionMilestone(0, 0)).toBe(false);
 
     // Every quest maxed: all milestones in order, and mastery raises damage.
-    r.hunt = [1e4, 1e4, 1e4]; r.elites = 1e3; r.bosses = 1e3;
+    r.hunt = [1e4, 1e4]; r.elites = 1e3; r.bosses = 1e3;
     sim.explored = new Explored(sim.map.w, sim.map.h);
     for (let y = 0; y < sim.map.h; y += 100) for (let x = 0; x < sim.map.w; x += 100) sim.explored.reveal(x, y, 200);
     expect(sim.explorePercents()[0]).toBe(100);
@@ -92,5 +92,16 @@ describe('region quests', () => {
     expect(m.regions.length).toBe(PLAYABLE_ZONES);
     expect('quests' in m).toBe(false);
     expect(explorePercents(null).every((p) => p === 0)).toBe(true);
+  });
+
+  it('v9 saves: hunts follow their monster to its new place; other quests move up', () => {
+    const old = freshSave() as unknown as Record<string, unknown>;
+    old.v = 9;
+    // Goldenrod (zone 1) used to hunt Sand Alpaca, Dune Dino, Cactling; now Dune Dino, Cactling.
+    (old.regions as unknown[])[1] = { hunt: [5, 60, 70], elites: 4, bosses: 2, claimed: [1, 1, 2, 3, 1, 2], milestones: 1 };
+    const s = migrate(old);
+    expect(s.regions[1].hunt).toEqual([60, 70]);
+    expect(s.regions[1].claimed).toEqual([1, 2, 3, 1, 2]);
+    expect(s.regions[1].milestones).toBe(1);
   });
 });

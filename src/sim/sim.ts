@@ -78,7 +78,7 @@ export type BuyMode = 1 | 10 | 'max';
 
 /** Everything that persists between sessions. Kept flat and JSON-friendly. */
 export interface SaveData {
-  v: 9;
+  v: 10;
   stage: number;
   highestStage: number;
   gold: number;
@@ -147,7 +147,7 @@ export interface SaveData {
 
 export function freshSave(): SaveData {
   return {
-    v: 9, stage: 1, highestStage: 1, gold: 0, kills: 0, farming: false,
+    v: 10, stage: 1, highestStage: 1, gold: 0, kills: 0, farming: false,
     upgrades: { atk: 0, hp: 0, aspd: 0, crit: 0, gold: 0 },
     buyMode: 1, fps: 60, auto: true, sound: true, quality: 'high', minimap: 'circle',
     shards: 0, forgeLevel: 1, weapons: Array(INVENTORY_SIZE).fill(null), equipped: starterWeapon(), runs: {}, mastery: {}, nextWeaponId: 2,
