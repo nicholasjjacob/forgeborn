@@ -219,14 +219,11 @@ async function boot() {
       steps++;
     }
     if (steps === MAX_STEPS_PER_FRAME) acc = 0;
-    // A menu open over the game (Map, Missions, Codex, Bag, Heroes, ...): the world, its overlay
-    // and the minimap aren't drawn underneath it (they're dimmed out of sight anyway).
-    const covered = document.querySelector('.modal:not([hidden])') !== null;
-    scene.update(acc / TICK, dt, covered);
+    scene.update(acc / TICK, dt);
 
     hudT += dt;
     if (hudT >= HUD_INTERVAL) { hudT = 0; hud!.refresh(); }
-    if (!covered) hud!.frame(acc / TICK);
+    hud!.frame(acc / TICK);
     saveT += dt;
     if (saveT >= AUTOSAVE_INTERVAL) { saveT = 0; save(); sim.missions.update(new Date()); }
   });

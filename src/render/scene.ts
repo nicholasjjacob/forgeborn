@@ -72,7 +72,7 @@ export class Scene {
   get low(): boolean { return this.lowQ; }
   set low(v: boolean) { this.lowQ = v; this.world3d.setLow(v); }
 
-  constructor(private readonly app: Application, private readonly sim: Sim, art: Art, private readonly hooks: SceneHooks = {}) {
+  constructor(app: Application, private readonly sim: Sim, art: Art, private readonly hooks: SceneHooks = {}) {
     this.world3d = new World3D(app.canvas.parentElement ?? document.body);
     const bar = (w: number, h: number, color: number) => {
       const s = new Sprite(art.pixel);
@@ -170,13 +170,8 @@ export class Scene {
     c.position.set(this.pt.x / s, this.pt.y / s);
   }
 
-  /**
-   * Render one frame. `alpha` is the interpolation factor between the last two sim ticks.
-   * `covered`: a menu covers the screen (the world dimmed to near-black under it): the world and
-   * its overlay aren't drawn at all (the last frame stays up), leaving the frame to the menu.
-   * Events still play (sounds, toasts) and effects still run their course.
-   */
-  update(alpha: number, dt: number, covered = false): void {
+  /** Render one frame. `alpha` is the interpolation factor between the last two sim ticks. */
+  update(alpha: number, dt: number): void {
     this.t += dt;
     this.frameDt = dt;
     const sim = this.sim;
@@ -186,12 +181,6 @@ export class Scene {
       this.hadMap = true;
     }
     this.drainEvents();
-    this.app.stage.visible = !covered;
-    if (covered) {
-      this.fx.update(dt);
-      w3.updateFx(dt);
-      return;
-    }
 
     const h = sim.hero;
     const hx = h.prevX + (h.x - h.prevX) * alpha;
