@@ -47,7 +47,7 @@ export const UPGRADES: Record<UpgradeId, UpgradeDef> = {
     show: (v) => v.toFixed(2) + '/s', color: 0x29b6f6,
   },
   crit: {
-    id: 'crit', name: 'Precision', baseCost: 60, growth: 1.5, maxLevel: 45,
+    id: 'crit', name: 'Crit Chance', baseCost: 60, growth: 1.5, maxLevel: 45,
     value: (l) => 0.05 + 0.01 * l,
     show: pct, color: 0xffca28,
   },
