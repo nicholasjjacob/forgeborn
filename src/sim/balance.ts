@@ -52,7 +52,7 @@ export const UPGRADES: Record<UpgradeId, UpgradeDef> = {
     show: pct, color: 0xffca28,
   },
   gold: {
-    id: 'gold', name: 'Greed', baseCost: 50, growth: 1.3, maxLevel: Infinity,
+    id: 'gold', name: 'Gold Bonus', baseCost: 50, growth: 1.3, maxLevel: Infinity,
     value: (l) => 1 + 0.12 * l,
     show: (v) => 'x' + v.toFixed(2), color: 0xffb300,
   },

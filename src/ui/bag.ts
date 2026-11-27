@@ -31,7 +31,7 @@ const ITEMS: { title: string; items: ItemDef[] }[] = [
     items: [
       { id: 'gold', name: 'Gold', icon: '<i class="coin"></i>', amount: (s) => s.save.gold,
         about: 'Buys upgrades, forge levels and weapon slots.',
-        source: 'Every monster drops gold. Greed and Fortune raise it.' },
+        source: 'Every monster drops gold. Gold Bonus and Fortune raise it.' },
       { id: 'shards', name: 'Shards', icon: '<i class="gem"></i>', amount: (s) => s.save.shards,
         about: 'Forge new weapons. Each forge level makes better weapons but costs more shards.',
         source: 'Monsters sometimes drop them; elites and bosses always do. Salvage spare weapons for a few back.' },
