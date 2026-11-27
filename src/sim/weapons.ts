@@ -86,7 +86,7 @@ const pctStr = (v: number) => `${(v * 100).toFixed(v < 0.1 ? 1 : 0)}%`;
 export const TRAITS: Record<TraitId, TraitDef> = {
   crit:      { name: 'Crit chance',   base: 0.03, cap: 0.15, show: (v) => `+${pctStr(v)} crit chance` },
   critDmg:   { name: 'Crit damage',   base: 0.25, cap: 2.0,  show: (v) => `+${pctStr(v)} crit damage` },
-  speed:     { name: 'Swing speed',   base: 0.06, cap: 0.3,  show: (v) => `+${pctStr(v)} swing speed` },
+  speed:     { name: 'Attack speed',  base: 0.06, cap: 0.3,  show: (v) => `+${pctStr(v)} attack speed` },
   lifesteal: { name: 'Lifesteal',     base: 0.03, cap: 0.12, show: (v) => `${pctStr(v)} lifesteal` },
   gold:      { name: 'Gold find',     base: 0.10, cap: 1.0,  show: (v) => `+${pctStr(v)} gold` },
   shock:     { name: 'Chain shock',   base: 0.05, cap: 0.25, show: (v) => `${pctStr(v)} chance to chain shock` },

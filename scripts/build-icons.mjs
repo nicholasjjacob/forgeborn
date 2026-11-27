@@ -11,7 +11,7 @@ const NAMES = [
   // side buttons and top bar
   'treasure-map', 'checklist', 'present', 'spell-book', 'knapsack', 'cog',
   // upgrades and perks
-  'crossed-swords', 'hearts', 'sprint', 'bullseye', 'two-coins', 'broadsword', 'crystal-cluster',
+  'crossed-swords', 'hearts', 'sprint', 'lightning-slashes', 'bullseye', 'two-coins', 'broadsword', 'crystal-cluster',
   'anvil-impact', 'fast-forward-button', 'night-sleep',
   // status marks
   'padlock', 'locked-chest', 'open-chest', 'check-mark', 'position-marker', 'skull-crossed-bones', 'crown', 'compass',

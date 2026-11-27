@@ -42,7 +42,7 @@ export const UPGRADES: Record<UpgradeId, UpgradeDef> = {
     show: fmt, color: 0x4caf50,
   },
   aspd: {
-    id: 'aspd', name: 'Swing Speed', baseCost: 40, growth: 1.45, maxLevel: 40,
+    id: 'aspd', name: 'Attack Speed', baseCost: 40, growth: 1.45, maxLevel: 40,
     value: (l) => 1.2 * (1 + 0.05 * l),
     show: (v) => v.toFixed(2) + '/s', color: 0x29b6f6,
   },

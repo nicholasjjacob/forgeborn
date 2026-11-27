@@ -23,7 +23,7 @@ const PAGE_TITLE: Record<Tab, string> = { upgrades: 'Upgrades', forge: 'Forge', 
 const DOCK_ICONS: [string, string, 'white' | 'gold' | 'grey' | 'green'][] = [['up', 'sprint', 'green'], ['anvil', 'anvil-impact', 'grey'], ['scroll', 'checklist', 'gold']];
 
 const ICONS: Record<UpgradeId, string> = {
-  atk: gi('crossed-swords'), hp: gi('hearts'), aspd: gi('sprint'), crit: gi('bullseye'), gold: gi('two-coins'),
+  atk: gi('crossed-swords'), hp: gi('hearts'), aspd: gi('lightning-slashes'), crit: gi('bullseye'), gold: gi('two-coins'),
 };
 /** Side column and top bar icons (the HTML ships emoji placeholders; these replace them). */
 const SIDE_ICONS: [string, string, Parameters<typeof gi>[1]][] = [
