@@ -72,7 +72,7 @@ export class Scene {
   get low(): boolean { return this.lowQ; }
   set low(v: boolean) { this.lowQ = v; this.world3d.setLow(v); }
 
-  constructor(app: Application, private readonly sim: Sim, art: Art, private readonly hooks: SceneHooks = {}) {
+  constructor(private readonly app: Application, private readonly sim: Sim, art: Art, private readonly hooks: SceneHooks = {}) {
     this.world3d = new World3D(app.canvas.parentElement ?? document.body);
     const bar = (w: number, h: number, color: number) => {
       const s = new Sprite(art.pixel);
@@ -170,8 +170,13 @@ export class Scene {
     c.position.set(this.pt.x / s, this.pt.y / s);
   }
 
-  /** Render one frame. `alpha` is the interpolation factor between the last two sim ticks. */
-  update(alpha: number, dt: number): void {
+  /**
+   * Render one frame. `alpha` is the interpolation factor between the last two sim ticks.
+   * `covered`: a menu covers the screen (the world dimmed to near-black under it): the world and
+   * its overlay aren't drawn at all (the last frame stays up), leaving the frame to the menu.
+   * Events still play (sounds, toasts) and effects still run their course.
+   */
+  update(alpha: number, dt: number, covered = false): void {
     this.t += dt;
     this.frameDt = dt;
     const sim = this.sim;
@@ -181,6 +186,12 @@ export class Scene {
       this.hadMap = true;
     }
     this.drainEvents();
+    this.app.stage.visible = !covered;
+    if (covered) {
+      this.fx.update(dt);
+      w3.updateFx(dt);
+      return;
+    }
 
     const h = sim.hero;
     const hx = h.prevX + (h.x - h.prevX) * alpha;
@@ -243,12 +254,8 @@ export class Scene {
     this.fade.visible = this.fadeT > 0;
 
     this.fx.update(dt);
-    // Behind an open screen (the world dimmed to near-black under it) the 3D world is drawn at a
-    // third of the rate, leaving the frame time to the screen itself (Codex portraits, Heroes stage).
-    const covered = document.querySelector('.modal:not([hidden])') !== null;
-    if (!covered || ++this.coveredFrames % 3 === 0) w3.render();
+    w3.render();
   }
-  private coveredFrames = 0;
 
   private drawEnemy(e: Enemy, v: EnemyView, x: number, y: number, top: number): void {
     const spawnK = e.spawnT > 0 ? 1 - e.spawnT / 0.35 : 1;
